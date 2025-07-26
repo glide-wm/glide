@@ -3,14 +3,17 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glide_wm::actor::layout::LayoutManager;
-use glide_wm::actor::mouse::{self, Mouse};
+use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
 use glide_wm::actor::reactor::{self, Reactor};
+use glide_wm::actor::status::Status;
 use glide_wm::actor::wm_controller::{self, WmController};
 use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
+use objc2::MainThreadMarker;
 use tokio::join;
+use tokio::sync::mpsc::unbounded_channel as channel;
 
 #[derive(Parser)]
 struct Cli {
@@ -73,29 +76,34 @@ fn main() {
     } else {
         LayoutManager::new()
     };
-    let (mouse_tx, mouse_rx) = mouse::channel();
+    let (mouse_tx, mouse_rx) = channel();
+    let (status_tx, status_rx) = channel();
     let events_tx = Reactor::spawn(
         config.clone(),
         layout,
         reactor::Record::new(opt.record.as_deref()),
         mouse_tx.clone(),
+        status_tx.clone(),
     );
 
+    let mtm = MainThreadMarker::new().unwrap();
     let wm_config = wm_controller::Config {
         one_space: opt.one,
         restore_file: restore_file(),
         config: config.clone(),
     };
     let (wm_controller, wm_controller_sender) =
-        WmController::new(wm_config, events_tx.clone(), mouse_tx.clone());
+        WmController::new(wm_config, events_tx.clone(), mouse_tx.clone(), status_tx);
     let notification_center = NotificationCenter::new(wm_controller_sender);
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
+    let status = Status::new(config.clone(), status_rx, mtm);
 
     Executor::run(async move {
         join!(
             wm_controller.run(),
             notification_center.watch_for_notifications(),
             mouse.run(),
+            status.run(),
         );
     });
 }

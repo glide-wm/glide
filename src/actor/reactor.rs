@@ -27,6 +27,7 @@ use tracing::{Span, debug, error, info, instrument, trace, warn};
 use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager};
+use crate::actor::status;
 
 use tokio::sync::mpsc;
 
@@ -174,8 +175,9 @@ pub struct Reactor {
     main_window_tracker: MainWindowTracker,
     in_drag: bool,
     record: Record,
-    mouse_tx: Option<mouse::Sender>,
     raise_manager_tx: raise::Sender,
+    mouse_tx: Option<mouse::Sender>,
+    status_tx: Option<status::Sender>,
 }
 
 #[derive(Debug)]
@@ -236,6 +238,7 @@ impl Reactor {
         layout: LayoutManager,
         record: Record,
         mouse_tx: mouse::Sender,
+        status_tx: status::Sender,
     ) -> Sender {
         let (events_tx, events) = unbounded_channel();
         let events_tx_clone = events_tx.clone();
@@ -244,6 +247,7 @@ impl Reactor {
             .spawn(move || {
                 let mut reactor = Reactor::new(config, layout, record);
                 reactor.mouse_tx.replace(mouse_tx);
+                reactor.status_tx.replace(status_tx);
                 Executor::run(reactor.run(events, events_tx_clone));
             })
             .unwrap();
@@ -266,8 +270,9 @@ impl Reactor {
             main_window_tracker: MainWindowTracker::default(),
             in_drag: false,
             record,
-            mouse_tx: None,
             raise_manager_tx,
+            mouse_tx: None,
+            status_tx: None,
         }
     }
 

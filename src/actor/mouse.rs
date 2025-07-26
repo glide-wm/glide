@@ -48,10 +48,6 @@ struct State {
 pub type Sender = tokio::sync::mpsc::UnboundedSender<(Span, Request)>;
 pub type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, Request)>;
 
-pub fn channel() -> (Sender, Receiver) {
-    tokio::sync::mpsc::unbounded_channel()
-}
-
 impl Mouse {
     pub fn new(config: Arc<Config>, events_tx: reactor::Sender, requests_rx: Receiver) -> Self {
         Mouse {

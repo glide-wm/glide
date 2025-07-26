@@ -18,11 +18,10 @@ type WeakSender = tokio::sync::mpsc::WeakUnboundedSender<(Span, WmEvent)>;
 type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, WmEvent)>;
 
 use crate::actor::app::AppInfo;
-use crate::actor::{self, mouse, reactor};
+use crate::actor::{self, mouse, reactor, status};
 use crate::collections::HashSet;
 use crate::sys;
 use crate::sys::event::HotkeyManager;
-use crate::sys::menu_bar::StatusIcon;
 use crate::sys::screen::{CoordinateConverter, NSScreenExt, ScreenId, SpaceId};
 use crate::sys::window_server::WindowServerInfo;
 
@@ -77,6 +76,7 @@ pub struct WmController {
     config: Config,
     events_tx: reactor::Sender,
     mouse_tx: mouse::Sender,
+    status_tx: status::Sender,
     receiver: Receiver,
     sender: WeakSender,
     starting_space: Option<SpaceId>,
@@ -88,7 +88,6 @@ pub struct WmController {
     login_window_active: bool,
     hotkeys: Option<HotkeyManager>,
     mtm: MainThreadMarker,
-    status_icon: Option<StatusIcon>,
 }
 
 impl WmController {
@@ -96,12 +95,14 @@ impl WmController {
         config: Config,
         events_tx: reactor::Sender,
         mouse_tx: mouse::Sender,
+        status_tx: status::Sender,
     ) -> (Self, Sender) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let this = Self {
             config,
             events_tx,
             mouse_tx,
+            status_tx,
             receiver,
             sender: sender.downgrade(),
             starting_space: None,
@@ -113,7 +114,6 @@ impl WmController {
             login_window_active: false,
             hotkeys: None,
             mtm: MainThreadMarker::new().unwrap(),
-            status_icon: None,
         };
         (this, sender)
     }
@@ -169,20 +169,22 @@ impl WmController {
             }
             ScreenParametersChanged(frames, ids, converter, spaces) => {
                 self.cur_screen_id = ids;
-                self.handle_space_changed(spaces);
+                self.handle_space_changed(spaces.clone());
                 self.send_event(Event::ScreenParametersChanged(
                     frames.clone(),
                     self.active_spaces(),
                     self.get_windows(),
                 ));
+                _ = self.status_tx.send(status::Event::SpaceChanged(spaces));
                 _ = self.mouse_tx.send((
                     Span::current(),
                     mouse::Request::ScreenParametersChanged(frames, converter),
                 ));
             }
             SpaceChanged(spaces) => {
-                self.handle_space_changed(spaces);
+                self.handle_space_changed(spaces.clone());
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
+                _ = self.status_tx.send(status::Event::SpaceChanged(spaces));
             }
             Command(Wm(ToggleSpaceActivated)) => {
                 let Some(space) = self.get_focused_space() else { return };
@@ -227,8 +229,6 @@ impl WmController {
         let Some(&Some(space)) = self.cur_space.first() else {
             return;
         };
-        let icon = self.status_icon.get_or_insert_with(|| StatusIcon::new(self.mtm));
-        icon.set_text(&format!("{:?}", self.cur_space.first().copied().flatten()));
         if self.starting_space.is_none() {
             self.starting_space = Some(space);
             self.register_hotkeys();
