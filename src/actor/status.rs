@@ -3,10 +3,10 @@
 use std::sync::Arc;
 
 use objc2::MainThreadMarker;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tracing::{Span, instrument};
+use tracing::instrument;
 
 use crate::{
+    actor,
     config::Config,
     sys::{
         menu_bar::StatusIcon,
@@ -30,8 +30,8 @@ pub struct Status {
     icon: StatusIcon,
 }
 
-pub type Sender = UnboundedSender<(Span, Event)>;
-pub type Receiver = UnboundedReceiver<(Span, Event)>;
+pub type Sender = actor::Sender<Event>;
+pub type Receiver = actor::Receiver<Event>;
 
 impl Status {
     pub fn new(config: Arc<Config>, rx: Receiver, mtm: MainThreadMarker) -> Self {

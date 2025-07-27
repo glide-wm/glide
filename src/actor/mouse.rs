@@ -17,7 +17,7 @@ use crate::sys::event;
 use crate::sys::geometry::{CGRectExt, ToICrate};
 use crate::sys::screen::CoordinateConverter;
 use crate::sys::window_server::{self, WindowServerId, get_window};
-use crate::trace_call;
+use crate::{actor, trace_call};
 
 #[derive(Debug)]
 pub enum Request {
@@ -45,8 +45,8 @@ struct State {
     screens: Vec<CGRect>,
 }
 
-pub type Sender = tokio::sync::mpsc::UnboundedSender<(Span, Request)>;
-pub type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, Request)>;
+pub type Sender = actor::Sender<Request>;
+pub type Receiver = actor::Receiver<Request>;
 
 impl Mouse {
     pub fn new(config: Arc<Config>, events_tx: reactor::Sender, requests_rx: Receiver) -> Self {

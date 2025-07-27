@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
+use glide_wm::actor::channel;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
@@ -13,7 +14,6 @@ use glide_wm::log;
 use glide_wm::sys::executor::Executor;
 use objc2::MainThreadMarker;
 use tokio::join;
-use tokio::sync::mpsc::unbounded_channel as channel;
 
 #[derive(Parser)]
 struct Cli {

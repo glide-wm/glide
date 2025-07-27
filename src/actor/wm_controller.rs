@@ -144,7 +144,7 @@ impl WmController {
             }
             AppGloballyActivated(pid) => {
                 // Make sure the mouse cursor stays hidden after app switch.
-                _ = self.mouse_tx.send((Span::current(), mouse::Request::EnforceHidden));
+                self.mouse_tx.send(mouse::Request::EnforceHidden);
                 if self.login_window_pid == Some(pid) {
                     // While the login screen is active AX APIs do not work.
                     // Disable all spaces to prevent errors.
@@ -175,16 +175,13 @@ impl WmController {
                     self.active_spaces(),
                     self.get_windows(),
                 ));
-                _ = self.status_tx.send((Span::current(), status::Event::SpaceChanged(spaces)));
-                _ = self.mouse_tx.send((
-                    Span::current(),
-                    mouse::Request::ScreenParametersChanged(frames, converter),
-                ));
+                self.status_tx.send(status::Event::SpaceChanged(spaces));
+                self.mouse_tx.send(mouse::Request::ScreenParametersChanged(frames, converter));
             }
             SpaceChanged(spaces) => {
                 self.handle_space_changed(spaces.clone());
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
-                _ = self.status_tx.send((Span::current(), status::Event::SpaceChanged(spaces)));
+                self.status_tx.send(status::Event::SpaceChanged(spaces));
             }
             Command(Wm(ToggleSpaceActivated)) => {
                 let Some(space) = self.get_focused_space() else { return };

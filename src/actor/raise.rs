@@ -300,7 +300,7 @@ impl RaiseManager {
                 {
                     // For now we don't wait for the last window to be raised;
                     // send the warp as soon as we send the raise request.
-                    _ = mouse_tx.send((Span::current(), mouse::Request::Warp(warp)));
+                    mouse_tx.send(mouse::Request::Warp(warp));
                 }
             }
         }
@@ -322,6 +322,7 @@ impl RaiseManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actor;
     use crate::actor::app::{AppThreadHandle, WindowId};
     use crate::sys::executor::Executor;
     use tokio::sync::mpsc;
@@ -473,7 +474,7 @@ mod tests {
     fn test_all_raises_complete_triggers_focus() {
         Executor::run(async {
             let mut raise_manager = RaiseManager::new();
-            let (mouse_tx, mut mouse_rx) = mpsc::unbounded_channel();
+            let (mouse_tx, mut mouse_rx) = actor::channel();
             raise_manager.mouse_tx = Some(mouse_tx);
 
             let (app_handles, mut app_rx) = create_test_app_handles();

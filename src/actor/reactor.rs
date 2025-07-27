@@ -629,7 +629,7 @@ impl Reactor {
         if changed.unwrap_or(false)
             && let Some(status_tx) = &mut self.status_tx
         {
-            _ = status_tx.send((Span::current(), status::Event::FocusedScreenChanged));
+            status_tx.send(status::Event::FocusedScreenChanged);
         }
     }
 
