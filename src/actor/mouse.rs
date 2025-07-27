@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::mem::replace;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
 
 use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
 use core_graphics::event::{
@@ -18,6 +17,7 @@ use crate::sys::event;
 use crate::sys::geometry::{CGRectExt, ToICrate};
 use crate::sys::screen::CoordinateConverter;
 use crate::sys::window_server::{self, WindowServerId, get_window};
+use crate::trace_call;
 
 #[derive(Debug)]
 pub enum Request {
@@ -168,9 +168,7 @@ impl State {
         // that may run many times a second on the main thread. For now this
         // isn't a problem, but when we start doing anything with UI we might
         // want to compute this internally.
-        let new_window = trace_misc("get_window_at_point", || {
-            window_server::get_window_at_point(loc, self.converter, mtm)
-        });
+        let new_window = trace_call!(window_server::get_window_at_point(loc, self.converter, mtm));
         if self.above_window == new_window {
             return None;
         }
@@ -197,7 +195,7 @@ impl State {
 
         let old_window = replace(&mut self.above_window, new_window);
         let new_window_level = new_window
-            .and_then(|id| trace_misc("get_window", || get_window(id)))
+            .and_then(|id| trace_call!(get_window(id)))
             .map(|info| info.layer as NSWindowLevel)
             .unwrap_or(NSWindowLevel::MIN);
         let old_window_level = replace(&mut self.above_window_level, new_window_level);
@@ -215,14 +213,6 @@ impl State {
 
         new_window
     }
-}
-
-fn trace_misc<T>(desc: &str, f: impl FnOnce() -> T) -> T {
-    let start = Instant::now();
-    let out = f();
-    let end = Instant::now();
-    trace!(time = ?(end - start), "{desc}");
-    out
 }
 
 /// https://developer.apple.com/documentation/appkit/nswindowlevel?language=objc

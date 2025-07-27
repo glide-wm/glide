@@ -71,3 +71,14 @@ fn print_histograms(timing_layer: &TimingLayer) {
         println!();
     });
 }
+
+#[macro_export]
+macro_rules! trace_call {
+    ($($path:ident)::*($($args:expr),*)) => { {
+        let start = ::std::time::Instant::now();
+        let out = $($path)::* ($($args),*);
+        let end = ::std::time::Instant::now();
+        ::tracing::trace!(time = ?(end - start), stringify!($($path)::*));
+        out
+    } };
+}

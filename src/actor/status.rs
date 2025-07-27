@@ -48,7 +48,10 @@ impl Status {
     fn handle_event(&mut self, event: Event) {
         match event {
             Event::SpaceChanged(_) | Event::FocusedScreenChanged => {
-                let label = get_active_space_number().map(|n| n.to_string()).unwrap_or_default();
+                // TODO: Move this off the main thread.
+                let label = trace_call!(get_active_space_number())
+                    .map(|n| n.to_string())
+                    .unwrap_or_default();
                 self.icon.set_text(&label);
             }
         }
