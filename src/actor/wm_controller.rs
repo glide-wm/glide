@@ -175,7 +175,7 @@ impl WmController {
                     self.active_spaces(),
                     self.get_windows(),
                 ));
-                _ = self.status_tx.send(status::Event::SpaceChanged(spaces));
+                _ = self.status_tx.send((Span::current(), status::Event::SpaceChanged(spaces)));
                 _ = self.mouse_tx.send((
                     Span::current(),
                     mouse::Request::ScreenParametersChanged(frames, converter),
@@ -184,7 +184,7 @@ impl WmController {
             SpaceChanged(spaces) => {
                 self.handle_space_changed(spaces.clone());
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
-                _ = self.status_tx.send(status::Event::SpaceChanged(spaces));
+                _ = self.status_tx.send((Span::current(), status::Event::SpaceChanged(spaces)));
             }
             Command(Wm(ToggleSpaceActivated)) => {
                 let Some(space) = self.get_focused_space() else { return };

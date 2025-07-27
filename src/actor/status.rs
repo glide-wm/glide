@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use objc2::MainThreadMarker;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tracing::{Span, instrument};
 
 use crate::{
     config::Config,
@@ -11,8 +12,10 @@ use crate::{
         menu_bar::StatusIcon,
         screen::{SpaceId, get_active_space_number},
     },
+    trace_call,
 };
 
+#[derive(Debug)]
 pub enum Event {
     // Note: These should not be filtered for active (they should all be Some)
     // so we can always show the user the current space id.
@@ -27,8 +30,8 @@ pub struct Status {
     icon: StatusIcon,
 }
 
-pub type Sender = UnboundedSender<Event>;
-pub type Receiver = UnboundedReceiver<Event>;
+pub type Sender = UnboundedSender<(Span, Event)>;
+pub type Receiver = UnboundedReceiver<(Span, Event)>;
 
 impl Status {
     pub fn new(config: Arc<Config>, rx: Receiver, mtm: MainThreadMarker) -> Self {
@@ -40,11 +43,13 @@ impl Status {
     }
 
     pub async fn run(mut self) {
-        while let Some(event) = self.rx.recv().await {
+        while let Some((span, event)) = self.rx.recv().await {
+            let _guard = span.enter();
             self.handle_event(event);
         }
     }
 
+    #[instrument(skip(self))]
     fn handle_event(&mut self, event: Event) {
         match event {
             Event::SpaceChanged(_) | Event::FocusedScreenChanged => {
