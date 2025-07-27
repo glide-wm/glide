@@ -4,6 +4,9 @@
 //! the layout state. The flow of events between these actors defines the
 //! overall behavior of the window manager.
 
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::SendError, unbounded_channel};
+use tracing::Span;
+
 pub mod app;
 pub mod layout;
 pub mod mouse;
@@ -12,3 +15,29 @@ pub mod raise;
 pub mod reactor;
 pub mod status;
 pub mod wm_controller;
+
+pub struct Sender<Event>(UnboundedSender<(Span, Event)>);
+pub type Receiver<Event> = UnboundedReceiver<(Span, Event)>;
+
+pub fn channel<Event>() -> (Sender<Event>, Receiver<Event>) {
+    let (tx, rx) = unbounded_channel();
+    (Sender(tx), rx)
+}
+
+impl<Event> Sender<Event> {
+    pub fn send(&self, event: Event) {
+        // Most of the time we can ignore send errors, they just indicate the
+        // app is shutting down.
+        _ = self.try_send(event)
+    }
+
+    pub fn try_send(&self, event: Event) -> Result<(), SendError<(Span, Event)>> {
+        self.0.send((Span::current(), event))
+    }
+}
+
+impl<Event> Clone for Sender<Event> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
