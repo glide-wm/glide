@@ -1,4 +1,4 @@
-//! Manages the status icon.
+//! Manages the status bar icon.
 
 use std::sync::Arc;
 
@@ -17,6 +17,7 @@ pub enum Event {
     // Note: These should not be filtered for active (they should all be Some)
     // so we can always show the user the current space id.
     SpaceChanged(Vec<Option<SpaceId>>),
+    FocusedScreenChanged,
 }
 
 pub struct Status {
@@ -46,8 +47,8 @@ impl Status {
 
     fn handle_event(&mut self, event: Event) {
         match event {
-            Event::SpaceChanged(_spaces) => {
-                let label = get_active_space_number().map(|l| format!("{l}")).unwrap_or_default();
+            Event::SpaceChanged(_) | Event::FocusedScreenChanged => {
+                let label = get_active_space_number().map(|n| n.to_string()).unwrap_or_default();
                 self.icon.set_text(&label);
             }
         }

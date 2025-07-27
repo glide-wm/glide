@@ -172,6 +172,7 @@ pub struct Reactor {
     window_ids: HashMap<WindowServerId, WindowId>,
     visible_windows: HashSet<WindowServerId>,
     screens: Vec<Screen>,
+    active_screen_idx: Option<u16>,
     main_window_tracker: MainWindowTracker,
     in_drag: bool,
     record: Record,
@@ -267,6 +268,7 @@ impl Reactor {
             window_server_info: HashMap::default(),
             visible_windows: HashSet::default(),
             screens: vec![],
+            active_screen_idx: None,
             main_window_tracker: MainWindowTracker::default(),
             in_drag: false,
             record,
@@ -420,6 +422,7 @@ impl Reactor {
                     self.send_layout_event(LayoutEvent::SpaceExposed(space, screen.frame.size));
                 }
                 self.update_complete_window_server_info(ws_info);
+                self.update_active_screen();
                 // FIXME: Update visible windows if space changed
             }
             Event::SpaceChanged(spaces, ws_info) => {
@@ -447,6 +450,7 @@ impl Reactor {
                     self.send_layout_event(LayoutEvent::WindowFocused(spaces, main_window));
                 }
                 self.update_complete_window_server_info(ws_info);
+                self.update_active_screen();
                 self.check_for_new_windows();
             }
             Event::MouseUp => {
@@ -502,6 +506,7 @@ impl Reactor {
         if let Some(raised_window) = raised_window {
             let spaces = self.screens.iter().flat_map(|screen| screen.space).collect();
             self.send_layout_event(LayoutEvent::WindowFocused(spaces, raised_window));
+            self.update_active_screen();
         }
         if !self.in_drag {
             self.update_layout(animation_focus_wid, is_resize);
@@ -603,12 +608,29 @@ impl Reactor {
         }
     }
 
-    fn best_screen_for_window(&self, frame: &CGRect) -> Option<&Screen> {
-        self.screens.iter().max_by_key(|s| s.frame.intersection(frame).area() as i64)
+    fn best_screen_idx_for_window(&self, frame: &CGRect) -> Option<usize> {
+        self.screens
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, s)| s.frame.intersection(frame).area() as i64)
+            .map(|(idx, _)| idx)
     }
 
     fn best_space_for_window(&self, frame: &CGRect) -> Option<SpaceId> {
-        self.best_screen_for_window(frame)?.space
+        self.screens[self.best_screen_idx_for_window(frame)?].space
+    }
+
+    fn update_active_screen(&mut self) {
+        let changed = (|| {
+            let frame = self.windows.get(&self.main_window()?)?.frame_monotonic;
+            let screen = self.best_screen_idx_for_window(&frame)?;
+            Some(self.active_screen_idx.replace(screen as u16) != Some(screen as u16))
+        })();
+        if changed.unwrap_or(false)
+            && let Some(status_tx) = &mut self.status_tx
+        {
+            _ = status_tx.send(status::Event::FocusedScreenChanged);
+        }
     }
 
     fn window_is_standard(&self, id: WindowId) -> bool {
