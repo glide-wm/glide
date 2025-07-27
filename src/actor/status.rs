@@ -7,7 +7,10 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     config::Config,
-    sys::{menu_bar::StatusIcon, screen::SpaceId},
+    sys::{
+        menu_bar::StatusIcon,
+        screen::{SpaceId, get_active_space_number},
+    },
 };
 
 pub enum Event {
@@ -43,8 +46,9 @@ impl Status {
 
     fn handle_event(&mut self, event: Event) {
         match event {
-            Event::SpaceChanged(spaces) => {
-                self.icon.set_text(&format!("{:?}", spaces.first().copied().flatten()));
+            Event::SpaceChanged(_spaces) => {
+                let label = get_active_space_number().map(|l| format!("{l}")).unwrap_or_default();
+                self.icon.set_text(&label);
             }
         }
     }
