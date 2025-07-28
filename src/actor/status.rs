@@ -5,15 +5,10 @@ use std::sync::Arc;
 use objc2::MainThreadMarker;
 use tracing::instrument;
 
-use crate::{
-    actor,
-    config::Config,
-    sys::{
-        menu_bar::StatusIcon,
-        screen::{SpaceId, get_active_space_number},
-    },
-    trace_call,
-};
+use crate::config::Config;
+use crate::sys::menu_bar::StatusIcon;
+use crate::sys::screen::{SpaceId, get_active_space_number};
+use crate::{actor, trace_call};
 
 #[derive(Debug)]
 pub enum Event {

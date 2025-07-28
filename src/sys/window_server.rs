@@ -21,10 +21,9 @@ use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::MainThreadMarker;
 use serde::{Deserialize, Serialize};
 
-use crate::sys::app::ProcessSerialNumber;
-
 use super::geometry::{CGRectDef, ToICrate};
 use super::screen::CoordinateConverter;
+use crate::sys::app::ProcessSerialNumber;
 
 /// The window ID used by the window server.
 ///

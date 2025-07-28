@@ -3,17 +3,19 @@
 //! This actor sits behind the Reactor and is responsible for managing raise requests.
 //! It ensures that windows are raised in the correct order and handles timeouts.
 
-use crate::actor::app::{AppThreadHandle, Quiet, Request, WindowId};
-use crate::actor::{mouse, reactor};
-use crate::sys::timer::Timer;
+use std::collections::{HashSet, VecDeque};
+use std::time::{Duration, Instant};
+
 use accessibility_sys::pid_t;
 use objc2_core_foundation::CGPoint;
 use rustc_hash::FxHashMap as HashMap;
-use std::collections::{HashSet, VecDeque};
-use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{Span, debug, trace, warn};
+
+use crate::actor::app::{AppThreadHandle, Quiet, Request, WindowId};
+use crate::actor::{mouse, reactor};
+use crate::sys::timer::Timer;
 
 /// Messages that can be sent to the raise manager
 #[derive(Debug)]
@@ -321,11 +323,12 @@ impl RaiseManager {
 
 #[cfg(test)]
 mod tests {
+    use tokio::sync::mpsc;
+
     use super::*;
     use crate::actor;
     use crate::actor::app::{AppThreadHandle, WindowId};
     use crate::sys::executor::Executor;
-    use tokio::sync::mpsc;
 
     fn create_test_app_handles() -> (
         HashMap<i32, AppThreadHandle>,

@@ -4,7 +4,8 @@
 //! the layout state. The flow of events between these actors defines the
 //! overall behavior of the window manager.
 
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, error::SendError, unbounded_channel};
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tracing::Span;
 
 pub mod app;

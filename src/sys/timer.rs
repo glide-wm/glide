@@ -341,9 +341,10 @@ impl Drop for Timer {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use super::*;
     use crate::sys::executor::Executor;
-    use std::time::{Duration, Instant};
 
     #[test]
     fn timer_fires_after_delay() {

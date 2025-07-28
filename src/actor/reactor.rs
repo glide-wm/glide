@@ -21,17 +21,15 @@ use objc2_core_foundation::{CGPoint, CGRect};
 pub use replay::{Record, replay};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::unbounded_channel;
 use tracing::{Span, debug, error, info, instrument, trace, warn};
 
 use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager};
-use crate::actor::status;
-
-use tokio::sync::mpsc;
-
 use crate::actor::raise::{self, RaiseRequest};
+use crate::actor::status;
 use crate::collections::{HashMap, HashSet};
 use crate::config::Config;
 use crate::log::{self, MetricsCommand};
