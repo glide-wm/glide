@@ -21,6 +21,11 @@ mouse_follows_focus = true
 # mouse_follows_focus is false.
 mouse_hides_on_focus = true
 
+[settings.experimental]
+
+# Enables the experimental status icon, which shows the current space.
+status_icon.enable = false
+
 [keys]
 # Modifier and key names must be capitalized.
 

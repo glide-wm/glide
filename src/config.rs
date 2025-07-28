@@ -48,6 +48,22 @@ pub struct Settings {
     pub mouse_hides_on_focus: bool,
     #[serde(default = "yes")]
     pub focus_follows_mouse: bool,
+    #[serde(default)]
+    pub experimental: Experimental,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+#[serde(default)]
+pub struct Experimental {
+    pub status_icon: StatusIcon,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+#[serde(default)]
+pub struct StatusIcon {
+    pub enable: bool,
 }
 
 fn yes() -> bool {

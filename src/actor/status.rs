@@ -22,7 +22,7 @@ pub struct Status {
     #[expect(unused)]
     config: Arc<Config>,
     rx: Receiver,
-    icon: StatusIcon,
+    icon: Option<StatusIcon>,
 }
 
 pub type Sender = actor::Sender<Event>;
@@ -31,13 +31,16 @@ pub type Receiver = actor::Receiver<Event>;
 impl Status {
     pub fn new(config: Arc<Config>, rx: Receiver, mtm: MainThreadMarker) -> Self {
         Self {
+            icon: config.settings.experimental.status_icon.enable.then(|| StatusIcon::new(mtm)),
             config,
             rx,
-            icon: StatusIcon::new(mtm),
         }
     }
 
     pub async fn run(mut self) {
+        if self.icon.is_none() {
+            return;
+        }
         while let Some((span, event)) = self.rx.recv().await {
             let _guard = span.enter();
             self.handle_event(event);
@@ -46,13 +49,14 @@ impl Status {
 
     #[instrument(skip(self))]
     fn handle_event(&mut self, event: Event) {
+        let Some(icon) = &mut self.icon else { return };
         match event {
             Event::SpaceChanged(_) | Event::FocusedScreenChanged => {
                 // TODO: Move this off the main thread.
                 let label = trace_call!(get_active_space_number())
                     .map(|n| n.to_string())
                     .unwrap_or_default();
-                self.icon.set_text(&label);
+                icon.set_text(&label);
             }
         }
     }
