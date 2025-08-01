@@ -15,8 +15,8 @@ Glide is in "beta" and is recommended for early adopters.
 
 First, [install Rust](https://rustup.rs) and make sure you have the latest Xcode command line tools installed.
 
-Optional: Copy [glide.default.toml] to `$HOME/.glide.toml` and customize it to
-your needs.
+Optional: Read [glide.default.toml] and customize any config values in
+`$HOME/.glide.toml`.
 
 Then, run the following:
 

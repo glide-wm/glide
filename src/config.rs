@@ -1,3 +1,7 @@
+#[macro_use]
+mod partial;
+use partial::{PartialConfig, ValidationError};
+
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -5,6 +9,7 @@ use std::str::FromStr;
 
 use anyhow::bail;
 use livesplit_hotkey::Hotkey;
+use macro_rules_attribute::derive;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -23,55 +28,75 @@ pub fn config_file() -> PathBuf {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConfigFile {
-    settings: Settings,
-    keys: FxHashMap<String, WmCommand>,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub settings: Settings,
     pub keys: Vec<(Hotkey, WmCommand)>,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+#[serde(default)]
+struct ConfigPartial {
+    settings: SettingsPartial,
+    keys: Option<FxHashMap<String, WmCommand>>,
+}
+
+#[derive(PartialConfig!)]
+#[derive_args(SettingsPartial)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
-    #[serde(default = "yes")]
     pub animate: bool,
-    #[serde(default = "yes")]
     pub default_disable: bool,
-    #[serde(default = "yes")]
     pub mouse_follows_focus: bool,
-    #[serde(default = "yes")]
     pub mouse_hides_on_focus: bool,
-    #[serde(default = "yes")]
     pub focus_follows_mouse: bool,
-    #[serde(default)]
+    #[derive_args(ExperimentalPartial)]
     pub experimental: Experimental,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(PartialConfig!)]
+#[derive_args(ExperimentalPartial)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
-#[serde(default)]
 pub struct Experimental {
+    #[derive_args(StatusIconPartial)]
     pub status_icon: StatusIcon,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(PartialConfig!)]
+#[derive_args(StatusIconPartial)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
-#[serde(default)]
 pub struct StatusIcon {
     pub enable: bool,
 }
 
-fn yes() -> bool {
-    true
-}
-#[allow(dead_code)]
-fn no() -> bool {
-    false
+impl ConfigPartial {
+    fn default() -> Self {
+        toml::from_str(include_str!("../glide.default.toml")).unwrap()
+    }
+
+    fn validate(self) -> Result<Config, anyhow::Error> {
+        let mut keys = Vec::new();
+        for (key, cmd) in self.keys.unwrap_or_default() {
+            let Ok(key) = Hotkey::from_str(&key) else {
+                bail!("Could not parse hotkey: {key}");
+            };
+            keys.push((key, cmd));
+        }
+        Ok(Config {
+            settings: self.settings.validate()?,
+            keys,
+        })
+    }
+
+    fn merge(low: Self, high: Self) -> Self {
+        Self {
+            settings: SettingsPartial::merge(low.settings, high.settings),
+            keys: high.keys.or(low.keys),
+        }
+    }
 }
 
 impl Config {
@@ -82,31 +107,27 @@ impl Config {
     }
 
     pub fn default() -> Config {
-        Self::parse(include_str!("../glide.default.toml")).unwrap()
+        ConfigPartial::default().validate().unwrap()
     }
 
     fn parse(buf: &str) -> anyhow::Result<Config> {
-        let c: ConfigFile = toml::from_str(&buf)?;
-        let mut keys = Vec::new();
-        for (key, cmd) in c.keys {
-            let Ok(key) = Hotkey::from_str(&key) else {
-                bail!("Could not parse hotkey: {key}");
-            };
-            keys.push((key, cmd));
-        }
-        Ok(Config { settings: c.settings, keys })
+        let c: ConfigPartial = toml::from_str(&buf)?;
+        let defaults = ConfigPartial::default();
+        ConfigPartial::merge(defaults, c).validate()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn default_config_parses() {
-        super::Config::default();
+    fn default_config_is_valid() {
+        Config::default();
     }
 
     #[test]
     fn default_settings_match_unspecified_setting_values() {
-        assert_eq!(super::Config::default().settings, toml::from_str("").unwrap());
+        assert_eq!(Config::default().settings, Config::parse("").unwrap().settings);
     }
 }
