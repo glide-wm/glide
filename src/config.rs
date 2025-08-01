@@ -46,6 +46,7 @@ impl Error for ResolveError {}
 
 macro_rules! ConfigSource {
     (
+        #[derive_args(source = $SourceStructName:ident)]
         $(#[$struct_meta:meta])*
         $struct_vis:vis
         struct $StructName:ident {
@@ -62,7 +63,7 @@ macro_rules! ConfigSource {
             [
                 // Input struct and fields left to process.
                 $(#[$struct_meta])*
-                struct $StructName {
+                struct $StructName => $SourceStructName {
                     $( $(#[$($field_meta)*])* $field_name: $field_ty, )*
                 }
             ] -> [
@@ -75,20 +76,20 @@ macro_rules! ConfigSource {
     // Base case: Build the final definition.
     (@source($low:ident, $high:ident, $self:ident, $err:ident) [
         $(#[$struct_meta:meta])*
-        struct $StructName:ident { }
+        struct $StructName:ident => $SourceStructName:ident { }
     ] -> [
         [ $($fields:tt)* ]; [ $($merge:tt)* ]; [ $($validate:tt)* ]; [ $($resolve:tt)* ]
     ]) => { paste! {
+        $(#[$struct_meta])*
         // We can derive(Default) because all fields are Option or another
         // Source struct.
         #[derive(Default)]
-        $(#[$struct_meta])*
-        struct [<$StructName Source>] {
+        #[serde(default)]
+        struct $SourceStructName {
             $( $fields )*
         }
 
-        #[allow(dead_code)]
-        impl [<$StructName Source>] {
+        impl $SourceStructName {
             fn merge($low: Self, $high: Self) -> Self {
                 Self {
                     $( $merge )*
@@ -112,7 +113,7 @@ macro_rules! ConfigSource {
     // `#[derive_args(source)]` field case: Use the source field type.
     (@source($low:ident, $high:ident, $self:ident, $err:ident) [
         $(#[$struct_meta:meta])*
-        struct $StructName:ident {
+        struct $StructName:ident => $SourceStructName:ident {
             #[derive_args(source = $source_field_ty:ident)]
             $(#[$($field_meta:tt)*])*
             $field_name:ident: $field_ty:ty,
@@ -124,14 +125,13 @@ macro_rules! ConfigSource {
         ConfigSource! {
             @source($low, $high, $self, $err) [
                 $(#[$struct_meta])*
-                struct $StructName { $($rest)* }
+                struct $StructName => $SourceStructName { $($rest)* }
             ] -> [
                 [
                     $($fields)*
 
                     $(#[$field_meta])*
                     // $field_vis
-                    #[serde(default)]
                     $field_name: $source_field_ty,
                 ];
                 [
@@ -153,7 +153,7 @@ macro_rules! ConfigSource {
     // Default field case: Wrap the field type in Option.
     (@source($low:ident, $high:ident, $self:ident, $err:ident) [
         $(#[$struct_meta:meta])*
-        struct $StructName:ident {
+        struct $StructName:ident => $SourceStructName:ident {
             $(#[$($field_meta:tt)*])*
             $field_name:ident: $field_ty:ty,
 
@@ -165,13 +165,12 @@ macro_rules! ConfigSource {
         ConfigSource! {
             @source($low, $high, $self, $err) [
                 $(#[$struct_meta])*
-                struct $StructName { $($rest)* }
+                struct $StructName => $SourceStructName { $($rest)* }
             ] -> [
                 [
                     $($fields)*
 
                     $(#[$field_meta])*
-                    #[serde(default)]
                     // $field_vis
                     $field_name: Option<$field_ty>,
                 ];
@@ -196,6 +195,12 @@ macro_rules! ConfigSource {
     };
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Config {
+    pub settings: Settings,
+    pub keys: Vec<(Hotkey, WmCommand)>,
+}
+
 #[derive(Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 #[serde(default)]
@@ -204,13 +209,8 @@ struct ConfigSource {
     keys: Option<FxHashMap<String, WmCommand>>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    pub settings: Settings,
-    pub keys: Vec<(Hotkey, WmCommand)>,
-}
-
 #[derive(ConfigSource!)]
+#[derive_args(source = SettingsSource)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -224,6 +224,7 @@ pub struct Settings {
 }
 
 #[derive(ConfigSource!)]
+#[derive_args(source = ExperimentalSource)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Experimental {
@@ -232,6 +233,7 @@ pub struct Experimental {
 }
 
 #[derive(ConfigSource!)]
+#[derive_args(source = StatusIconSource)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct StatusIcon {
