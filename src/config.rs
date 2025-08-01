@@ -1,3 +1,5 @@
+use std::error::Error;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -5,6 +7,8 @@ use std::str::FromStr;
 
 use anyhow::bail;
 use livesplit_hotkey::Hotkey;
+use macro_rules_attribute::derive;
+use paste::paste;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -22,11 +26,182 @@ pub fn config_file() -> PathBuf {
     dirs::home_dir().unwrap().join(".glide.toml")
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Debug)]
+struct ResolveError {
+    fields: Vec<&'static str>,
+    path: Vec<String>,
+}
+
+impl Display for ResolveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Missing fields {:?} at path {}",
+            self.fields,
+            self.path.join(".")
+        )
+    }
+}
+impl Error for ResolveError {}
+
+macro_rules! ConfigSource {
+    (
+        $(#[$struct_meta:meta])*
+        $struct_vis:vis
+        struct $StructName:ident {
+            $(
+                $(#[$($field_meta:tt)*])*
+                $field_vis:vis
+                $field_name:ident: $field_ty:ty
+            ),* $(,)?
+        }
+    ) => {
+        ConfigSource!(
+            // Give identifiers to be used in pushdown outputs for hygiene reasons.
+            @source(low, high, self, err)
+            [
+                // Input struct and fields left to process.
+                $(#[$struct_meta])*
+                struct $StructName {
+                    $( $(#[$($field_meta)*])* $field_name: $field_ty, )*
+                }
+            ] -> [
+                // Pushdown outputs.
+                []; []; []; []
+            ]
+        );
+    };
+
+    // Base case: Build the final definition.
+    (@source($low:ident, $high:ident, $self:ident, $err:ident) [
+        $(#[$struct_meta:meta])*
+        struct $StructName:ident { }
+    ] -> [
+        [ $($fields:tt)* ]; [ $($merge:tt)* ]; [ $($validate:tt)* ]; [ $($resolve:tt)* ]
+    ]) => { paste! {
+        // We can derive(Default) because all fields are Option or another
+        // Source struct.
+        #[derive(Default)]
+        $(#[$struct_meta])*
+        struct [<$StructName Source>] {
+            $( $fields )*
+        }
+
+        #[allow(dead_code)]
+        impl [<$StructName Source>] {
+            fn merge($low: Self, $high: Self) -> Self {
+                Self {
+                    $( $merge )*
+                }
+            }
+
+            fn resolve($self) -> Result<$StructName, ResolveError> {
+                #[allow(unused_mut)]
+                let mut $err = ResolveError::default();
+                $($validate)*
+                if !$err.fields.is_empty() {
+                    return Err($err);
+                }
+                Ok($StructName {
+                    $($resolve)*
+                })
+            }
+        }
+    } };
+
+    // `#[derive_args(source)]` field case: Use the source field type.
+    (@source($low:ident, $high:ident, $self:ident, $err:ident) [
+        $(#[$struct_meta:meta])*
+        struct $StructName:ident {
+            #[derive_args(source = $source_field_ty:ident)]
+            $(#[$($field_meta:tt)*])*
+            $field_name:ident: $field_ty:ty,
+            $($rest:tt)*
+        }
+    ] -> [
+        [ $($fields:tt)* ]; [ $($merge:tt)* ]; [ $($validate:tt)* ]; [ $($resolve:tt)* ]
+    ]) => {
+        ConfigSource! {
+            @source($low, $high, $self, $err) [
+                $(#[$struct_meta])*
+                struct $StructName { $($rest)* }
+            ] -> [
+                [
+                    $($fields)*
+
+                    $(#[$field_meta])*
+                    // $field_vis
+                    #[serde(default)]
+                    $field_name: $source_field_ty,
+                ];
+                [
+                    $($merge)*
+                    $field_name: $source_field_ty::merge($high.$field_name, $low.$field_name),
+                ];
+                [
+                    $($validate)*
+                    // Validation happens via the call to resolve below.
+                ];
+                [
+                    $($resolve)*
+                    $field_name: $self.$field_name.resolve()?,
+                ]
+            ]
+        }
+    };
+
+    // Default field case: Wrap the field type in Option.
+    (@source($low:ident, $high:ident, $self:ident, $err:ident) [
+        $(#[$struct_meta:meta])*
+        struct $StructName:ident {
+            $(#[$($field_meta:tt)*])*
+            $field_name:ident: $field_ty:ty,
+
+            $($rest:tt)*
+        }
+    ] -> [
+        [ $($fields:tt)* ]; [ $($merge:tt)* ]; [ $($validate:tt)* ]; [ $($resolve:tt)* ]
+    ]) => {
+        ConfigSource! {
+            @source($low, $high, $self, $err) [
+                $(#[$struct_meta])*
+                struct $StructName { $($rest)* }
+            ] -> [
+                [
+                    $($fields)*
+
+                    $(#[$field_meta])*
+                    #[serde(default)]
+                    // $field_vis
+                    $field_name: Option<$field_ty>,
+                ];
+                [
+                    $($merge)*
+                    $field_name: $high.$field_name.or($low.$field_name),
+                ];
+                [
+                    $($validate)*
+                    if $self.$field_name.is_none() {
+                        $err.fields.push(stringify!($field_name));
+                    }
+                ];
+                [
+                    $($resolve)*
+                    // We can unwrap because we will have returned if any fields
+                    // were None already.
+                    $field_name: $self.$field_name.unwrap(),
+                ]
+            ]
+        }
+    };
+}
+
+#[derive(Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-struct ConfigFile {
-    settings: Settings,
-    keys: FxHashMap<String, WmCommand>,
+#[serde(default)]
+struct ConfigSource {
+    settings: SettingsSource,
+    keys: Option<FxHashMap<String, WmCommand>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -35,43 +210,59 @@ pub struct Config {
     pub keys: Vec<(Hotkey, WmCommand)>,
 }
 
+#[derive(ConfigSource!)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
-    #[serde(default = "yes")]
     pub animate: bool,
-    #[serde(default = "yes")]
     pub default_disable: bool,
-    #[serde(default = "yes")]
     pub mouse_follows_focus: bool,
-    #[serde(default = "yes")]
     pub mouse_hides_on_focus: bool,
-    #[serde(default = "yes")]
     pub focus_follows_mouse: bool,
-    #[serde(default)]
+    #[derive_args(source = ExperimentalSource)]
     pub experimental: Experimental,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(ConfigSource!)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
-#[serde(default)]
 pub struct Experimental {
+    #[derive_args(source = StatusIconSource)]
     pub status_icon: StatusIcon,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(ConfigSource!)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
-#[serde(default)]
 pub struct StatusIcon {
     pub enable: bool,
 }
 
-fn yes() -> bool {
-    true
-}
-#[allow(dead_code)]
-fn no() -> bool {
-    false
+impl ConfigSource {
+    fn default() -> Self {
+        toml::from_str(include_str!("../glide.default.toml")).unwrap()
+    }
+
+    fn resolve(self) -> Result<Config, anyhow::Error> {
+        let mut keys = Vec::new();
+        for (key, cmd) in self.keys.unwrap_or_default() {
+            let Ok(key) = Hotkey::from_str(&key) else {
+                bail!("Could not parse hotkey: {key}");
+            };
+            keys.push((key, cmd));
+        }
+        Ok(Config {
+            settings: self.settings.resolve()?,
+            keys,
+        })
+    }
+
+    fn merge(low: Self, high: Self) -> Self {
+        Self {
+            settings: SettingsSource::merge(low.settings, high.settings),
+            keys: high.keys.or(low.keys),
+        }
+    }
 }
 
 impl Config {
@@ -82,19 +273,13 @@ impl Config {
     }
 
     pub fn default() -> Config {
-        Self::parse(include_str!("../glide.default.toml")).unwrap()
+        ConfigSource::default().resolve().unwrap()
     }
 
     fn parse(buf: &str) -> anyhow::Result<Config> {
-        let c: ConfigFile = toml::from_str(&buf)?;
-        let mut keys = Vec::new();
-        for (key, cmd) in c.keys {
-            let Ok(key) = Hotkey::from_str(&key) else {
-                bail!("Could not parse hotkey: {key}");
-            };
-            keys.push((key, cmd));
-        }
-        Ok(Config { settings: c.settings, keys })
+        let c: ConfigSource = toml::from_str(&buf)?;
+        let defaults = ConfigSource::default();
+        ConfigSource::merge(defaults, c).resolve()
     }
 }
 
