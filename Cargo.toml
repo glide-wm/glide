@@ -33,7 +33,7 @@ indexmap = { version = "2.10.0", features = ["serde"] }
 livesplit-hotkey = "0.8.0"
 macro_rules_attribute = "0.2.2"
 objc2 = "0.6.2"
-objc2-app-kit = { version = "0.3.2", default-features = false, features = [
+objc2-app-kit = { version = "0.3.2", default-features = true, features = [
     "NSApplication",
     "NSButton",
     "NSControl",
