@@ -11,3 +11,4 @@ mod window;
 pub use layout_mapping::SpaceLayoutMapping;
 pub use layout_tree::{LayoutId, LayoutTree};
 pub use size::{ContainerKind, Direction, Orientation};
+pub use tree::NodeId;
