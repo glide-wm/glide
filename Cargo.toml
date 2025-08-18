@@ -50,6 +50,7 @@ objc2-app-kit = { version = "0.3.1", default-features = true, features = [
     "NSWindow",
     "NSWorkspace",
 ] }
+objc2-quartz-core = { version = "0.3.0", default-features = true }
 objc2-core-foundation = { version = "0.3.1", features = [
     "CFCGTypes",
     "CFRunLoop",
