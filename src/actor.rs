@@ -9,6 +9,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tracing::Span;
 
 pub mod app;
+pub mod group_indicators;
 pub mod layout;
 pub mod mouse;
 pub mod notification_center;
