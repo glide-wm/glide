@@ -67,7 +67,7 @@ fn create_content_view(mtm: MainThreadMarker) -> Retained<NSView> {
         let indicator_rect =
             NSRect::new(NSPoint::new(50.0, y_position - 25.0), NSSize::new(700.0, 25.0));
 
-        let indicator_view = GroupIndicatorNSView::new(indicator_rect, mtm);
+        let mut indicator_view = GroupIndicatorNSView::new(indicator_rect, mtm);
         indicator_view.update(group_data);
 
         unsafe {

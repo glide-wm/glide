@@ -6,5 +6,5 @@
 pub mod group_indicator;
 
 pub use group_indicator::{
-    Color, GroupDisplayData, GroupIndicatorNSView, GroupKind, IndicatorConfig, SegmentedBarLayout,
+    Color, GroupDisplayData, GroupIndicatorNSView, GroupKind, IndicatorConfig,
 };
