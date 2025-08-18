@@ -26,6 +26,12 @@ mouse_hides_on_focus = true
 # Enables the experimental status icon, which shows the current space.
 status_icon.enable = false
 
+# Enables visual indicators for window groups (tabbed/stacked containers).
+group_indicators.enable = false
+group_indicators.bar_thickness = 4.0
+group_indicators.horizontal_placement = "top"
+group_indicators.vertical_placement = "right"
+
 [keys]
 # Modifier and key names must be capitalized.
 

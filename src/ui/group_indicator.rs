@@ -16,6 +16,8 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::MainThreadMarker;
 use objc2_quartz_core::CALayer;
 
+use crate::config::{HorizontalPlacement, VerticalPlacement};
+
 /// RGBA color representation
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
@@ -58,6 +60,8 @@ pub struct IndicatorConfig {
     pub unselected_color: Color,
     pub border_color: Color,
     pub border_width: f64,
+    pub horizontal_placement: HorizontalPlacement,
+    pub vertical_placement: VerticalPlacement,
 }
 
 impl Default for IndicatorConfig {
@@ -68,6 +72,22 @@ impl Default for IndicatorConfig {
             unselected_color: Color::light_gray(),
             border_color: Color::gray(),
             border_width: 0.5,
+            horizontal_placement: HorizontalPlacement::Top,
+            vertical_placement: VerticalPlacement::Right,
+        }
+    }
+}
+
+impl From<&crate::config::GroupIndicators> for IndicatorConfig {
+    fn from(config: &crate::config::GroupIndicators) -> Self {
+        Self {
+            bar_thickness: config.bar_thickness,
+            selected_color: Color::blue(),
+            unselected_color: Color::light_gray(),
+            border_color: Color::gray(),
+            border_width: 0.5,
+            horizontal_placement: config.horizontal_placement,
+            vertical_placement: config.vertical_placement,
         }
     }
 }

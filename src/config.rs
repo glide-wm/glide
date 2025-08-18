@@ -62,6 +62,8 @@ pub struct Settings {
 pub struct Experimental {
     #[derive_args(StatusIconPartial)]
     pub status_icon: StatusIcon,
+    #[derive_args(GroupIndicatorsPartial)]
+    pub group_indicators: GroupIndicators,
 }
 
 #[derive(PartialConfig!)]
@@ -70,6 +72,38 @@ pub struct Experimental {
 #[serde(deny_unknown_fields)]
 pub struct StatusIcon {
     pub enable: bool,
+}
+
+#[derive(PartialConfig!)]
+#[derive_args(GroupIndicatorsPartial)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GroupIndicators {
+    pub enable: bool,
+    pub bar_thickness: f64,
+    pub horizontal_placement: HorizontalPlacement,
+    pub vertical_placement: VerticalPlacement,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum HorizontalPlacement {
+    Top,
+    Bottom,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum VerticalPlacement {
+    Left,
+    Right,
+}
+
+impl GroupIndicators {
+    /// Get the indicator thickness for layout space reservation
+    pub fn indicator_thickness(&self) -> f64 {
+        if self.enable { self.bar_thickness } else { 0.0 }
+    }
 }
 
 impl ConfigPartial {
