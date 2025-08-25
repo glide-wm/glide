@@ -13,6 +13,7 @@ use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSFont, NSTextField, NSView,
     NSWindow, NSWindowStyleMask,
 };
+use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize, NSString};
 
 struct IndicatorDemo {
@@ -48,7 +49,7 @@ fn main() {
 }
 
 fn create_demo_window(mtm: MainThreadMarker) -> IndicatorDemo {
-    let window_rect = NSRect::new(NSPoint::new(100.0, 100.0), NSSize::new(800.0, 700.0));
+    let window_rect = NSRect::new(NSPoint::new(100.0, 100.0), NSSize::new(800.0, 1000.0));
 
     let window = unsafe {
         let window = NSWindow::alloc(mtm);
@@ -75,12 +76,13 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
         let view = NSView::alloc(mtm);
         NSView::initWithFrame(
             view,
-            NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(800.0, 700.0)),
+            NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(800.0, 1000.0)),
         )
     };
 
     let scenarios = create_demo_scenarios();
-    let mut y_position = 650.0;
+    let mut y_position = 950.0;
+    let thickness = 4.0;
     let mut demo = IndicatorDemo::new();
 
     for (title, group_data) in scenarios {
@@ -89,12 +91,39 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
         unsafe { content_view.addSubview(&label) };
         y_position -= 35.0;
 
-        // Add indicator view
-        let indicator_rect =
-            NSRect::new(NSPoint::new(50.0, y_position - 30.0), NSSize::new(700.0, 30.0));
+        // Add indicator view with proper dimensions based on orientation
+        let (indicator_rect, indicator_frame) = match group_data.group_kind {
+            GroupKind::Horizontal => {
+                // Horizontal bars: 700px wide x 4px tall
+                let rect = NSRect::new(
+                    NSPoint::new(50.0, y_position - thickness),
+                    NSSize::new(700.0, thickness),
+                );
+                let frame = CGRect::new(
+                    CGPoint::new(rect.origin.x, rect.origin.y),
+                    CGSize::new(rect.size.width, rect.size.height),
+                );
+                (rect, frame)
+            }
+            GroupKind::Vertical => {
+                // Vertical bars: 4px wide x 120px tall
+                let rect = NSRect::new(
+                    NSPoint::new(50.0, y_position - 120.0),
+                    NSSize::new(thickness, 120.0),
+                );
+                let frame = CGRect::new(
+                    CGPoint::new(rect.origin.x, rect.origin.y),
+                    CGSize::new(rect.size.width, rect.size.height),
+                );
+                (rect, frame)
+            }
+        };
+
+        let mut group_data_with_frame = group_data.clone();
+        group_data_with_frame.frame = indicator_frame;
 
         let mut indicator_view = GroupIndicatorNSView::new(indicator_rect, mtm);
-        indicator_view.update(group_data.clone());
+        indicator_view.update(group_data_with_frame);
 
         let indicator_rc = Rc::new(RefCell::new(indicator_view));
 
@@ -112,7 +141,11 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
 
         demo.add_indicator(indicator_rc);
 
-        y_position -= 50.0;
+        // Adjust spacing based on orientation
+        match group_data.group_kind {
+            GroupKind::Horizontal => y_position -= 40.0,
+            GroupKind::Vertical => y_position -= 140.0, // More space for taller vertical bars
+        }
     }
 
     // Add instructions at the bottom
@@ -147,6 +180,9 @@ fn create_label(text: &str, y_position: f64, mtm: MainThreadMarker) -> Retained<
 }
 
 fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
+    // Note: frame will be set later when we know the actual indicator rect
+    let frame = CGRect::ZERO;
+
     vec![
         (
             "Small horizontal group (3 tabs, middle selected) - Click any segment!",
@@ -154,6 +190,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Horizontal,
                 total_count: 3,
                 selected_index: 1,
+                frame,
             },
         ),
         (
@@ -162,6 +199,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Vertical,
                 total_count: 4,
                 selected_index: 0,
+                frame,
             },
         ),
         (
@@ -170,6 +208,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Horizontal,
                 total_count: 8,
                 selected_index: 4,
+                frame,
             },
         ),
         (
@@ -178,6 +217,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Horizontal,
                 total_count: 15,
                 selected_index: 7,
+                frame,
             },
         ),
         (
@@ -186,6 +226,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Vertical,
                 total_count: 12,
                 selected_index: 3,
+                frame,
             },
         ),
         (
@@ -194,6 +235,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Horizontal,
                 total_count: 1,
                 selected_index: 0,
+                frame,
             },
         ),
         (
@@ -202,6 +244,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 group_kind: GroupKind::Vertical,
                 total_count: 2,
                 selected_index: 1,
+                frame,
             },
         ),
     ]

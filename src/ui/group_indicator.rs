@@ -2,7 +2,7 @@
 //!
 //! This module provides a segmented bar for visualizing groups:
 //! - Horizontal groups (tabbed): horizontal bar at top
-//! - Vertical groups (stacked): vertical bar on right side
+//! - Vertical groups (stacked): vertical bar on the side
 //! - Each segment represents one child in the group
 //! - Selected segment is highlighted
 
@@ -17,6 +17,7 @@ use objc2_foundation::MainThreadMarker;
 use objc2_quartz_core::CALayer;
 
 use crate::config::{HorizontalPlacement, VerticalPlacement};
+use crate::sys::geometry::CGRectExt;
 
 /// RGBA color representation
 #[derive(Debug, Clone, Copy)]
@@ -52,10 +53,8 @@ impl Color {
     }
 }
 
-/// Configuration for segmented bar appearance
 #[derive(Debug, Clone)]
 pub struct IndicatorConfig {
-    pub bar_thickness: f64,
     pub selected_color: Color,
     pub unselected_color: Color,
     pub border_color: Color,
@@ -67,7 +66,6 @@ pub struct IndicatorConfig {
 impl Default for IndicatorConfig {
     fn default() -> Self {
         Self {
-            bar_thickness: 4.0,
             selected_color: Color::blue(),
             unselected_color: Color::light_gray(),
             border_color: Color::gray(),
@@ -81,7 +79,6 @@ impl Default for IndicatorConfig {
 impl From<&crate::config::GroupIndicators> for IndicatorConfig {
     fn from(config: &crate::config::GroupIndicators) -> Self {
         Self {
-            bar_thickness: config.bar_thickness,
             selected_color: Color::blue(),
             unselected_color: Color::light_gray(),
             border_color: Color::gray(),
@@ -105,9 +102,9 @@ pub struct GroupDisplayData {
     pub group_kind: GroupKind,
     pub total_count: usize,
     pub selected_index: usize,
+    pub frame: CGRect,
 }
 
-/// Callback for when a segment is clicked
 pub type SegmentClickCallback = Rc<dyn Fn(usize)>;
 
 /// Inner state for the indicator view
@@ -137,7 +134,6 @@ objc2::define_class!(
                 location,
                 group_data,
                 &self.bounds(),
-                &state.config,
             ) else {
                 return
             };
@@ -160,17 +156,8 @@ impl ClickableIndicatorView {
         point: CGPoint,
         group_data: &GroupDisplayData,
         bounds: &CGRect,
-        config: &IndicatorConfig,
     ) -> Option<usize> {
-        let BarLayout { frame: bar, segment_length } =
-            bar_layout(group_data, *bounds, config.bar_thickness);
-
-        // Check if point is within the bar bounds
-        if point.x < bar.origin.x
-            || point.x >= bar.origin.x + bar.size.width
-            || point.y < bar.origin.y
-            || point.y >= bar.origin.y + bar.size.height
-        {
+        if !bounds.contains(point) {
             return None;
         }
 
@@ -178,16 +165,11 @@ impl ClickableIndicatorView {
             return None;
         }
 
-        let segment_index = match group_data.group_kind {
-            GroupKind::Horizontal => {
-                let relative_x = point.x - bar.origin.x;
-                (relative_x / segment_length).floor() as usize
-            }
-            GroupKind::Vertical => {
-                let relative_y = point.y - bar.origin.y;
-                (relative_y / segment_length).floor() as usize
-            }
+        let pct = match group_data.group_kind {
+            GroupKind::Horizontal => point.x / bounds.size.width,
+            GroupKind::Vertical => point.y / bounds.size.height,
         };
+        let segment_index = (pct * group_data.total_count as f64).floor() as usize;
 
         if segment_index < group_data.total_count {
             Some(segment_index)
@@ -198,7 +180,6 @@ impl ClickableIndicatorView {
 }
 
 impl GroupIndicatorNSView {
-    /// Create a new indicator view
     pub fn new(frame: CGRect, mtm: MainThreadMarker) -> Self {
         let view =
             ClickableIndicatorView::alloc(mtm).set_ivars(RefCell::new(IndicatorState::default()));
@@ -209,12 +190,10 @@ impl GroupIndicatorNSView {
         Self { view }
     }
 
-    /// Get the underlying NSView
     pub fn view(&self) -> &NSView {
         &*self.view
     }
 
-    /// Update the indicator with new group data
     pub fn update(&mut self, group_data: GroupDisplayData) {
         let old_selected = {
             let state = self.view.ivars().borrow();
@@ -232,23 +211,15 @@ impl GroupIndicatorNSView {
         }
     }
 
-    /// Clear the indicators
     pub fn clear(&mut self) {
         self.view.ivars().borrow_mut().group_data = None;
         self.clear_layers();
     }
 
-    /// Get the recommended thickness for the indicator area
-    pub fn recommended_thickness(&self) -> f64 {
-        self.view.ivars().borrow().config.bar_thickness
-    }
-
-    /// Set the callback for segment clicks
     pub fn set_click_callback(&mut self, callback: SegmentClickCallback) {
         self.view.ivars().borrow_mut().click_callback = Some(callback);
     }
 
-    /// Get the current group data
     pub fn group_data(&self) -> Option<GroupDisplayData> {
         self.view.ivars().borrow().group_data.clone()
     }
@@ -300,8 +271,7 @@ impl GroupIndicatorNSView {
     /// Determine which segment contains the given point
     pub fn segment_at_point(&self, point: CGPoint, group_data: &GroupDisplayData) -> Option<usize> {
         let bounds = self.view.bounds();
-        let state = self.view.ivars().borrow();
-        ClickableIndicatorView::segment_at_point_static(point, group_data, &bounds, &state.config)
+        ClickableIndicatorView::segment_at_point_static(point, group_data, &bounds)
     }
 
     /// Clear all layers
@@ -368,15 +338,12 @@ impl GroupIndicatorNSView {
         }
     }
 
-    /// Update or create the background layer
     fn update_background_layer(
         &mut self,
         parent_layer: &CALayer,
-        group_data: &GroupDisplayData,
+        _group_data: &GroupDisplayData,
         bounds: CGRect,
     ) {
-        let bar = self.calculate_bar_frame(group_data, bounds);
-
         let mut state = self.view.ivars().borrow_mut();
 
         let background_layer = if let Some(existing) = &state.background_layer {
@@ -388,11 +355,8 @@ impl GroupIndicatorNSView {
             layer
         };
 
-        // Update frame
-        background_layer.setFrame(CGRect::new(
-            CGPoint::new(bar.origin.x, bar.origin.y),
-            CGSize::new(bar.size.width, bar.size.height),
-        ));
+        // Use full view bounds for the background layer
+        background_layer.setFrame(bounds);
 
         // Update appearance
         let bg_color = state.config.unselected_color.to_nscolor();
@@ -407,22 +371,19 @@ impl GroupIndicatorNSView {
         }
     }
 
-    /// Update separator layers between segments
     fn update_separator_layers(
         &mut self,
         parent_layer: &CALayer,
         group_data: &GroupDisplayData,
         bounds: CGRect,
     ) {
-        let bar = self.calculate_bar_frame(group_data, bounds);
-
         if group_data.total_count <= 1 {
             return;
         }
 
         let segment_length = match group_data.group_kind {
-            GroupKind::Horizontal => bar.size.width / group_data.total_count as f64,
-            GroupKind::Vertical => bar.size.height / group_data.total_count as f64,
+            GroupKind::Horizontal => bounds.size.width / group_data.total_count as f64,
+            GroupKind::Vertical => bounds.size.height / group_data.total_count as f64,
         };
 
         let state = self.view.ivars().borrow();
@@ -433,21 +394,11 @@ impl GroupIndicatorNSView {
             let (sep_x, sep_y, sep_width, sep_height) = match group_data.group_kind {
                 GroupKind::Horizontal => {
                     // Vertical line separators
-                    (
-                        bar.origin.x + separator_pos - 0.5,
-                        bar.origin.y,
-                        1.0,
-                        bar.size.height,
-                    )
+                    (separator_pos - 0.5, 0.0, 1.0, bounds.size.height)
                 }
                 GroupKind::Vertical => {
                     // Horizontal line separators
-                    (
-                        bar.origin.x,
-                        bar.origin.y + separator_pos - 0.5,
-                        bar.size.width,
-                        1.0,
-                    )
+                    (0.0, separator_pos - 0.5, bounds.size.width, 1.0)
                 }
             };
 
@@ -469,7 +420,6 @@ impl GroupIndicatorNSView {
         }
     }
 
-    /// Update the selected segment layer
     fn update_selected_layer(
         &mut self,
         parent_layer: &CALayer,
@@ -480,28 +430,21 @@ impl GroupIndicatorNSView {
             return;
         }
 
-        let (selected_layer, bar_thickness) = {
+        let selected_layer = {
             let mut state = self.view.ivars().borrow_mut();
 
-            let selected_layer = if let Some(existing) = &state.selected_layer {
+            if let Some(existing) = &state.selected_layer {
                 existing.clone()
             } else {
                 let layer = CALayer::layer();
                 parent_layer.addSublayer(&layer);
                 state.selected_layer = Some(layer.clone());
                 layer
-            };
-
-            let bar_thickness = state.config.bar_thickness;
-            (selected_layer, bar_thickness)
+            }
         };
 
-        let segment_frame = Self::calculate_segment_frame(
-            group_data,
-            bounds,
-            group_data.selected_index,
-            bar_thickness,
-        );
+        let segment_frame =
+            Self::calculate_segment_frame(group_data, bounds, group_data.selected_index);
 
         selected_layer.setFrame(segment_frame);
 
@@ -518,28 +461,28 @@ impl GroupIndicatorNSView {
         group_data: &GroupDisplayData,
         bounds: CGRect,
         segment_index: usize,
-        bar_thickness: f64,
     ) -> CGRect {
-        let BarLayout { frame: bar, segment_length } =
-            bar_layout(group_data, bounds, bar_thickness);
+        let segment_length = match group_data.group_kind {
+            GroupKind::Horizontal => bounds.size.width / group_data.total_count as f64,
+            GroupKind::Vertical => bounds.size.height / group_data.total_count as f64,
+        };
 
         let (seg_x, seg_y, seg_width, seg_height) = match group_data.group_kind {
             GroupKind::Horizontal => {
-                let seg_start = bar.origin.x + (segment_index as f64 * segment_length);
-                (seg_start, bar.origin.y, segment_length, bar.size.height)
+                let seg_start = segment_index as f64 * segment_length;
+                (seg_start, 0.0, segment_length, bounds.size.height)
             }
             GroupKind::Vertical => {
-                let seg_start = bar.origin.y + (segment_index as f64 * segment_length);
-                (bar.origin.x, seg_start, bar.size.width, segment_length)
+                let seg_start = segment_index as f64 * segment_length;
+                (0.0, seg_start, bounds.size.width, segment_length)
             }
         };
 
         CGRect::new(CGPoint::new(seg_x, seg_y), CGSize::new(seg_width, seg_height))
     }
 
-    /// Move the selected layer to a new segment
     fn animate_selection_change(&self, _from_index: usize, to_index: usize) {
-        let (selected_layer, group_data, bounds, bar_thickness) = {
+        let (selected_layer, group_data, bounds) = {
             let state = self.view.ivars().borrow();
             let Some(selected_layer) = state.selected_layer.clone() else {
                 return;
@@ -548,49 +491,13 @@ impl GroupIndicatorNSView {
                 return;
             };
             let bounds = self.view.bounds();
-            let bar_thickness = state.config.bar_thickness;
-            (selected_layer, group_data, bounds, bar_thickness)
+            (selected_layer, group_data, bounds)
         };
 
-        let to_frame = Self::calculate_segment_frame(&group_data, bounds, to_index, bar_thickness);
+        let to_frame = Self::calculate_segment_frame(&group_data, bounds, to_index);
 
         selected_layer.setFrame(to_frame);
     }
-
-    /// Calculate the frame for the indicator bar
-    fn calculate_bar_frame(&self, group_data: &GroupDisplayData, bounds: CGRect) -> CGRect {
-        let state = self.view.ivars().borrow();
-        bar_layout(group_data, bounds, state.config.bar_thickness).frame
-    }
-}
-
-struct BarLayout {
-    frame: CGRect,
-    segment_length: f64,
-}
-
-fn bar_layout(group_data: &GroupDisplayData, bounds: CGRect, thickness: f64) -> BarLayout {
-    let frame = match group_data.group_kind {
-        GroupKind::Horizontal => {
-            // Horizontal bar at the top
-            CGRect::new(
-                CGPoint::new(0.0, bounds.size.height - thickness),
-                CGSize::new(bounds.size.width, thickness),
-            )
-        }
-        GroupKind::Vertical => {
-            // Vertical bar on the right side
-            CGRect::new(
-                CGPoint::new(bounds.size.width - thickness, 0.0),
-                CGSize::new(thickness, bounds.size.height),
-            )
-        }
-    };
-    let segment_length = match group_data.group_kind {
-        GroupKind::Horizontal => frame.size.width / group_data.total_count as f64,
-        GroupKind::Vertical => frame.size.height / group_data.total_count as f64,
-    };
-    BarLayout { frame, segment_length }
 }
 
 #[cfg(test)]
@@ -608,6 +515,7 @@ mod tests {
             group_kind: GroupKind::Horizontal,
             total_count: 3,
             selected_index: 1,
+            frame: bounds,
         };
 
         // Test horizontal segments (each segment is 100px wide)
@@ -625,9 +533,9 @@ mod tests {
             Some(2)
         );
 
-        // Test outside bar area
+        // Test outside view bounds
         assert_eq!(
-            view.segment_at_point(CGPoint::new(50.0, 90.0), &horizontal_group),
+            view.segment_at_point(CGPoint::new(50.0, -10.0), &horizontal_group),
             None
         );
 
@@ -635,6 +543,7 @@ mod tests {
             group_kind: GroupKind::Vertical,
             total_count: 4,
             selected_index: 2,
+            frame: bounds,
         };
 
         // Test vertical segments (each segment is 25px tall)
@@ -657,8 +566,9 @@ mod tests {
         );
 
         // Test outside bar area
+        // Test outside view bounds
         assert_eq!(
-            view.segment_at_point(CGPoint::new(290.0, 50.0), &vertical_group),
+            view.segment_at_point(CGPoint::new(-10.0, 50.0), &vertical_group),
             None
         );
     }
