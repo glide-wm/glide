@@ -162,7 +162,8 @@ impl ClickableIndicatorView {
         bounds: &CGRect,
         config: &IndicatorConfig,
     ) -> Option<usize> {
-        let bar = calculate_bar_frame_with_thickness(group_data, *bounds, config.bar_thickness);
+        let BarLayout { frame: bar, segment_length } =
+            bar_layout(group_data, *bounds, config.bar_thickness);
 
         // Check if point is within the bar bounds
         if point.x < bar.origin.x
@@ -176,11 +177,6 @@ impl ClickableIndicatorView {
         if group_data.total_count == 0 {
             return None;
         }
-
-        let segment_length = match group_data.group_kind {
-            GroupKind::Horizontal => bar.size.width / group_data.total_count as f64,
-            GroupKind::Vertical => bar.size.height / group_data.total_count as f64,
-        };
 
         let segment_index = match group_data.group_kind {
             GroupKind::Horizontal => {
@@ -346,13 +342,8 @@ impl GroupIndicatorNSView {
         // Ensure we have the right number of separator layers
         self.ensure_separator_layers(group_data.total_count);
 
-        // Update background layer
         self.update_background_layer(&parent_layer, &group_data, bounds);
-
-        // Update separator layers
         self.update_separator_layers(&parent_layer, &group_data, bounds);
-
-        // Update selected layer
         self.update_selected_layer(&parent_layer, &group_data, bounds);
     }
 
@@ -529,12 +520,8 @@ impl GroupIndicatorNSView {
         segment_index: usize,
         bar_thickness: f64,
     ) -> CGRect {
-        let bar = calculate_bar_frame_with_thickness(group_data, bounds, bar_thickness);
-
-        let segment_length = match group_data.group_kind {
-            GroupKind::Horizontal => bar.size.width / group_data.total_count as f64,
-            GroupKind::Vertical => bar.size.height / group_data.total_count as f64,
-        };
+        let BarLayout { frame: bar, segment_length } =
+            bar_layout(group_data, bounds, bar_thickness);
 
         let (seg_x, seg_y, seg_width, seg_height) = match group_data.group_kind {
             GroupKind::Horizontal => {
@@ -550,7 +537,7 @@ impl GroupIndicatorNSView {
         CGRect::new(CGPoint::new(seg_x, seg_y), CGSize::new(seg_width, seg_height))
     }
 
-    /// Move the selected layer to a new segment (immediate update for now)
+    /// Move the selected layer to a new segment
     fn animate_selection_change(&self, _from_index: usize, to_index: usize) {
         let (selected_layer, group_data, bounds, bar_thickness) = {
             let state = self.view.ivars().borrow();
@@ -573,16 +560,17 @@ impl GroupIndicatorNSView {
     /// Calculate the frame for the indicator bar
     fn calculate_bar_frame(&self, group_data: &GroupDisplayData, bounds: CGRect) -> CGRect {
         let state = self.view.ivars().borrow();
-        calculate_bar_frame_with_thickness(group_data, bounds, state.config.bar_thickness)
+        bar_layout(group_data, bounds, state.config.bar_thickness).frame
     }
 }
 
-fn calculate_bar_frame_with_thickness(
-    group_data: &GroupDisplayData,
-    bounds: CGRect,
-    thickness: f64,
-) -> CGRect {
-    match group_data.group_kind {
+struct BarLayout {
+    frame: CGRect,
+    segment_length: f64,
+}
+
+fn bar_layout(group_data: &GroupDisplayData, bounds: CGRect, thickness: f64) -> BarLayout {
+    let frame = match group_data.group_kind {
         GroupKind::Horizontal => {
             // Horizontal bar at the top
             CGRect::new(
@@ -597,7 +585,12 @@ fn calculate_bar_frame_with_thickness(
                 CGSize::new(thickness, bounds.size.height),
             )
         }
-    }
+    };
+    let segment_length = match group_data.group_kind {
+        GroupKind::Horizontal => frame.size.width / group_data.total_count as f64,
+        GroupKind::Vertical => frame.size.height / group_data.total_count as f64,
+    };
+    BarLayout { frame, segment_length }
 }
 
 #[cfg(test)]
