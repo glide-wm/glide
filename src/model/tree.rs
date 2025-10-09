@@ -22,7 +22,7 @@ impl<O: Observer> Tree<O> {
         Tree { map: NodeMap::new(), data }
     }
 
-    pub fn mk_node(&mut self) -> UnattachedNode<O> {
+    pub fn mk_node(&mut self) -> UnattachedNode<'_, O> {
         let id = self.map.map.insert(Node::default());
         self.data.added_to_forest(&self.map, id);
         UnattachedNode { id, tree: self }
@@ -145,7 +145,7 @@ slotmap::new_key_type! {
 
 impl NodeId {
     #[track_caller]
-    pub fn detach<O: Observer>(self, tree: &mut Tree<O>) -> DetachedNode<O> {
+    pub fn detach<O: Observer>(self, tree: &mut Tree<O>) -> DetachedNode<'_, O> {
         DetachedNode { id: self, tree }
     }
 
@@ -206,7 +206,7 @@ impl NodeId {
     ///
     /// This method does not call observer events on the created nodes.
     #[track_caller]
-    pub fn deep_copy<O: Observer>(self, tree: &mut Tree<O>) -> UnattachedNode<O> {
+    pub fn deep_copy<O: Observer>(self, tree: &mut Tree<O>) -> UnattachedNode<'_, O> {
         let new_root = tree.mk_node().id;
         let mut stack = vec![(self, new_root)];
         let preorder = self.traverse_preorder(&tree.map).skip(1).collect::<Vec<_>>();
