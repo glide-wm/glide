@@ -98,7 +98,7 @@ fn main() {
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);
 
-    Executor::run(async move {
+    Executor::run_main(mtm, async move {
         join!(
             wm_controller.run(),
             notification_center.watch_for_notifications(),

@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake};
 
 use core_foundation::runloop::CFRunLoop;
+use objc2::MainThreadMarker;
+use objc2_app_kit::NSApp;
 
 use super::run_loop::WakeupHandle;
 
@@ -20,8 +22,17 @@ thread_local! {
 pub struct Executor;
 
 impl Executor {
-    #[allow(dead_code)]
     pub fn run(task: impl Future<Output = ()>) {
+        Self::run_with_loop_fn(task, CFRunLoop::run_current);
+    }
+
+    pub fn run_main(mtm: MainThreadMarker, task: impl Future<Output = ()>) {
+        // In macOS some events do not fire unless we call this function.
+        // https://github.com/koekeishiya/yabai/issues/2680
+        Self::run_with_loop_fn(task, || NSApp(mtm).run());
+    }
+
+    fn run_with_loop_fn(task: impl Future<Output = ()>, loop_fn: impl Fn()) {
         let task: Pin<Box<dyn Future<Output = ()> + '_>> = Box::pin(task);
         // Extend the lifetime.
         // Safety: We only poll the task within this function, then it is dropped.
@@ -49,7 +60,7 @@ impl Executor {
                 // Run the loop until it is stopped by process_tasks below.
                 // We do this in a loop just in case there were "spurious"
                 // stops by some other code.
-                CFRunLoop::run_current();
+                loop_fn();
             }
         })
     }
