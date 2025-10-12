@@ -18,7 +18,7 @@ type WeakSender = tokio::sync::mpsc::WeakUnboundedSender<(Span, WmEvent)>;
 type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, WmEvent)>;
 
 use crate::actor::app::AppInfo;
-use crate::actor::{self, group_indicators, mouse, reactor, status};
+use crate::actor::{self, mouse, reactor, status};
 use crate::collections::HashSet;
 use crate::sys;
 use crate::sys::event::HotkeyManager;
@@ -77,7 +77,6 @@ pub struct WmController {
     events_tx: reactor::Sender,
     mouse_tx: mouse::Sender,
     status_tx: status::Sender,
-    group_indicators_tx: group_indicators::Sender,
     receiver: Receiver,
     sender: WeakSender,
     starting_space: Option<SpaceId>,
@@ -97,7 +96,6 @@ impl WmController {
         events_tx: reactor::Sender,
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
-        group_indicators_tx: group_indicators::Sender,
     ) -> (Self, Sender) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let this = Self {
@@ -105,7 +103,6 @@ impl WmController {
             events_tx,
             mouse_tx,
             status_tx,
-            group_indicators_tx,
             receiver,
             sender: sender.downgrade(),
             starting_space: None,
@@ -177,11 +174,10 @@ impl WmController {
                     frames.clone(),
                     self.active_spaces(),
                     self.get_windows(),
+                    converter,
                 ));
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
                 self.mouse_tx.send(mouse::Request::ScreenParametersChanged(frames, converter));
-                self.group_indicators_tx
-                    .send(group_indicators::Event::ScreenParametersChanged(converter));
             }
             SpaceChanged(spaces) => {
                 self.handle_space_changed(spaces.clone());

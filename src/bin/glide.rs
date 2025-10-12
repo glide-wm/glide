@@ -90,20 +90,15 @@ fn main() {
         reactor::Record::new(opt.record.as_deref()),
         mouse_tx.clone(),
         status_tx.clone(),
-        group_indicators_tx.clone(),
+        group_indicators_tx,
     );
     let wm_config = wm_controller::Config {
         one_space: opt.one,
         restore_file: restore_file(),
         config: config.clone(),
     };
-    let (wm_controller, wm_controller_sender) = WmController::new(
-        wm_config,
-        events_tx.clone(),
-        mouse_tx.clone(),
-        status_tx,
-        group_indicators_tx,
-    );
+    let (wm_controller, wm_controller_sender) =
+        WmController::new(wm_config, events_tx.clone(), mouse_tx.clone(), status_tx);
     let notification_center = NotificationCenter::new(wm_controller_sender);
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);

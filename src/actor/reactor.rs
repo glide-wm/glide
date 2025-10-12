@@ -39,7 +39,7 @@ use crate::log::{self, MetricsCommand};
 use crate::sys::event::MouseState;
 use crate::sys::executor::Executor;
 use crate::sys::geometry::{CGRectDef, CGRectExt, Round, SameAs};
-use crate::sys::screen::SpaceId;
+use crate::sys::screen::{CoordinateConverter, SpaceId};
 use crate::sys::window_server::{WindowServerId, WindowServerInfo};
 
 pub type Sender = tokio::sync::mpsc::UnboundedSender<(Span, Event)>;
@@ -59,6 +59,7 @@ pub enum Event {
         #[serde_as(as = "Vec<CGRectDef>")] Vec<CGRect>,
         Vec<Option<SpaceId>>,
         Vec<WindowServerInfo>,
+        CoordinateConverter,
     ),
 
     /// The current space changed.
@@ -418,7 +419,7 @@ impl Reactor {
                     self.in_drag = true;
                 }
             }
-            Event::ScreenParametersChanged(frames, spaces, ws_info) => {
+            Event::ScreenParametersChanged(frames, spaces, ws_info, converter) => {
                 info!("screen parameters changed");
                 self.screens = frames
                     .into_iter()
@@ -432,7 +433,13 @@ impl Reactor {
                 }
                 self.update_complete_window_server_info(ws_info);
                 self.update_active_screen();
-                // FIXME: Update visible windows if space changed
+                // FIXME: Update visible windows if space changed.
+                // Forward the event to group_indicators. We serialize these
+                // through the reactor instead of delivering directly from
+                // wm_controller in order to eliminate possible races with other
+                // events sent by the reactor.
+                self.group_indicators_tx
+                    .send(group_indicators::Event::ScreenParametersChanged(converter));
             }
             Event::SpaceChanged(spaces, ws_info) => {
                 if spaces.len() != self.screens.len() {
@@ -795,6 +802,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -823,6 +831,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -859,6 +868,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -899,6 +909,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(3)));
@@ -946,6 +957,7 @@ pub mod tests {
             vec![full_screen],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -974,6 +986,7 @@ pub mod tests {
             vec![full_screen],
             vec![None],
             ws_info.clone(),
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(
@@ -1003,6 +1016,7 @@ pub mod tests {
             vec![full_screen],
             vec![None],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1032,6 +1046,7 @@ pub mod tests {
             vec![screen1, screen2],
             vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         let mut windows = make_windows(2);
@@ -1063,6 +1078,7 @@ pub mod tests {
                 layer: 10,
                 frame: CGRect::ZERO,
             }],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(1, make_windows(1), None, true, false));
@@ -1095,6 +1111,7 @@ pub mod tests {
             vec![screen1, screen2],
             vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -1174,6 +1191,7 @@ pub mod tests {
             vec![full_screen],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(
@@ -1199,6 +1217,7 @@ pub mod tests {
             vec![CGRect::ZERO],
             vec![None],
             vec![],
+            CoordinateConverter::default(),
         ));
         reactor.handle_event(Event::ScreenParametersChanged(
             vec![full_screen],
@@ -1211,6 +1230,7 @@ pub mod tests {
                     frame: CGRect::ZERO,
                 })
                 .collect(),
+            CoordinateConverter::default(),
         ));
         let requests = apps.requests();
         for request in requests {
@@ -1250,6 +1270,7 @@ pub mod tests {
             vec![full_screen],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1274,6 +1295,7 @@ pub mod tests {
                 layer: 0,
                 frame: CGRect::new(CGPoint::new(500., 0.), CGSize::new(500., 500.)),
             }],
+            CoordinateConverter::default(),
         ));
 
         let _events = apps.simulate_events();
@@ -1298,6 +1320,7 @@ pub mod tests {
             vec![CGRect::ZERO],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
         assert_eq!(None, reactor.main_window());
 
