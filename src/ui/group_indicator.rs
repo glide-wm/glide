@@ -464,7 +464,12 @@ impl GroupIndicatorNSView {
             }
             GroupKind::Vertical => {
                 let seg_start = segment_index as f64 * segment_length;
-                (0.0, seg_start, bounds.size.width, segment_length)
+                (
+                    0.0,
+                    bounds.size.height - seg_start - segment_length,
+                    bounds.size.width,
+                    segment_length,
+                )
             }
         };
 
