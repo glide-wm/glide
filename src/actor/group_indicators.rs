@@ -8,8 +8,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use objc2::MainThreadMarker;
-use tracing::instrument;
+use objc2::rc::Retained;
+use objc2::{MainThreadMarker, MainThreadOnly};
+use objc2_app_kit::{NSBackingStoreType, NSFloatingWindowLevel, NSWindow, NSWindowStyleMask};
+use objc2_foundation::NSZeroRect;
+use tracing::{debug, instrument};
 
 use crate::actor;
 use crate::config::Config;
@@ -37,7 +40,7 @@ pub struct GroupIndicators {
     config: Arc<Config>,
     rx: Receiver,
     mtm: MainThreadMarker,
-    indicators: HashMap<NodeId, GroupIndicatorNSView>,
+    indicators: HashMap<NodeId, (GroupIndicatorNSView, Retained<NSWindow>)>,
     coordinate_converter: CoordinateConverter,
 }
 
@@ -77,9 +80,6 @@ impl GroupIndicators {
 
     #[instrument(skip(self))]
     fn handle_event(&mut self, event: Event) {
-        if !self.config.settings.experimental.group_indicators.enable {
-            return;
-        }
         match event {
             Event::GroupsUpdated { space_id, groups } => {
                 self.handle_groups_updated(space_id, groups);
@@ -96,15 +96,17 @@ impl GroupIndicators {
     fn handle_groups_updated(&mut self, _space_id: SpaceId, groups: Vec<GroupInfo>) {
         let group_nodes: std::collections::HashSet<NodeId> =
             groups.iter().map(|g| g.node_id).collect();
-        self.indicators.retain(|&node_id, indicator| {
+        self.indicators.retain(|&node_id, (indicator, window)| {
             if group_nodes.contains(&node_id) {
                 true
             } else {
                 indicator.clear();
+                window.close();
                 false
             }
         });
 
+        debug!(?groups);
         for group in groups {
             self.update_or_create_indicator(group);
         }
@@ -112,9 +114,9 @@ impl GroupIndicators {
 
     fn handle_selection_changed(&mut self, node_id: NodeId, selected_index: usize) {
         if let Some(indicator) = self.indicators.get_mut(&node_id) {
-            if let Some(mut group_data) = indicator.group_data() {
+            if let Some(mut group_data) = indicator.0.group_data() {
                 group_data.selected_index = selected_index;
-                indicator.update(group_data);
+                indicator.0.update(group_data);
             }
         }
     }
@@ -138,35 +140,48 @@ impl GroupIndicators {
             }
         };
 
-        let group_data = GroupDisplayData {
+        let (indicator, window) = self.indicators.entry(group.node_id).or_insert_with(|| {
+            let mut indicator = GroupIndicatorNSView::new(group.frame, self.mtm);
+            indicator.set_click_callback(Rc::new(move |segment_index| {
+                Self::handle_indicator_clicked(group.node_id, segment_index);
+            }));
+            let window = make_indicator_window(self.mtm);
+            window.setContentView(Some(indicator.view()));
+            (indicator, window)
+        });
+        indicator.update(GroupDisplayData {
             group_kind,
             total_count: group.total_count,
             selected_index: group.selected_index,
             frame: group.frame,
-        };
-
-        let node_id = group.node_id;
-        let needs_creation = !self.indicators.contains_key(&node_id);
-
-        if needs_creation {
-            let mut indicator = GroupIndicatorNSView::new(group.frame, self.mtm);
-            indicator.update(group_data);
-
-            indicator.set_click_callback(Rc::new(move |segment_index| {
-                Self::handle_indicator_clicked(node_id, segment_index);
-            }));
-
-            // Set initial visibility
-            indicator.view().setHidden(!group.visible);
-
-            self.indicators.insert(node_id, indicator);
-        } else {
-            if let Some(existing) = self.indicators.get_mut(&node_id) {
-                existing.update(group_data);
-                existing.view().setFrame(group.frame);
-                // Update visibility
-                existing.view().setHidden(!group.visible);
-            }
+        });
+        window.setIsVisible(!group.visible);
+        if let Some(frame) = self.coordinate_converter.convert_rect(group.frame) {
+            window.setFrame_display(frame, true);
         }
+        window.makeKeyAndOrderFront(None);
     }
+}
+
+fn make_indicator_window(mtm: MainThreadMarker) -> Retained<NSWindow> {
+    let window = unsafe {
+        NSWindow::initWithContentRect_styleMask_backing_defer(
+            NSWindow::alloc(mtm),
+            NSZeroRect,
+            NSWindowStyleMask::Borderless,
+            NSBackingStoreType::Buffered,
+            true,
+        )
+    };
+    // SAFETY: This actually prevents a segfault (double release) when calling
+    // window.close().
+    unsafe { window.setReleasedWhenClosed(false) };
+
+    // Configure as overlay window
+    window.setLevel(NSFloatingWindowLevel);
+    window.setBackgroundColor(None);
+    window.setOpaque(true);
+    window.setIgnoresMouseEvents(true);
+
+    window
 }

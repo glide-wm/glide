@@ -277,7 +277,8 @@ impl GroupIndicatorNSView {
         unsafe {
             if let Some(parent_layer) = self.view.layer() {
                 if let Some(sublayers) = parent_layer.sublayers() {
-                    for sublayer in sublayers.iter() {
+                    // Convert to vec before iterating to avoid mutation panic.
+                    for sublayer in sublayers.to_vec() {
                         sublayer.removeFromSuperlayer();
                     }
                 }
