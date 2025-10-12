@@ -157,17 +157,18 @@ impl GroupIndicators {
             window.setContentView(Some(indicator.view()));
             (indicator, window)
         });
-        if let Some(frame) = self.coordinate_converter.convert_rect(group.frame) {
+        if let Some(frame) = self.coordinate_converter.convert_rect(group.indicator_frame) {
             window.setFrame_display(frame, false);
         }
         indicator.update(GroupDisplayData {
             group_kind,
             total_count: group.total_count,
             selected_index: group.selected_index,
-            frame: group.frame,
+            frame: group.indicator_frame,
+            is_selected: group.is_selected,
         });
-        window.setIsVisible(group.visible);
-        if group.visible && self.active_spaces.contains(&Some(space_id)) {
+        window.setIsVisible(group.is_visible);
+        if group.is_visible && self.active_spaces.contains(&Some(space_id)) {
             // TODO: There's a risk that we're no longer on the space we think
             // we're on and this will cause the indicator to be assigned to the
             // wrong space (potentially multiple spaces because it is floating).

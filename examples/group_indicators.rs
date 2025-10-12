@@ -181,6 +181,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 3,
                 selected_index: 1,
                 frame,
+                is_selected: true,
             },
         ),
         (
@@ -190,6 +191,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 4,
                 selected_index: 0,
                 frame,
+                is_selected: true,
             },
         ),
         (
@@ -199,6 +201,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 8,
                 selected_index: 4,
                 frame,
+                is_selected: true,
             },
         ),
         (
@@ -208,6 +211,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 15,
                 selected_index: 7,
                 frame,
+                is_selected: true,
             },
         ),
         (
@@ -217,6 +221,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 12,
                 selected_index: 3,
                 frame,
+                is_selected: true,
             },
         ),
         (
@@ -226,6 +231,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 1,
                 selected_index: 0,
                 frame,
+                is_selected: true,
             },
         ),
         (
@@ -235,6 +241,7 @@ fn create_demo_scenarios() -> Vec<(&'static str, GroupDisplayData)> {
                 total_count: 2,
                 selected_index: 1,
                 frame,
+                is_selected: true,
             },
         ),
     ]

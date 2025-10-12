@@ -68,7 +68,6 @@ impl ContainerKind {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
@@ -90,18 +89,17 @@ impl Direction {
 
 #[derive(Debug, Clone)]
 pub struct GroupInfo {
-    /// The NodeId of the group container
     pub node_id: NodeId,
-    /// The kind of group (Tabbed/Stacked)
     pub container_kind: ContainerKind,
-    /// The frame where the indicator should be positioned (final frame, not group frame)
-    pub frame: CGRect,
+    pub indicator_frame: CGRect,
     /// Total number of windows in the group
     pub total_count: usize,
-    /// Index of the currently selected window (0-based)
+    /// Index of the currently selected window
     pub selected_index: usize,
-    /// Whether this group should be visible (based on selection path)
-    pub visible: bool,
+    /// Whether this group should be visible
+    pub is_visible: bool,
+    /// Whether this group is in the selection path
+    pub is_selected: bool,
 }
 
 // TODO:
@@ -236,7 +234,7 @@ impl Size {
     ) -> Vec<(WindowId, CGRect)> {
         let mut sizes = vec![];
         self.apply(
-            map, window, selection, config, root, screen, screen, true, &mut sizes, None,
+            map, window, selection, config, root, screen, screen, true, true, &mut sizes, None,
         );
         sizes
     }
@@ -261,6 +259,7 @@ impl Size {
             screen,
             screen,
             true,
+            true,
             &mut sizes,
             Some(&mut groups),
         );
@@ -277,6 +276,7 @@ impl Size {
         rect: CGRect,
         screen: CGRect,
         is_visible: bool,
+        is_selected: bool,
         sizes: &mut Vec<(WindowId, CGRect)>,
         mut groups: Option<&mut Vec<GroupInfo>>,
     ) {
@@ -325,6 +325,7 @@ impl Size {
                         group_frame,
                         screen,
                         is_visible && selected,
+                        is_selected && selected,
                         sizes,
                         groups.as_deref_mut(),
                     );
@@ -334,16 +335,18 @@ impl Size {
                     groups.push(GroupInfo {
                         node_id: node,
                         container_kind: info.kind,
-                        frame: indicator_frame,
+                        indicator_frame,
                         total_count: num_children,
                         selected_index,
-                        visible: is_visible,
+                        is_visible,
+                        is_selected,
                     });
                 }
             }
             Horizontal => {
                 let mut x = rect.origin.x;
                 let total = self.info[node].total;
+                let local_selection = selection.local_selection(map, node);
                 for child in node.children(map) {
                     let ratio = f64::from(self.info[child].size) / f64::from(total);
                     let rect = CGRect {
@@ -363,6 +366,7 @@ impl Size {
                         rect,
                         screen,
                         is_visible,
+                        is_selected && local_selection == Some(child),
                         sizes,
                         groups.as_deref_mut(),
                     );
@@ -372,6 +376,7 @@ impl Size {
             Vertical => {
                 let mut y = rect.origin.y;
                 let total = self.info[node].total;
+                let local_selection = selection.local_selection(map, node);
                 for child in node.children(map) {
                     let ratio = f64::from(self.info[child].size) / f64::from(total);
                     let rect = CGRect {
@@ -391,6 +396,7 @@ impl Size {
                         rect,
                         screen,
                         is_visible,
+                        is_selected && local_selection == Some(child),
                         sizes,
                         groups.as_deref_mut(),
                     );
@@ -575,7 +581,7 @@ mod tests {
         assert_eq!(group.container_kind, ContainerKind::Tabbed);
         assert_eq!(group.total_count, 3);
         assert_eq!(group.selected_index, 0); // First child selected by default
-        assert_eq!(group.visible, true); // Root level group is visible
+        assert_eq!(group.is_visible, true); // Root level group is visible
     }
 
     #[test]
@@ -602,7 +608,7 @@ mod tests {
         assert_eq!(group.container_kind, ContainerKind::Stacked);
         assert_eq!(group.total_count, 2);
         assert_eq!(group.selected_index, 1);
-        assert_eq!(group.visible, true);
+        assert_eq!(group.is_visible, true);
     }
 
     #[test]
@@ -632,12 +638,12 @@ mod tests {
         let inner = groups.iter().find(|g| g.container_kind == ContainerKind::Stacked).unwrap();
 
         // Outer group should be visible
-        assert_eq!(outer.visible, true);
+        assert_eq!(outer.is_visible, true);
         assert_eq!(outer.total_count, 2); // window + inner group
         assert_eq!(outer.selected_index, 0); // First tab selected
 
         // Inner group should not be visible (not the selected tab)
-        assert_eq!(inner.visible, false);
+        assert_eq!(inner.is_visible, false);
         assert_eq!(inner.total_count, 2);
     }
 
@@ -693,11 +699,11 @@ mod tests {
 
         // When disabled, indicator frame should be zero (no indicator to display)
         let group_disabled = &groups_disabled[0];
-        assert_eq!(group_disabled.frame, rect(0, 0, 0, 0));
+        assert_eq!(group_disabled.indicator_frame, rect(0, 0, 0, 0));
 
         // When enabled, indicator frame should be reserved space (top placement by default)
         let group_enabled = &groups_enabled[0];
-        assert_eq!(group_enabled.frame, rect(0, 0, 1000, 20)); // Indicator frame at top
+        assert_eq!(group_enabled.indicator_frame, rect(0, 0, 1000, 20)); // Indicator frame at top
 
         // Window frames should be smaller when indicators are enabled
         // (accounting for the 20px reserved for indicator)

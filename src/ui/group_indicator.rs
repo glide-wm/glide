@@ -42,7 +42,11 @@ impl Color {
     }
 
     pub fn gray() -> Self {
-        Self::new(0.6, 0.6, 0.6, 1.0)
+        Self::new(0.7, 0.7, 0.7, 1.0)
+    }
+
+    pub fn dark_gray() -> Self {
+        Self::new(0.3, 0.3, 0.3, 1.0)
     }
 
     /// Convert to NSColor for use with CALayer
@@ -55,6 +59,8 @@ impl Color {
 pub struct IndicatorConfig {
     pub selected_color: Color,
     pub unselected_color: Color,
+    pub locally_selected_color: Color,
+    pub fully_unselected_color: Color,
     pub border_color: Color,
     pub border_width: f64,
     pub horizontal_placement: HorizontalPlacement,
@@ -66,7 +72,9 @@ impl Default for IndicatorConfig {
         Self {
             selected_color: Color::blue(),
             unselected_color: Color::light_gray(),
-            border_color: Color::gray(),
+            locally_selected_color: Color::light_gray(),
+            fully_unselected_color: Color::gray(),
+            border_color: Color::dark_gray(),
             border_width: 0.5,
             horizontal_placement: HorizontalPlacement::Top,
             vertical_placement: VerticalPlacement::Right,
@@ -77,12 +85,9 @@ impl Default for IndicatorConfig {
 impl From<&crate::config::GroupIndicators> for IndicatorConfig {
     fn from(config: &crate::config::GroupIndicators) -> Self {
         Self {
-            selected_color: Color::blue(),
-            unselected_color: Color::light_gray(),
-            border_color: Color::gray(),
-            border_width: 0.5,
             horizontal_placement: config.horizontal_placement,
             vertical_placement: config.vertical_placement,
+            ..Default::default()
         }
     }
 }
@@ -101,6 +106,7 @@ pub struct GroupDisplayData {
     pub total_count: usize,
     pub selected_index: usize,
     pub frame: CGRect,
+    pub is_selected: bool,
 }
 
 pub type SegmentClickCallback = Rc<dyn Fn(usize)>;
@@ -340,7 +346,7 @@ impl GroupIndicatorNSView {
     fn update_background_layer(
         &mut self,
         parent_layer: &CALayer,
-        _group_data: &GroupDisplayData,
+        group_data: &GroupDisplayData,
         bounds: CGRect,
     ) {
         let mut state = self.view.ivars().borrow_mut();
@@ -358,9 +364,13 @@ impl GroupIndicatorNSView {
         background_layer.setFrame(bounds);
 
         // Update appearance
-        let bg_color = state.config.unselected_color.to_nscolor();
+        let bg_color = if group_data.is_selected {
+            state.config.unselected_color
+        } else {
+            state.config.fully_unselected_color
+        };
         let border_color = state.config.border_color.to_nscolor();
-        background_layer.setBackgroundColor(Some(&bg_color.CGColor()));
+        background_layer.setBackgroundColor(Some(&bg_color.to_nscolor().CGColor()));
         background_layer.setBorderColor(Some(&border_color.CGColor()));
         background_layer.setBorderWidth(state.config.border_width);
     }
@@ -442,7 +452,11 @@ impl GroupIndicatorNSView {
 
         let selected_color = {
             let state = self.view.ivars().borrow();
-            state.config.selected_color.to_nscolor()
+            if group_data.is_selected {
+                state.config.selected_color.to_nscolor()
+            } else {
+                state.config.locally_selected_color.to_nscolor()
+            }
         };
         selected_layer.setBackgroundColor(Some(&selected_color.CGColor()));
     }
@@ -511,6 +525,7 @@ mod tests {
             total_count: 3,
             selected_index: 1,
             frame: bounds,
+            is_selected: true,
         };
 
         // Test horizontal segments (each segment is 100px wide)
@@ -539,6 +554,7 @@ mod tests {
             total_count: 4,
             selected_index: 2,
             frame: bounds,
+            is_selected: true,
         };
 
         // Test vertical segments (each segment is 25px tall)
