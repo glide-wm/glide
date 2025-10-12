@@ -4,7 +4,6 @@
 //! responsible for managing the UI components themselves, and forwarding events
 //! between them and the reactor.
 
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -13,9 +12,10 @@ use objc2::{MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{NSBackingStoreType, NSFloatingWindowLevel, NSWindow, NSWindowStyleMask};
 use objc2_core_foundation::CGRect;
 use objc2_foundation::NSZeroRect;
-use tracing::{debug, instrument};
+use tracing::debug;
 
 use crate::actor;
+use crate::collections::HashMap;
 use crate::config::Config;
 use crate::model::{ContainerKind, GroupInfo, NodeId};
 use crate::sys::screen::{CoordinateConverter, SpaceId};
@@ -30,37 +30,35 @@ pub enum Event {
     },
     /// Selection changed within a specific group
     GroupSelectionChanged {
+        space_id: SpaceId,
         node_id: NodeId,
         selected_index: usize,
     },
-    /// Screen configuration changed, update coordinate converter
-    ScreenParametersChanged(CoordinateConverter),
+    ScreenParametersChanged(Vec<Option<SpaceId>>, CoordinateConverter),
+    SpaceChanged(Vec<Option<SpaceId>>),
 }
 
 pub struct GroupIndicators {
     config: Arc<Config>,
     rx: Receiver,
     mtm: MainThreadMarker,
-    indicators: HashMap<NodeId, (GroupIndicatorNSView, Retained<NSWindow>)>,
+    indicators: HashMap<SpaceId, HashMap<NodeId, (GroupIndicatorNSView, Retained<NSWindow>)>>,
     coordinate_converter: CoordinateConverter,
+    active_spaces: Vec<Option<SpaceId>>,
 }
 
 pub type Sender = actor::Sender<Event>;
 pub type Receiver = actor::Receiver<Event>;
 
 impl GroupIndicators {
-    pub fn new(
-        config: Arc<Config>,
-        rx: Receiver,
-        mtm: MainThreadMarker,
-        coordinate_converter: CoordinateConverter,
-    ) -> Self {
+    pub fn new(config: Arc<Config>, rx: Receiver, mtm: MainThreadMarker) -> Self {
         Self {
             config,
             rx,
             mtm,
-            indicators: HashMap::new(),
-            coordinate_converter,
+            indicators: HashMap::default(),
+            coordinate_converter: CoordinateConverter::default(),
+            active_spaces: Vec::new(),
         }
     }
 
@@ -79,25 +77,34 @@ impl GroupIndicators {
         self.config.settings.experimental.group_indicators.enable
     }
 
-    #[instrument(skip(self))]
     fn handle_event(&mut self, event: Event) {
+        debug!(?event);
         match event {
             Event::GroupsUpdated { space_id, groups } => {
                 self.handle_groups_updated(space_id, groups);
             }
-            Event::GroupSelectionChanged { node_id, selected_index } => {
-                self.handle_selection_changed(node_id, selected_index);
+            Event::GroupSelectionChanged {
+                space_id,
+                node_id,
+                selected_index,
+            } => {
+                self.handle_selection_changed(space_id, node_id, selected_index);
             }
-            Event::ScreenParametersChanged(converter) => {
-                self.handle_screen_parameters_changed(converter);
+            Event::ScreenParametersChanged(spaces, converter) => {
+                self.active_spaces = spaces;
+                self.coordinate_converter = converter;
+            }
+            Event::SpaceChanged(spaces) => {
+                self.active_spaces = spaces;
             }
         }
     }
 
-    fn handle_groups_updated(&mut self, _space_id: SpaceId, groups: Vec<GroupInfo>) {
-        let group_nodes: std::collections::HashSet<NodeId> =
+    fn handle_groups_updated(&mut self, space_id: SpaceId, groups: Vec<GroupInfo>) {
+        let group_nodes: crate::collections::HashSet<NodeId> =
             groups.iter().map(|g| g.node_id).collect();
-        self.indicators.retain(|&node_id, (indicator, window)| {
+        let space_indicators = self.indicators.entry(space_id).or_default();
+        space_indicators.retain(|&node_id, (indicator, window)| {
             if group_nodes.contains(&node_id) {
                 true
             } else {
@@ -107,14 +114,18 @@ impl GroupIndicators {
             }
         });
 
-        debug!(?groups);
         for group in groups {
-            self.update_or_create_indicator(group);
+            self.update_or_create_indicator(space_id, group);
         }
     }
 
-    fn handle_selection_changed(&mut self, node_id: NodeId, selected_index: usize) {
-        if let Some(indicator) = self.indicators.get_mut(&node_id) {
+    fn handle_selection_changed(
+        &mut self,
+        space_id: SpaceId,
+        node_id: NodeId,
+        selected_index: usize,
+    ) {
+        if let Some(indicator) = self.indicators.entry(space_id).or_default().get_mut(&node_id) {
             if let Some(mut group_data) = indicator.0.group_data() {
                 group_data.selected_index = selected_index;
                 indicator.0.update(group_data);
@@ -122,16 +133,11 @@ impl GroupIndicators {
         }
     }
 
-    fn handle_screen_parameters_changed(&mut self, converter: CoordinateConverter) {
-        self.coordinate_converter = converter;
-        tracing::debug!("Updated coordinate converter for group indicators");
-    }
-
     fn handle_indicator_clicked(node_id: NodeId, segment_index: usize) {
         tracing::debug!(?node_id, segment_index, "Group indicator clicked");
     }
 
-    fn update_or_create_indicator(&mut self, group: GroupInfo) {
+    fn update_or_create_indicator(&mut self, space_id: SpaceId, group: GroupInfo) {
         let group_kind = match group.container_kind {
             ContainerKind::Tabbed => GroupKind::Horizontal,
             ContainerKind::Stacked => GroupKind::Vertical,
@@ -141,7 +147,8 @@ impl GroupIndicators {
             }
         };
 
-        let (indicator, window) = self.indicators.entry(group.node_id).or_insert_with(|| {
+        let space_indicators = self.indicators.entry(space_id).or_default();
+        let (indicator, window) = space_indicators.entry(group.node_id).or_insert_with(|| {
             let mut indicator = GroupIndicatorNSView::new(CGRect::ZERO, self.mtm);
             indicator.set_click_callback(Rc::new(move |segment_index| {
                 Self::handle_indicator_clicked(group.node_id, segment_index);
@@ -160,7 +167,7 @@ impl GroupIndicators {
             frame: group.frame,
         });
         window.setIsVisible(group.visible);
-        if group.visible {
+        if group.visible && self.active_spaces.contains(&Some(space_id)) {
             // TODO: There's a risk that we're no longer on the space we think
             // we're on and this will cause the indicator to be assigned to the
             // wrong space (potentially multiple spaces because it is floating).

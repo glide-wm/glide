@@ -423,7 +423,7 @@ impl Reactor {
                 info!("screen parameters changed");
                 self.screens = frames
                     .into_iter()
-                    .zip(spaces)
+                    .zip(spaces.clone())
                     .map(|(frame, space)| Screen { frame, space })
                     .collect();
                 let screens = self.screens.clone();
@@ -438,8 +438,9 @@ impl Reactor {
                 // through the reactor instead of delivering directly from
                 // wm_controller in order to eliminate possible races with other
                 // events sent by the reactor.
-                self.group_indicators_tx
-                    .send(group_indicators::Event::ScreenParametersChanged(converter));
+                self.group_indicators_tx.send(group_indicators::Event::ScreenParametersChanged(
+                    spaces, converter,
+                ));
             }
             Event::SpaceChanged(spaces, ws_info) => {
                 if spaces.len() != self.screens.len() {

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glide_wm::actor::channel;
+use glide_wm::actor::group_indicators::GroupIndicators;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
@@ -12,7 +13,6 @@ use glide_wm::actor::wm_controller::{self, WmController};
 use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
-use glide_wm::sys::screen::CoordinateConverter;
 use objc2::MainThreadMarker;
 use tokio::join;
 
@@ -102,13 +102,7 @@ fn main() {
     let notification_center = NotificationCenter::new(wm_controller_sender);
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);
-
-    let group_indicators = glide_wm::actor::group_indicators::GroupIndicators::new(
-        config.clone(),
-        group_indicators_rx,
-        mtm,
-        CoordinateConverter::default(),
-    );
+    let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
 
     Executor::run_main(mtm, async move {
         join!(
