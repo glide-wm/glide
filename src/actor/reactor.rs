@@ -727,7 +727,7 @@ impl Reactor {
         for screen in screens {
             let Some(space) = screen.space else { continue };
             trace!(?screen);
-            let layout = self.layout.calculate_layout(space, screen.frame.clone());
+            let layout = self.layout.calculate_layout(space, screen.frame.clone(), &self.config);
             trace!(?layout, "Layout");
 
             for &(wid, target_frame) in &layout {
@@ -1168,14 +1168,14 @@ pub mod tests {
         ));
         reactor.handle_event(Event::ApplicationGloballyActivated(1));
         apps.simulate_until_quiet(&mut reactor);
-        let default = reactor.layout.calculate_layout(space, full_screen);
+        let default = reactor.layout.calculate_layout(space, full_screen, &reactor.config);
 
         assert!(reactor.layout.selected_window(space).is_some());
         reactor.handle_event(Event::Command(Command::Layout(LayoutCommand::MoveNode(
             Direction::Up,
         ))));
         apps.simulate_until_quiet(&mut reactor);
-        let modified = reactor.layout.calculate_layout(space, full_screen);
+        let modified = reactor.layout.calculate_layout(space, full_screen, &reactor.config);
         assert_ne!(default, modified);
 
         reactor.handle_event(Event::ScreenParametersChanged(
@@ -1218,7 +1218,10 @@ pub mod tests {
         }
         apps.simulate_until_quiet(&mut reactor);
 
-        assert_eq!(reactor.layout.calculate_layout(space, full_screen), modified);
+        assert_eq!(
+            reactor.layout.calculate_layout(space, full_screen, &reactor.config),
+            modified
+        );
     }
 
     #[test]

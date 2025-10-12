@@ -9,6 +9,7 @@ use super::size::{ContainerKind, Direction, Size};
 use super::tree::{self, Tree};
 use super::window::Window;
 use crate::actor::app::{WindowId, pid_t};
+use crate::config::Config;
 use crate::model::tree::{NodeId, NodeMap, OwnedNode};
 
 /// The layout tree.
@@ -224,10 +225,33 @@ impl LayoutTree {
         self.tree.data.size.toggle_fullscreen(node)
     }
 
-    pub fn calculate_layout(&self, layout: LayoutId, frame: CGRect) -> Vec<(WindowId, CGRect)> {
+    pub fn calculate_layout(
+        &self,
+        layout: LayoutId,
+        frame: CGRect,
+        config: &Config,
+    ) -> Vec<(WindowId, CGRect)> {
         self.tree.data.size.get_sizes(
             &self.tree.map,
             &self.tree.data.window,
+            &self.tree.data.selection,
+            config,
+            self.root(layout),
+            frame,
+        )
+    }
+
+    pub fn calculate_layout_and_groups(
+        &self,
+        layout: LayoutId,
+        frame: CGRect,
+        config: &Config,
+    ) -> (Vec<(WindowId, CGRect)>, Vec<super::GroupInfo>) {
+        self.tree.data.size.get_sizes_and_groups(
+            &self.tree.map,
+            &self.tree.data.window,
+            &self.tree.data.selection,
+            config,
             self.root(layout),
             frame,
         )
@@ -906,7 +930,7 @@ mod tests {
         tree.assert_children_are([a1, b1, b2, a3], root);
         let screen = rect(0, 0, 1000, 1000);
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, &Config::default()),
             vec![
                 (WindowId::new(1, 1), rect(0, 0, 250, 1000)),
                 (WindowId::new(2, 1), rect(250, 0, 250, 1000)),
@@ -993,7 +1017,7 @@ mod tests {
 
         let a2 = tree.add_window_under(layout, root, WindowId::new(1, 2));
         tree.resize(a2, 0.10, Direction::Up);
-        let orig_frames = tree.calculate_layout(layout, rect(0, 0, 1000, 1000));
+        let orig_frames = tree.calculate_layout(layout, rect(0, 0, 1000, 1000), &Config::default());
 
         // Calling on child with siblings creates a new parent.
         // To keep the naming scheme consistent, rename the node a1 to b1
@@ -1011,7 +1035,7 @@ mod tests {
         tree.assert_children_are([b2], a2);
         assert_frames_are(
             orig_frames,
-            tree.calculate_layout(layout, rect(0, 0, 1000, 1000)),
+            tree.calculate_layout(layout, rect(0, 0, 1000, 1000), &Config::default()),
         );
         assert_eq!(b2, tree.selection(layout));
 
@@ -1056,6 +1080,7 @@ mod tests {
         let _b3 = tree.add_window_under(layout, a2, WindowId::new(2, 3));
         let _a3 = tree.add_window_under(layout, root, WindowId::new(1, 3));
         let screen = rect(0, 0, 3000, 3000);
+        let config = &Config::default();
 
         let orig = vec![
             (WindowId::new(1, 1), rect(0, 0, 1000, 3000)),
@@ -1065,14 +1090,14 @@ mod tests {
             (WindowId::new(2, 3), rect(1000, 2000, 1000, 1000)),
             (WindowId::new(1, 3), rect(2000, 0, 1000, 3000)),
         ];
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         // We may want to have a mode that adjusts sizes so that only the
         // requested edge is resized. Notice that the width is redistributed
         // between c1 and c2 here.
         tree.resize(c2, 0.01, Direction::Right);
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, config),
             [
                 (WindowId::new(1, 1), rect(0, 0, 1000, 3000)),
                 (WindowId::new(2, 1), rect(1000, 0, 1030, 1000)),
@@ -1084,11 +1109,11 @@ mod tests {
         );
 
         tree.resize(c2, -0.01, Direction::Right);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         tree.resize(c2, 0.01, Direction::Left);
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, config),
             [
                 (WindowId::new(1, 1), rect(0, 0, 1000, 3000)),
                 (WindowId::new(2, 1), rect(1000, 0, 1000, 1000)),
@@ -1100,11 +1125,11 @@ mod tests {
         );
 
         tree.resize(c2, -0.01, Direction::Left);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         tree.resize(b2, 0.01, Direction::Right);
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, config),
             [
                 (WindowId::new(1, 1), rect(0, 0, 1000, 3000)),
                 (WindowId::new(2, 1), rect(1000, 0, 1030, 1000)),
@@ -1116,11 +1141,11 @@ mod tests {
         );
 
         tree.resize(b2, -0.01, Direction::Right);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         tree.resize(a1, 0.01, Direction::Right);
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, config),
             [
                 (WindowId::new(1, 1), rect(0, 0, 1030, 3000)),
                 (WindowId::new(2, 1), rect(1030, 0, 970, 1000)),
@@ -1132,12 +1157,12 @@ mod tests {
         );
 
         tree.resize(a1, -0.01, Direction::Right);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         tree.resize(a1, 0.01, Direction::Left);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
         tree.resize(a1, -0.01, Direction::Left);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
     }
 
     #[test]
@@ -1161,6 +1186,7 @@ mod tests {
         let _b3 = tree.add_window_under(layout, a2, WindowId::new(2, 3));
         let _a3 = tree.add_window_under(layout, root, WindowId::new(1, 3));
         let screen = rect(0, 0, 3000, 3000);
+        let config = &Config::default();
         println!("{}", tree.draw_tree(layout));
 
         let orig = vec![
@@ -1171,7 +1197,7 @@ mod tests {
             (WindowId::new(2, 3), rect(1000, 2000, 1000, 1000)),
             (WindowId::new(1, 3), rect(2000, 0, 1000, 3000)),
         ];
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         // Moves should be rejected and ignored.
         tree.set_frame_from_resize(
@@ -1180,11 +1206,11 @@ mod tests {
             rect(1000, 1100, 500, 1000),
             screen,
         );
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         tree.set_frame_from_resize(a1, rect(0, 0, 1000, 3000), rect(0, 0, 1010, 3000), screen);
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, config),
             [
                 (WindowId::new(1, 1), rect(0, 0, 1010, 3000)),
                 (WindowId::new(2, 1), rect(1010, 0, 990, 1000)),
@@ -1196,7 +1222,7 @@ mod tests {
         );
 
         tree.set_frame_from_resize(a1, rect(0, 0, 1010, 3000), rect(0, 0, 1000, 3000), screen);
-        assert_frames_are(tree.calculate_layout(layout, screen), orig.clone());
+        assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
         tree.set_frame_from_resize(
             c1,
@@ -1205,7 +1231,7 @@ mod tests {
             screen,
         );
         assert_frames_are(
-            tree.calculate_layout(layout, screen),
+            tree.calculate_layout(layout, screen, config),
             [
                 (WindowId::new(1, 1), rect(0, 0, 900, 3000)),
                 (WindowId::new(2, 1), rect(900, 0, 1100, 900)),

@@ -9,30 +9,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use objc2::MainThreadMarker;
-use objc2_core_foundation::CGRect;
 use tracing::instrument;
 
 use crate::actor::{self, reactor};
 use crate::config::Config;
-use crate::model::{ContainerKind, NodeId};
+use crate::model::{ContainerKind, GroupInfo, NodeId};
 use crate::sys::screen::{CoordinateConverter, SpaceId};
 use crate::ui::group_indicator::{GroupDisplayData, GroupIndicatorNSView, GroupKind};
-
-#[derive(Debug, Clone)]
-pub struct GroupInfo {
-    /// The NodeId of the group container
-    pub node_id: NodeId,
-    /// The kind of group (Tabbed/Stacked)
-    pub container_kind: ContainerKind,
-    /// The frame where the indicator should be positioned (final frame, not group frame)
-    pub frame: CGRect,
-    /// Total number of windows in the group
-    pub total_count: usize,
-    /// Index of the currently selected window (0-based)
-    pub selected_index: usize,
-    /// Whether this group should be visible (based on selection path)
-    pub visible: bool,
-}
 
 #[derive(Debug)]
 pub enum Event {
