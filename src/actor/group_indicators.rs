@@ -32,6 +32,8 @@ pub struct GroupInfo {
     pub total_count: usize,
     /// Index of the currently selected window (0-based)
     pub selected_index: usize,
+    /// Whether this group should be visible (based on selection path)
+    pub visible: bool,
 }
 
 #[derive(Debug)]
@@ -174,11 +176,16 @@ impl GroupIndicators {
                 Self::handle_indicator_clicked(node_id, segment_index);
             }));
 
+            // Set initial visibility
+            indicator.view().setHidden(!group.visible);
+
             self.indicators.insert(node_id, indicator);
         } else {
             if let Some(existing) = self.indicators.get_mut(&node_id) {
                 existing.update(group_data);
                 existing.view().setFrame(group.frame);
+                // Update visibility
+                existing.view().setHidden(!group.visible);
             }
         }
     }
