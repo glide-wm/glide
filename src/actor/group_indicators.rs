@@ -178,9 +178,7 @@ impl GroupIndicators {
         } else {
             if let Some(existing) = self.indicators.get_mut(&node_id) {
                 existing.update(group_data);
-                unsafe {
-                    existing.view().setFrame(group.frame);
-                }
+                existing.view().setFrame(group.frame);
             }
         }
     }

@@ -47,9 +47,7 @@ impl Color {
 
     /// Convert to NSColor for use with CALayer
     pub fn to_nscolor(&self) -> Retained<objc2_app_kit::NSColor> {
-        unsafe {
-            objc2_app_kit::NSColor::colorWithRed_green_blue_alpha(self.r, self.g, self.b, self.a)
-        }
+        objc2_app_kit::NSColor::colorWithRed_green_blue_alpha(self.r, self.g, self.b, self.a)
     }
 }
 
@@ -126,7 +124,7 @@ objc2::define_class!(
     impl ClickableIndicatorView {
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &NSEvent) {
-            let location = unsafe { self.convertPoint_fromView(event.locationInWindow(), None) };
+            let location = self.convertPoint_fromView(event.locationInWindow(), None);
 
             let state = self.ivars().borrow();
             let Some(group_data) = &state.group_data else { return };
@@ -247,7 +245,7 @@ impl GroupIndicatorNSView {
         };
 
         // Convert event location to view coordinates
-        let location = unsafe { self.view.convertPoint_fromView(event.locationInWindow(), None) };
+        let location = self.view.convertPoint_fromView(event.locationInWindow(), None);
 
         // Determine which segment was clicked
         if let Some(segment_index) = self.segment_at_point(location, group_data) {
@@ -304,7 +302,7 @@ impl GroupIndicatorNSView {
 
         let bounds = self.view.bounds();
 
-        let parent_layer = match unsafe { self.view.layer() } {
+        let parent_layer = match self.view.layer() {
             Some(layer) => layer,
             None => return,
         };
@@ -360,15 +358,10 @@ impl GroupIndicatorNSView {
 
         // Update appearance
         let bg_color = state.config.unselected_color.to_nscolor();
-        unsafe {
-            background_layer.setBackgroundColor(Some(&bg_color.CGColor()));
-        }
-
-        background_layer.setBorderWidth(state.config.border_width);
         let border_color = state.config.border_color.to_nscolor();
-        unsafe {
-            background_layer.setBorderColor(Some(&border_color.CGColor()));
-        }
+        background_layer.setBackgroundColor(Some(&bg_color.CGColor()));
+        background_layer.setBorderColor(Some(&border_color.CGColor()));
+        background_layer.setBorderWidth(state.config.border_width);
     }
 
     fn update_separator_layers(
@@ -409,9 +402,7 @@ impl GroupIndicatorNSView {
 
             // Set separator color
             let separator_color = state.config.border_color.to_nscolor();
-            unsafe {
-                layer.setBackgroundColor(Some(&separator_color.CGColor()));
-            }
+            layer.setBackgroundColor(Some(&separator_color.CGColor()));
 
             // Ensure layer is added to parent
             if layer.superlayer().is_none() {
@@ -452,9 +443,7 @@ impl GroupIndicatorNSView {
             let state = self.view.ivars().borrow();
             state.config.selected_color.to_nscolor()
         };
-        unsafe {
-            selected_layer.setBackgroundColor(Some(&selected_color.CGColor()));
-        }
+        selected_layer.setBackgroundColor(Some(&selected_color.CGColor()));
     }
 
     fn calculate_segment_frame(

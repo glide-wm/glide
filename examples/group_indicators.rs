@@ -72,13 +72,10 @@ fn create_demo_window(mtm: MainThreadMarker) -> IndicatorDemo {
 }
 
 fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDemo) {
-    let content_view = unsafe {
-        let view = NSView::alloc(mtm);
-        NSView::initWithFrame(
-            view,
-            NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(800.0, 1000.0)),
-        )
-    };
+    let content_view = NSView::initWithFrame(
+        NSView::alloc(mtm),
+        NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(800.0, 1000.0)),
+    );
 
     let scenarios = create_demo_scenarios();
     let mut y_position = 950.0;
@@ -88,7 +85,7 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
     for (title, group_data) in scenarios {
         // Add title label
         let label = create_label(&title, y_position, mtm);
-        unsafe { content_view.addSubview(&label) };
+        content_view.addSubview(&label);
         y_position -= 35.0;
 
         // Add indicator view with proper dimensions based on orientation
@@ -135,9 +132,7 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
             indicator.click_segment(segment_index);
         }));
 
-        unsafe {
-            content_view.addSubview(indicator_rc.borrow().view());
-        }
+        content_view.addSubview(indicator_rc.borrow().view());
 
         demo.add_indicator(indicator_rc);
 
@@ -154,7 +149,7 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
         y_position - 20.0,
         mtm,
     );
-    unsafe { content_view.addSubview(&instructions) };
+    content_view.addSubview(&instructions);
 
     (content_view, demo)
 }
@@ -162,19 +157,14 @@ fn create_content_view(mtm: MainThreadMarker) -> (Retained<NSView>, IndicatorDem
 fn create_label(text: &str, y_position: f64, mtm: MainThreadMarker) -> Retained<NSTextField> {
     let label_rect = NSRect::new(NSPoint::new(50.0, y_position), NSSize::new(700.0, 25.0));
 
-    let label = unsafe {
-        let label = NSTextField::alloc(mtm);
-        NSTextField::initWithFrame(label, label_rect)
-    };
+    let label = NSTextField::initWithFrame(NSTextField::alloc(mtm), label_rect);
 
-    unsafe {
-        label.setStringValue(&NSString::from_str(text));
-        label.setEditable(false);
-        label.setSelectable(false);
-        label.setBezeled(false);
-        label.setDrawsBackground(false);
-        label.setFont(Some(&NSFont::systemFontOfSize(14.0)));
-    }
+    label.setStringValue(&NSString::from_str(text));
+    label.setEditable(false);
+    label.setSelectable(false);
+    label.setBezeled(false);
+    label.setDrawsBackground(false);
+    label.setFont(Some(&NSFont::systemFontOfSize(14.0)));
 
     label
 }
