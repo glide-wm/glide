@@ -22,8 +22,6 @@ use crate::ui::group_indicator::{GroupDisplayData, GroupIndicatorNSView, GroupKi
 pub struct GroupInfo {
     /// The NodeId of the group container
     pub node_id: NodeId,
-    /// The space this group exists on
-    pub space_id: SpaceId,
     /// The kind of group (Tabbed/Stacked)
     pub container_kind: ContainerKind,
     /// The frame where the indicator should be positioned (final frame, not group frame)
