@@ -146,7 +146,7 @@ pub fn get_window_at_point(
     mtm: MainThreadMarker,
 ) -> Option<WindowServerId> {
     let ns_loc = converter.convert_point(point)?;
-    let win = unsafe { NSWindow::windowNumberAtPoint_belowWindowWithWindowNumber(ns_loc, 0, mtm) };
+    let win = NSWindow::windowNumberAtPoint_belowWindowWithWindowNumber(ns_loc, 0, mtm);
     Some(WindowServerId(win as u32))
 }
 

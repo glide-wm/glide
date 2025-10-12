@@ -340,9 +340,8 @@ async fn get_windows_with_cg(opt: &Opt, print: bool) {
 
 async fn get_windows_with_ns(_opt: &Opt, print: bool) {
     let mtm = MainThreadMarker::new().unwrap();
-    let windows = unsafe {
-        NSWindow::windowNumbersWithOptions(NSWindowNumberListOptions::AllApplications, mtm)
-    };
+    let windows =
+        NSWindow::windowNumbersWithOptions(NSWindowNumberListOptions::AllApplications, mtm);
     if print {
         println!("{windows:?}");
     }

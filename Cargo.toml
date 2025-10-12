@@ -33,7 +33,7 @@ indexmap = { version = "2.10.0", features = ["serde"] }
 livesplit-hotkey = "0.8.0"
 macro_rules_attribute = "0.2.2"
 objc2 = "0.6.2"
-objc2-app-kit = { version = "0.3.1", default-features = false, features = [
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
     "NSApplication",
     "NSButton",
     "NSControl",
@@ -54,12 +54,12 @@ objc2-app-kit = { version = "0.3.1", default-features = false, features = [
     "NSWorkspace",
     "objc2-core-foundation",
 ] }
-objc2-core-foundation = { version = "0.3.1", features = [
+objc2-core-foundation = { version = "0.3.2", features = [
     "CFCGTypes",
     "CFRunLoop",
     "CFDate",
 ] }
-objc2-foundation = { version = "0.3.1", default-features = false, features = [
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
     "NSArray",
     "NSEnumerator",
     "NSNotification",

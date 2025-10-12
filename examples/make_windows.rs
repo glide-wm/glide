@@ -105,21 +105,16 @@ fn create_numbered_window(number: i32, mtm: MainThreadMarker) -> WindowServerId 
 
     // Configure the text field
     let number_text = NSString::from_str(&number.to_string());
-    let text_field = unsafe {
-        let text_field = NSTextField::labelWithString(&number_text, mtm);
-        text_field.setFrame(text_frame);
-        text_field.setBezeled(false);
-        text_field.setDrawsBackground(false);
-        text_field.setAlignment(NSTextAlignment::Center);
-        text_field.setFont(Some(&*NSFont::systemFontOfSize(72.0)));
-        text_field
-    };
+    let text_field = NSTextField::labelWithString(&number_text, mtm);
+    text_field.setFrame(text_frame);
+    text_field.setBezeled(false);
+    text_field.setDrawsBackground(false);
+    text_field.setAlignment(NSTextAlignment::Center);
+    text_field.setFont(Some(&*NSFont::systemFontOfSize(72.0)));
 
     // Add text field to window's content view
     if let Some(content_view) = window.contentView() {
-        unsafe {
-            content_view.addSubview(&text_field);
-        }
+        content_view.addSubview(&text_field);
     }
 
     // Make window key and order front
@@ -129,9 +124,7 @@ fn create_numbered_window(number: i32, mtm: MainThreadMarker) -> WindowServerId 
     unsafe {
         window.setReleasedWhenClosed(false);
     }
-    WindowServerId::new(
-        unsafe { window.windowNumber() }.try_into().expect("window number too large"),
-    )
+    WindowServerId::new(window.windowNumber().try_into().expect("window number too large"))
 }
 
 fn demo(window_numbers: Vec<WindowServerId>) {

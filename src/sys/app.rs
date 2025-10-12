@@ -12,7 +12,8 @@ use super::geometry::{CGRectDef, ToICrate};
 use super::window_server::WindowServerId;
 
 pub fn running_apps(bundle: Option<String>) -> impl Iterator<Item = (pid_t, AppInfo)> {
-    unsafe { NSWorkspace::sharedWorkspace().runningApplications() }
+    NSWorkspace::sharedWorkspace()
+        .runningApplications()
         .into_iter()
         .flat_map(move |app| {
             let bundle_id = app.bundle_id()?.to_string();
@@ -43,10 +44,10 @@ impl NSRunningApplicationExt for NSRunningApplication {
         unsafe { msg_send![self, processIdentifier] }
     }
     fn bundle_id(&self) -> Option<Retained<NSString>> {
-        unsafe { self.bundleIdentifier() }
+        self.bundleIdentifier()
     }
     fn localized_name(&self) -> Option<Retained<NSString>> {
-        unsafe { self.localizedName() }
+        self.localizedName()
     }
 }
 

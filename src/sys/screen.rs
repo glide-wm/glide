@@ -244,7 +244,7 @@ impl NSScreenExt for NSScreen {
             val => {
                 warn!(
                     "Could not get NSScreenNumber for screen with name {:?}: {:?}",
-                    unsafe { self.localizedName() },
+                    self.localizedName(),
                     val,
                 );
                 Err(())
@@ -264,13 +264,13 @@ pub fn get_active_space_number() -> Option<usize> {
     for screen in space_info {
         let screen: Retained<NSDictionary> = screen.downcast().ok()?;
         let spaces: Retained<NSArray> =
-            unsafe { screen.valueForKey(ns_string!("Spaces")) }?.downcast().ok()?;
+            screen.valueForKey(ns_string!("Spaces"))?.downcast().ok()?;
         for space in spaces {
             count += 1;
             let Some(id) = (|| {
                 let space: Retained<NSDictionary> = space.downcast().ok()?;
                 let id: Retained<NSNumber> =
-                    unsafe { space.valueForKey(ns_string!("ManagedSpaceID")) }?.downcast().ok()?;
+                    space.valueForKey(ns_string!("ManagedSpaceID"))?.downcast().ok()?;
                 Some(id)
             })() else {
                 continue;

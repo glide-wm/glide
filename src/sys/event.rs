@@ -50,7 +50,7 @@ pub enum MouseState {
 }
 
 pub fn get_mouse_state() -> MouseState {
-    let left_button = unsafe { NSEvent::pressedMouseButtons() } & 0x1 != 0;
+    let left_button = NSEvent::pressedMouseButtons() & 0x1 != 0;
     if left_button {
         MouseState::Down
     } else {
@@ -59,7 +59,7 @@ pub fn get_mouse_state() -> MouseState {
 }
 
 pub fn get_mouse_pos(converter: CoordinateConverter) -> Option<CGPoint> {
-    let ns_loc = unsafe { NSEvent::mouseLocation() };
+    let ns_loc = NSEvent::mouseLocation();
     converter.convert_point(ns_loc)
 }
 

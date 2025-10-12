@@ -18,19 +18,15 @@ pub struct StatusIcon {
 impl StatusIcon {
     /// Creates a new menu bar manager.
     pub fn new(mtm: MainThreadMarker) -> Self {
-        let status_item = unsafe {
-            let status_bar = NSStatusBar::systemStatusBar();
-            let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
+        let status_bar = NSStatusBar::systemStatusBar();
+        let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
 
-            // Create parachute icon
-            if let Some(button) = status_item.button(mtm)
-                && let Some(parachute_image) = create_parachute_icon()
-            {
-                button.setImage(Some(&parachute_image));
-            }
-
-            status_item
-        };
+        // Create parachute icon
+        if let Some(button) = status_item.button(mtm)
+            && let Some(parachute_image) = create_parachute_icon()
+        {
+            button.setImage(Some(&parachute_image));
+        }
 
         Self { status_item, mtm }
     }
@@ -38,12 +34,10 @@ impl StatusIcon {
     /// Sets the text next to the icon.
     pub fn set_text(&mut self, text: &str) {
         let ns_title = NSString::from_str(&text);
-        unsafe {
-            if let Some(button) = self.status_item.button(self.mtm) {
-                button.setTitle(&ns_title);
-            } else {
-                warn!("Could not get button from status item");
-            }
+        if let Some(button) = self.status_item.button(self.mtm) {
+            button.setTitle(&ns_title);
+        } else {
+            warn!("Could not get button from status item");
         }
     }
 }
@@ -51,10 +45,8 @@ impl StatusIcon {
 impl Drop for StatusIcon {
     fn drop(&mut self) {
         debug!("Removing menu bar icon");
-        unsafe {
-            let status_bar = NSStatusBar::systemStatusBar();
-            status_bar.removeStatusItem(&self.status_item);
-        }
+        let status_bar = NSStatusBar::systemStatusBar();
+        status_bar.removeStatusItem(&self.status_item);
     }
 }
 
@@ -69,12 +61,10 @@ fn create_parachute_icon() -> Option<Retained<NSImage>> {
         return None;
     };
 
-    unsafe {
-        // Set the image size to be appropriate for menu bar (16x16 points)
-        image.setSize(CGSize { width: 16.0, height: 16.0 });
-        // Set as template image so it follows system appearance
-        // image.setTemplate(true);
-    }
+    // Set the image size to be appropriate for menu bar (16x16 points)
+    image.setSize(CGSize { width: 16.0, height: 16.0 });
+    // Set as template image so it follows system appearance
+    // image.setTemplate(true);
 
     Some(image)
 }

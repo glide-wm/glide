@@ -213,8 +213,7 @@ impl State {
                         Ok(_) => (),
                         #[allow(non_upper_case_globals)]
                         Err(accessibility::Error::Ax(kAXErrorCannotComplete))
-                            // SAFETY: NSRunningApplication is thread-safe.
-                            if unsafe { this.running_app.isTerminated() } =>
+                            if this.running_app.isTerminated() =>
                         {
                             // The app does not appear to be running anymore.
                             // Normally this would be noticed by notification_center,
@@ -888,7 +887,7 @@ fn app_thread_main(pid: pid_t, info: AppInfo, events_tx: reactor::Sender) {
         info!(?pid, "Making NSRunningApplication failed; exiting app thread");
         return;
     };
-    let bundle_id = unsafe { running_app.bundleIdentifier() };
+    let bundle_id = running_app.bundleIdentifier();
 
     let Ok(process_info) = ProcessInfo::for_pid(pid) else {
         info!(?pid, ?bundle_id, "Could not get ProcessInfo; exiting app thread");
