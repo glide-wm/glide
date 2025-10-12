@@ -160,7 +160,12 @@ impl GroupIndicators {
             frame: group.frame,
         });
         window.setIsVisible(group.visible);
-        window.makeKeyAndOrderFront(None);
+        if group.visible {
+            // TODO: There's a risk that we're no longer on the space we think
+            // we're on and this will cause the indicator to be assigned to the
+            // wrong space (potentially multiple spaces because it is floating).
+            window.makeKeyAndOrderFront(None);
+        }
     }
 }
 
