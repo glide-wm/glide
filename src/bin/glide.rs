@@ -78,15 +78,19 @@ fn main() {
     };
     let (mouse_tx, mouse_rx) = channel();
     let (status_tx, status_rx) = channel();
+    let mtm = MainThreadMarker::new().unwrap();
+
+    // Create group indicators actor
+    let (group_indicators_tx, group_indicators_rx) = glide_wm::actor::channel();
+
     let events_tx = Reactor::spawn(
         config.clone(),
         layout,
         reactor::Record::new(opt.record.as_deref()),
         mouse_tx.clone(),
         status_tx.clone(),
+        group_indicators_tx,
     );
-
-    let mtm = MainThreadMarker::new().unwrap();
     let wm_config = wm_controller::Config {
         one_space: opt.one,
         restore_file: restore_file(),
@@ -98,12 +102,22 @@ fn main() {
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);
 
+    // Create group indicators actor
+    let coordinate_converter = glide_wm::sys::screen::CoordinateConverter::default();
+    let group_indicators = glide_wm::actor::group_indicators::GroupIndicators::new(
+        config.clone(),
+        group_indicators_rx,
+        mtm,
+        coordinate_converter,
+    );
+
     Executor::run_main(mtm, async move {
         join!(
             wm_controller.run(),
             notification_center.watch_for_notifications(),
             mouse.run(),
             status.run(),
+            group_indicators.run(),
         );
     });
 }

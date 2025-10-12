@@ -88,7 +88,9 @@ pub fn replay(
     let mut lines = file.lines();
     let config = ron::de::from_str(&lines.next().expect("Empty restore file")?)?;
     let layout = ron::de::from_str(&lines.next().expect("Expected layout line")?)?;
-    let mut reactor = Reactor::new(Arc::new(config), layout, Record::new(None));
+    let (group_indicators_tx, _) = crate::actor::channel();
+    let mut reactor =
+        Reactor::new(Arc::new(config), layout, Record::new(None), group_indicators_tx);
     std::thread::spawn(move || {
         // Unfortunately we have to spawn a thread because the reactor blocks
         // on raise requests currently.

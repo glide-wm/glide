@@ -427,6 +427,16 @@ impl LayoutManager {
         self.tree.calculate_layout(layout, screen, config)
     }
 
+    pub fn calculate_layout_and_groups(
+        &self,
+        space: SpaceId,
+        screen: CGRect,
+        config: &Config,
+    ) -> (Vec<(WindowId, CGRect)>, Vec<crate::model::GroupInfo>) {
+        let layout = self.layout(space);
+        self.tree.calculate_layout_and_groups(layout, screen, config)
+    }
+
     fn try_layout(&self, space: SpaceId) -> Option<LayoutId> {
         self.layout_mapping.get(&space)?.active_layout().into()
     }

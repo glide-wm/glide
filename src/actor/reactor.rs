@@ -28,8 +28,11 @@ use tracing::{Span, debug, error, info, instrument, trace, warn};
 use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager};
-use crate::actor::raise::{self, RaiseRequest};
 use crate::actor::status;
+use crate::actor::{
+    group_indicators,
+    raise::{self, RaiseRequest},
+};
 use crate::collections::{HashMap, HashSet};
 use crate::config::Config;
 use crate::log::{self, MetricsCommand};
@@ -177,6 +180,7 @@ pub struct Reactor {
     raise_manager_tx: raise::Sender,
     mouse_tx: Option<mouse::Sender>,
     status_tx: Option<status::Sender>,
+    group_indicators_tx: group_indicators::Sender,
 }
 
 #[derive(Debug)]
@@ -238,13 +242,14 @@ impl Reactor {
         record: Record,
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
+        group_indicators_tx: group_indicators::Sender,
     ) -> Sender {
         let (events_tx, events) = unbounded_channel();
         let events_tx_clone = events_tx.clone();
         thread::Builder::new()
             .name("reactor".to_string())
             .spawn(move || {
-                let mut reactor = Reactor::new(config, layout, record);
+                let mut reactor = Reactor::new(config, layout, record, group_indicators_tx);
                 reactor.mouse_tx.replace(mouse_tx);
                 reactor.status_tx.replace(status_tx);
                 Executor::run(reactor.run(events, events_tx_clone));
@@ -253,7 +258,12 @@ impl Reactor {
         events_tx
     }
 
-    pub fn new(config: Arc<Config>, layout: LayoutManager, mut record: Record) -> Reactor {
+    pub fn new(
+        config: Arc<Config>,
+        layout: LayoutManager,
+        mut record: Record,
+        group_indicators_tx: group_indicators::Sender,
+    ) -> Reactor {
         // FIXME: Remove apps that are no longer running from restored state.
         record.start(&config, &layout);
         let (raise_manager_tx, _rx) = mpsc::unbounded_channel();
@@ -273,6 +283,7 @@ impl Reactor {
             raise_manager_tx,
             mouse_tx: None,
             status_tx: None,
+            group_indicators_tx: group_indicators_tx,
         }
     }
 
@@ -727,8 +738,14 @@ impl Reactor {
         for screen in screens {
             let Some(space) = screen.space else { continue };
             trace!(?screen);
-            let layout = self.layout.calculate_layout(space, screen.frame.clone(), &self.config);
+
+            let (layout, groups) =
+                self.layout
+                    .calculate_layout_and_groups(space, screen.frame.clone(), &self.config);
             trace!(?layout, "Layout");
+
+            self.group_indicators_tx
+                .send(group_indicators::Event::GroupsUpdated { space_id: space, groups });
 
             for &(wid, target_frame) in &layout {
                 let Some(window) = self.windows.get_mut(&wid) else {

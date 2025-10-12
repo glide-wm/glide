@@ -11,7 +11,7 @@ use std::sync::Arc;
 use objc2::MainThreadMarker;
 use tracing::instrument;
 
-use crate::actor::{self, reactor};
+use crate::actor;
 use crate::config::Config;
 use crate::model::{ContainerKind, GroupInfo, NodeId};
 use crate::sys::screen::{CoordinateConverter, SpaceId};
@@ -38,8 +38,6 @@ pub struct GroupIndicators {
     rx: Receiver,
     mtm: MainThreadMarker,
     indicators: HashMap<NodeId, GroupIndicatorNSView>,
-    #[expect(dead_code)]
-    reactor_tx: reactor::Sender,
     coordinate_converter: CoordinateConverter,
 }
 
@@ -51,7 +49,6 @@ impl GroupIndicators {
         config: Arc<Config>,
         rx: Receiver,
         mtm: MainThreadMarker,
-        reactor_tx: reactor::Sender,
         coordinate_converter: CoordinateConverter,
     ) -> Self {
         Self {
@@ -59,7 +56,6 @@ impl GroupIndicators {
             rx,
             mtm,
             indicators: HashMap::new(),
-            reactor_tx,
             coordinate_converter,
         }
     }
@@ -81,6 +77,9 @@ impl GroupIndicators {
 
     #[instrument(skip(self))]
     fn handle_event(&mut self, event: Event) {
+        if !self.config.settings.experimental.group_indicators.enable {
+            return;
+        }
         match event {
             Event::GroupsUpdated { space_id, groups } => {
                 self.handle_groups_updated(space_id, groups);
