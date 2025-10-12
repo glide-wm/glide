@@ -11,6 +11,7 @@ use std::sync::Arc;
 use objc2::rc::Retained;
 use objc2::{MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{NSBackingStoreType, NSFloatingWindowLevel, NSWindow, NSWindowStyleMask};
+use objc2_core_foundation::CGRect;
 use objc2_foundation::NSZeroRect;
 use tracing::{debug, instrument};
 
@@ -141,7 +142,7 @@ impl GroupIndicators {
         };
 
         let (indicator, window) = self.indicators.entry(group.node_id).or_insert_with(|| {
-            let mut indicator = GroupIndicatorNSView::new(group.frame, self.mtm);
+            let mut indicator = GroupIndicatorNSView::new(CGRect::ZERO, self.mtm);
             indicator.set_click_callback(Rc::new(move |segment_index| {
                 Self::handle_indicator_clicked(group.node_id, segment_index);
             }));
@@ -149,16 +150,16 @@ impl GroupIndicators {
             window.setContentView(Some(indicator.view()));
             (indicator, window)
         });
+        if let Some(frame) = self.coordinate_converter.convert_rect(group.frame) {
+            window.setFrame_display(frame, false);
+        }
         indicator.update(GroupDisplayData {
             group_kind,
             total_count: group.total_count,
             selected_index: group.selected_index,
             frame: group.frame,
         });
-        window.setIsVisible(!group.visible);
-        if let Some(frame) = self.coordinate_converter.convert_rect(group.frame) {
-            window.setFrame_display(frame, true);
-        }
+        window.setIsVisible(group.visible);
         window.makeKeyAndOrderFront(None);
     }
 }
