@@ -1,6 +1,5 @@
-# This is the default configuration. Glide will load this file if you do not
-# have a .glide.toml file in your home directory. You should copy this file
-# to $HOME and modify it to suit your needs.
+# This is the default configuration. A .glide.toml file in your home directory
+# can override these settings.
 
 [settings]
 
