@@ -216,10 +216,18 @@ impl Size {
 
     pub(super) fn debug(&self, node: NodeId, is_container: bool) -> String {
         let info = &self.info[node];
-        if is_container {
-            format!("{:?} [size {} total={}]", info.kind, info.size, info.total)
+        let fullscreen = if info.is_fullscreen {
+            "; fullscreen"
         } else {
-            format!("[size {}]", info.size)
+            ""
+        };
+        if is_container {
+            format!(
+                "{:?} [size {} total={}{fullscreen}]",
+                info.kind, info.size, info.total
+            )
+        } else {
+            format!("[size {}{fullscreen}]", info.size)
         }
     }
 
@@ -234,7 +242,19 @@ impl Size {
     ) -> Vec<(WindowId, CGRect)> {
         let mut sizes = vec![];
         self.apply(
-            map, window, selection, config, root, screen, screen, true, true, &mut sizes, None,
+            map,
+            window,
+            selection,
+            &[],
+            config,
+            root,
+            screen,
+            screen,
+            true,
+            false,
+            true,
+            &mut sizes,
+            None,
         );
         sizes
     }
@@ -250,15 +270,23 @@ impl Size {
     ) -> (Vec<(WindowId, CGRect)>, Vec<GroupInfo>) {
         let mut sizes = vec![];
         let mut groups = vec![];
+        let fullscreen_nodes = root
+            .traverse_postorder(map)
+            .filter(|&node| self.info.get(node).map(|i| i.is_fullscreen).unwrap_or(false))
+            // We assume root is not included when passing false below.
+            .filter(|&node| node != root)
+            .collect::<Vec<_>>();
         self.apply(
             map,
             window,
             selection,
+            &fullscreen_nodes,
             config,
             root,
             screen,
             screen,
             true,
+            false,
             true,
             &mut sizes,
             Some(&mut groups),
@@ -271,11 +299,13 @@ impl Size {
         map: &NodeMap,
         window: &super::window::Window,
         selection: &Selection,
+        fullscreen_nodes: &[NodeId],
         config: &Config,
         node: NodeId,
         rect: CGRect,
         screen: CGRect,
-        is_visible: bool,
+        is_in_visibility_path: bool,
+        is_parent_visible: bool,
         is_selected: bool,
         sizes: &mut Vec<(WindowId, CGRect)>,
         mut groups: Option<&mut Vec<GroupInfo>>,
@@ -306,6 +336,14 @@ impl Size {
                         (rect, CGRect::ZERO)
                     };
 
+                // Slightly janky visibility computation: If a node is fullscreen
+                // only its descendants can be considered visible. If multiple
+                // nodes are fullscreen we don't attempt to handle it well.
+                let is_visible = is_in_visibility_path
+                    && (is_parent_visible
+                        || fullscreen_nodes.is_empty()
+                        || fullscreen_nodes.contains(&node));
+
                 let selected_child = selection.last_selection(map, node);
                 let mut selected_index = 0;
                 let mut num_children = 0;
@@ -320,11 +358,13 @@ impl Size {
                         map,
                         window,
                         selection,
+                        fullscreen_nodes,
                         config,
                         child,
                         group_frame,
                         screen,
-                        is_visible && selected,
+                        is_in_visibility_path && selected,
+                        is_visible,
                         is_selected && selected,
                         sizes,
                         groups.as_deref_mut(),
@@ -361,11 +401,13 @@ impl Size {
                         map,
                         window,
                         selection,
+                        fullscreen_nodes,
                         config,
                         child,
                         rect,
                         screen,
-                        is_visible,
+                        is_in_visibility_path,
+                        is_parent_visible,
                         is_selected && local_selection == Some(child),
                         sizes,
                         groups.as_deref_mut(),
@@ -391,11 +433,13 @@ impl Size {
                         map,
                         window,
                         selection,
+                        fullscreen_nodes,
                         config,
                         child,
                         rect,
                         screen,
-                        is_visible,
+                        is_in_visibility_path,
+                        is_parent_visible,
                         is_selected && local_selection == Some(child),
                         sizes,
                         groups.as_deref_mut(),
@@ -645,6 +689,52 @@ mod tests {
         // Inner group should not be visible (not the selected tab)
         assert_eq!(inner.is_visible, false);
         assert_eq!(inner.total_count, 2);
+    }
+
+    #[test]
+    fn it_does_not_show_groups_obscured_by_fullscreen_nodes() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+
+        // Create outer tabbed group
+        let outer_group = tree.add_container(root, ContainerKind::Tabbed);
+        let _outer_tab1 = tree.add_window_under(layout, outer_group, WindowId::new(1, 1));
+
+        // Create inner stacked group as second tab (selected)
+        let inner_group = tree.add_container(outer_group, ContainerKind::Stacked);
+        let inner_stack1 = tree.add_window_under(layout, inner_group, WindowId::new(2, 1));
+        let _inner_stack2 = tree.add_window_under(layout, inner_group, WindowId::new(2, 2));
+        tree.select(inner_stack1);
+
+        let screen = rect(0, 0, 1000, 1000);
+        let config = Config::default();
+
+        // If inner_group is fullscreen, only its indicator should be visible.
+        tree.set_fullscreen(inner_group, true);
+        let (_frames, groups) = tree.calculate_layout_and_groups(layout, screen, &config);
+        let outer = groups.iter().find(|g| g.container_kind == ContainerKind::Tabbed).unwrap();
+        let inner = groups.iter().find(|g| g.container_kind == ContainerKind::Stacked).unwrap();
+        assert_eq!(outer.is_visible, false);
+        assert_eq!(inner.is_visible, true);
+
+        // If a window inside inner_group is fullscreen, no indicators should be visible.
+        tree.set_fullscreen(inner_group, false);
+        tree.set_fullscreen(inner_stack1, true);
+        let (_frames, groups) = tree.calculate_layout_and_groups(layout, screen, &config);
+        let outer = groups.iter().find(|g| g.container_kind == ContainerKind::Tabbed).unwrap();
+        let inner = groups.iter().find(|g| g.container_kind == ContainerKind::Stacked).unwrap();
+        assert_eq!(outer.is_visible, false);
+        assert_eq!(inner.is_visible, false);
+
+        // If the root is fullscreen for some reason, it behaves as normal.
+        tree.set_fullscreen(inner_stack1, false);
+        tree.set_fullscreen(root, true);
+        let (_frames, groups) = tree.calculate_layout_and_groups(layout, screen, &config);
+        let outer = groups.iter().find(|g| g.container_kind == ContainerKind::Tabbed).unwrap();
+        let inner = groups.iter().find(|g| g.container_kind == ContainerKind::Stacked).unwrap();
+        assert_eq!(outer.is_visible, true);
+        assert_eq!(inner.is_visible, true);
     }
 
     #[test]
