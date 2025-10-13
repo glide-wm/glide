@@ -334,16 +334,16 @@ impl<'a, 'out> Visitor<'a, 'out> {
         use ContainerKind::*;
         match info.kind {
             Tabbed | Stacked => {
-                let (group_frame, indicator_frame) =
-                    if self.config.settings.experimental.group_indicators.enable {
-                        size_with_group_indicator(
-                            rect,
-                            info.kind,
-                            &self.config.settings.experimental.group_indicators,
-                        )
-                    } else {
-                        (rect, CGRect::ZERO)
-                    };
+                let (group_frame, indicator_frame) = if self.config.settings.group_indicators.enable
+                {
+                    size_with_group_indicator(
+                        rect,
+                        info.kind,
+                        &self.config.settings.group_indicators,
+                    )
+                } else {
+                    (rect, CGRect::ZERO)
+                };
 
                 // Slightly janky visibility computation: If a node is fullscreen
                 // only its descendants can be considered visible. If multiple
@@ -755,14 +755,15 @@ mod tests {
         let screen = rect(0, 0, 1000, 1000);
 
         // Test with indicators disabled
-        let config_disabled = Config::default(); // indicators disabled by default
+        let mut config_disabled = Config::default();
+        config_disabled.settings.group_indicators.enable = false;
         let (frames_disabled, groups_disabled) =
             tree.calculate_layout_and_groups(layout, screen, &config_disabled);
 
         // Test with indicators enabled
         let mut config_enabled = Config::default();
-        config_enabled.settings.experimental.group_indicators.enable = true;
-        config_enabled.settings.experimental.group_indicators.bar_thickness = 20.0;
+        config_enabled.settings.group_indicators.enable = true;
+        config_enabled.settings.group_indicators.bar_thickness = 20.0;
         let (frames_enabled, groups_enabled) =
             tree.calculate_layout_and_groups(layout, screen, &config_enabled);
 

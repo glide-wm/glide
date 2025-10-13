@@ -51,6 +51,8 @@ pub struct Settings {
     pub mouse_follows_focus: bool,
     pub mouse_hides_on_focus: bool,
     pub focus_follows_mouse: bool,
+    #[derive_args(GroupIndicatorsPartial)]
+    pub group_indicators: GroupIndicators,
     #[derive_args(ExperimentalPartial)]
     pub experimental: Experimental,
 }
@@ -62,8 +64,6 @@ pub struct Settings {
 pub struct Experimental {
     #[derive_args(StatusIconPartial)]
     pub status_icon: StatusIcon,
-    #[derive_args(GroupIndicatorsPartial)]
-    pub group_indicators: GroupIndicators,
 }
 
 #[derive(PartialConfig!)]

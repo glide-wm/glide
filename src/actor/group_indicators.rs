@@ -74,7 +74,7 @@ impl GroupIndicators {
     }
 
     fn is_enabled(&self) -> bool {
-        self.config.settings.experimental.group_indicators.enable
+        self.config.settings.group_indicators.enable
     }
 
     fn handle_event(&mut self, event: Event) {
