@@ -241,21 +241,18 @@ impl Size {
         screen: CGRect,
     ) -> Vec<(WindowId, CGRect)> {
         let mut sizes = vec![];
-        self.apply(
+        Visitor {
             map,
+            size: self,
             window,
             selection,
-            &[],
+            fullscreen_nodes: &[],
             config,
-            root,
             screen,
-            screen,
-            true,
-            false,
-            true,
-            &mut sizes,
-            None,
-        );
+            sizes: &mut sizes,
+            groups: None,
+        }
+        .visit(root, screen);
         sizes
     }
 
@@ -270,55 +267,67 @@ impl Size {
     ) -> (Vec<(WindowId, CGRect)>, Vec<GroupInfo>) {
         let mut sizes = vec![];
         let mut groups = vec![];
-        let fullscreen_nodes = root
+        let fullscreen_nodes = &root
             .traverse_postorder(map)
             .filter(|&node| self.info.get(node).map(|i| i.is_fullscreen).unwrap_or(false))
-            // We assume root is not included when passing false below.
-            .filter(|&node| node != root)
             .collect::<Vec<_>>();
-        self.apply(
+        Visitor {
             map,
+            size: self,
             window,
             selection,
-            &fullscreen_nodes,
+            fullscreen_nodes,
             config,
-            root,
             screen,
-            screen,
-            true,
-            false,
-            true,
-            &mut sizes,
-            Some(&mut groups),
-        );
+            sizes: &mut sizes,
+            groups: Some(&mut groups),
+        }
+        .visit(root, screen);
         (sizes, groups)
     }
+}
 
-    fn apply(
-        &self,
-        map: &NodeMap,
-        window: &super::window::Window,
-        selection: &Selection,
-        fullscreen_nodes: &[NodeId],
-        config: &Config,
+struct Visitor<'a, 'out> {
+    map: &'a NodeMap,
+    size: &'a Size,
+    window: &'a super::window::Window,
+    selection: &'a Selection,
+    fullscreen_nodes: &'a [NodeId],
+    config: &'a Config,
+    screen: CGRect,
+    sizes: &'out mut Vec<(WindowId, CGRect)>,
+    groups: Option<&'out mut Vec<GroupInfo>>,
+}
+
+impl<'a, 'out> Visitor<'a, 'out> {
+    fn visit(mut self, root: NodeId, rect: CGRect) {
+        // Usually this should be false, except in the uncommon case where root
+        // is fullscreen.
+        let parent_visible = self.fullscreen_nodes.contains(&root);
+        self.visit_node(root, rect, true, parent_visible, true);
+    }
+
+    fn visit_node(
+        &mut self,
         node: NodeId,
         rect: CGRect,
-        screen: CGRect,
         is_in_visibility_path: bool,
         is_parent_visible: bool,
         is_selected: bool,
-        sizes: &mut Vec<(WindowId, CGRect)>,
-        mut groups: Option<&mut Vec<GroupInfo>>,
     ) {
-        let info = &self.info[node];
-        let rect = if info.is_fullscreen { screen } else { rect };
+        let info = &self.size.info[node];
+        let rect = if info.is_fullscreen {
+            self.screen
+        } else {
+            rect
+        };
 
-        if let Some(wid) = window.at(node) {
+        if let Some(wid) = self.window.at(node) {
             debug_assert!(
-                node.children(map).next().is_none(),
+                node.children(self.map).next().is_none(),
                 "non-leaf node with window id"
             );
-            sizes.push((wid, rect));
+            self.sizes.push((wid, rect));
             return;
         }
 
@@ -326,11 +335,11 @@ impl Size {
         match info.kind {
             Tabbed | Stacked => {
                 let (group_frame, indicator_frame) =
-                    if config.settings.experimental.group_indicators.enable {
-                        self.size_with_group_indicator(
+                    if self.config.settings.experimental.group_indicators.enable {
+                        size_with_group_indicator(
                             rect,
                             info.kind,
-                            &config.settings.experimental.group_indicators,
+                            &self.config.settings.experimental.group_indicators,
                         )
                     } else {
                         (rect, CGRect::ZERO)
@@ -341,37 +350,29 @@ impl Size {
                 // nodes are fullscreen we don't attempt to handle it well.
                 let is_visible = is_in_visibility_path
                     && (is_parent_visible
-                        || fullscreen_nodes.is_empty()
-                        || fullscreen_nodes.contains(&node));
+                        || self.fullscreen_nodes.is_empty()
+                        || self.fullscreen_nodes.contains(&node));
 
-                let selected_child = selection.last_selection(map, node);
+                let selected_child = self.selection.last_selection(self.map, node);
                 let mut selected_index = 0;
                 let mut num_children = 0;
-                for (index, child) in node.children(map).enumerate() {
+                for (index, child) in node.children(self.map).enumerate() {
                     let selected = selected_child == Some(child);
                     if selected {
                         selected_index = index;
                     }
                     num_children += 1;
 
-                    self.apply(
-                        map,
-                        window,
-                        selection,
-                        fullscreen_nodes,
-                        config,
+                    self.visit_node(
                         child,
                         group_frame,
-                        screen,
                         is_in_visibility_path && selected,
                         is_visible,
                         is_selected && selected,
-                        sizes,
-                        groups.as_deref_mut(),
                     );
                 }
 
-                if let Some(groups) = groups.as_deref_mut() {
+                if let Some(groups) = self.groups.as_deref_mut() {
                     groups.push(GroupInfo {
                         node_id: node,
                         container_kind: info.kind,
@@ -385,10 +386,10 @@ impl Size {
             }
             Horizontal => {
                 let mut x = rect.origin.x;
-                let total = self.info[node].total;
-                let local_selection = selection.local_selection(map, node);
-                for child in node.children(map) {
-                    let ratio = f64::from(self.info[child].size) / f64::from(total);
+                let total = self.size.info[node].total;
+                let local_selection = self.selection.local_selection(self.map, node);
+                for child in node.children(self.map) {
+                    let ratio = f64::from(self.size.info[child].size) / f64::from(total);
                     let rect = CGRect {
                         origin: CGPoint { x, y: rect.origin.y },
                         size: CGSize {
@@ -397,30 +398,22 @@ impl Size {
                         },
                     }
                     .round();
-                    self.apply(
-                        map,
-                        window,
-                        selection,
-                        fullscreen_nodes,
-                        config,
+                    self.visit_node(
                         child,
                         rect,
-                        screen,
                         is_in_visibility_path,
                         is_parent_visible,
                         is_selected && local_selection == Some(child),
-                        sizes,
-                        groups.as_deref_mut(),
                     );
                     x = rect.max().x;
                 }
             }
             Vertical => {
                 let mut y = rect.origin.y;
-                let total = self.info[node].total;
-                let local_selection = selection.local_selection(map, node);
-                for child in node.children(map) {
-                    let ratio = f64::from(self.info[child].size) / f64::from(total);
+                let total = self.size.info[node].total;
+                let local_selection = self.selection.local_selection(self.map, node);
+                for child in node.children(self.map) {
+                    let ratio = f64::from(self.size.info[child].size) / f64::from(total);
                     let rect = CGRect {
                         origin: CGPoint { x: rect.origin.x, y },
                         size: CGSize {
@@ -429,131 +422,122 @@ impl Size {
                         },
                     }
                     .round();
-                    self.apply(
-                        map,
-                        window,
-                        selection,
-                        fullscreen_nodes,
-                        config,
+                    self.visit_node(
                         child,
                         rect,
-                        screen,
                         is_in_visibility_path,
                         is_parent_visible,
                         is_selected && local_selection == Some(child),
-                        sizes,
-                        groups.as_deref_mut(),
                     );
                     y = rect.max().y;
                 }
             }
         }
     }
+}
 
-    /// Calculate frames for group and indicator, reserving space for the indicator
-    fn size_with_group_indicator(
-        &self,
-        rect: CGRect,
-        container_kind: ContainerKind,
-        config: &crate::config::GroupIndicators,
-    ) -> (CGRect, CGRect) {
-        use crate::config::{HorizontalPlacement, VerticalPlacement};
+/// Calculate frames for group and indicator, reserving space for the indicator
+fn size_with_group_indicator(
+    rect: CGRect,
+    container_kind: ContainerKind,
+    config: &crate::config::GroupIndicators,
+) -> (CGRect, CGRect) {
+    use crate::config::{HorizontalPlacement, VerticalPlacement};
 
-        let thickness = config.bar_thickness;
+    let thickness = config.bar_thickness;
 
-        match container_kind {
-            ContainerKind::Tabbed => {
-                // Horizontal indicator
-                match config.horizontal_placement {
-                    HorizontalPlacement::Top => {
-                        let group_frame = CGRect {
-                            origin: CGPoint {
-                                x: rect.origin.x,
-                                y: rect.origin.y + thickness,
-                            },
-                            size: CGSize {
-                                width: rect.size.width,
-                                height: rect.size.height - thickness,
-                            },
-                        };
-                        let indicator_frame = CGRect {
-                            origin: rect.origin,
-                            size: CGSize {
-                                width: rect.size.width,
-                                height: thickness,
-                            },
-                        };
-                        (group_frame, indicator_frame)
-                    }
-                    HorizontalPlacement::Bottom => {
-                        let group_frame = CGRect {
-                            origin: rect.origin,
-                            size: CGSize {
-                                width: rect.size.width,
-                                height: rect.size.height - thickness,
-                            },
-                        };
-                        let indicator_frame = CGRect {
-                            origin: CGPoint {
-                                x: rect.origin.x,
-                                y: rect.origin.y + group_frame.size.height,
-                            },
-                            size: CGSize {
-                                width: rect.size.width,
-                                height: thickness,
-                            },
-                        };
-                        (group_frame, indicator_frame)
-                    }
+    match container_kind {
+        ContainerKind::Tabbed => {
+            // Horizontal indicator
+            match config.horizontal_placement {
+                HorizontalPlacement::Top => {
+                    let group_frame = CGRect {
+                        origin: CGPoint {
+                            x: rect.origin.x,
+                            y: rect.origin.y + thickness,
+                        },
+                        size: CGSize {
+                            width: rect.size.width,
+                            height: rect.size.height - thickness,
+                        },
+                    };
+                    let indicator_frame = CGRect {
+                        origin: rect.origin,
+                        size: CGSize {
+                            width: rect.size.width,
+                            height: thickness,
+                        },
+                    };
+                    (group_frame, indicator_frame)
+                }
+                HorizontalPlacement::Bottom => {
+                    let group_frame = CGRect {
+                        origin: rect.origin,
+                        size: CGSize {
+                            width: rect.size.width,
+                            height: rect.size.height - thickness,
+                        },
+                    };
+                    let indicator_frame = CGRect {
+                        origin: CGPoint {
+                            x: rect.origin.x,
+                            y: rect.origin.y + group_frame.size.height,
+                        },
+                        size: CGSize {
+                            width: rect.size.width,
+                            height: thickness,
+                        },
+                    };
+                    (group_frame, indicator_frame)
                 }
             }
-            ContainerKind::Stacked => {
-                // Vertical indicator
-                match config.vertical_placement {
-                    VerticalPlacement::Left => {
-                        let group_frame = CGRect {
-                            origin: CGPoint {
-                                x: rect.origin.x + thickness,
-                                y: rect.origin.y,
-                            },
-                            size: CGSize {
-                                width: rect.size.width - thickness,
-                                height: rect.size.height,
-                            },
-                        };
-                        let indicator_frame = CGRect {
-                            origin: rect.origin,
-                            size: CGSize {
-                                width: thickness,
-                                height: rect.size.height,
-                            },
-                        };
-                        (group_frame, indicator_frame)
-                    }
-                    VerticalPlacement::Right => {
-                        let group_frame = CGRect {
-                            origin: rect.origin,
-                            size: CGSize {
-                                width: rect.size.width - thickness,
-                                height: rect.size.height,
-                            },
-                        };
-                        let indicator_frame = CGRect {
-                            origin: CGPoint {
-                                x: rect.origin.x + group_frame.size.width,
-                                y: rect.origin.y,
-                            },
-                            size: CGSize {
-                                width: thickness,
-                                height: rect.size.height,
-                            },
-                        };
-                        (group_frame, indicator_frame)
-                    }
-                }
-            }
-            _ => (rect, CGRect::ZERO),
         }
+        ContainerKind::Stacked => {
+            // Vertical indicator
+            match config.vertical_placement {
+                VerticalPlacement::Left => {
+                    let group_frame = CGRect {
+                        origin: CGPoint {
+                            x: rect.origin.x + thickness,
+                            y: rect.origin.y,
+                        },
+                        size: CGSize {
+                            width: rect.size.width - thickness,
+                            height: rect.size.height,
+                        },
+                    };
+                    let indicator_frame = CGRect {
+                        origin: rect.origin,
+                        size: CGSize {
+                            width: thickness,
+                            height: rect.size.height,
+                        },
+                    };
+                    (group_frame, indicator_frame)
+                }
+                VerticalPlacement::Right => {
+                    let group_frame = CGRect {
+                        origin: rect.origin,
+                        size: CGSize {
+                            width: rect.size.width - thickness,
+                            height: rect.size.height,
+                        },
+                    };
+                    let indicator_frame = CGRect {
+                        origin: CGPoint {
+                            x: rect.origin.x + group_frame.size.width,
+                            y: rect.origin.y,
+                        },
+                        size: CGSize {
+                            width: thickness,
+                            height: rect.size.height,
+                        },
+                    };
+                    (group_frame, indicator_frame)
+                }
+            }
+        }
+        _ => (rect, CGRect::ZERO),
     }
 }
 
