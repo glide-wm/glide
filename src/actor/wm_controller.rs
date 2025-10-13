@@ -174,6 +174,7 @@ impl WmController {
                     frames.clone(),
                     self.active_spaces(),
                     self.get_windows(),
+                    converter,
                 ));
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
                 self.mouse_tx.send(mouse::Request::ScreenParametersChanged(frames, converter));

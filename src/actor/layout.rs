@@ -10,6 +10,7 @@ use tracing::{debug, error};
 
 use crate::actor::app::{WindowId, pid_t};
 use crate::collections::{BTreeExt, BTreeSet, HashMap, HashSet};
+use crate::config::Config;
 use crate::model::{
     ContainerKind, Direction, LayoutId, LayoutTree, Orientation, SpaceLayoutMapping,
 };
@@ -415,10 +416,25 @@ impl LayoutManager {
         }
     }
 
-    pub fn calculate_layout(&self, space: SpaceId, screen: CGRect) -> Vec<(WindowId, CGRect)> {
+    pub fn calculate_layout(
+        &self,
+        space: SpaceId,
+        screen: CGRect,
+        config: &Config,
+    ) -> Vec<(WindowId, CGRect)> {
         let layout = self.layout(space);
         //debug!("{}", self.tree.draw_tree(space));
-        self.tree.calculate_layout(layout, screen)
+        self.tree.calculate_layout(layout, screen, config)
+    }
+
+    pub fn calculate_layout_and_groups(
+        &self,
+        space: SpaceId,
+        screen: CGRect,
+        config: &Config,
+    ) -> (Vec<(WindowId, CGRect)>, Vec<crate::model::GroupInfo>) {
+        let layout = self.layout(space);
+        self.tree.calculate_layout_and_groups(layout, screen, config)
     }
 
     fn try_layout(&self, space: SpaceId) -> Option<LayoutId> {
@@ -474,7 +490,11 @@ mod tests {
 
     impl LayoutManager {
         fn layout_sorted(&self, space: SpaceId, screen: CGRect) -> Vec<(WindowId, CGRect)> {
-            let mut layout = self.calculate_layout(space, screen);
+            let mut layout = self.calculate_layout(
+                space,
+                screen,
+                &Config::default(), // TODO stop being lazy
+            );
             layout.sort_by_key(|(wid, _)| *wid);
             layout
         }
@@ -680,6 +700,7 @@ mod tests {
         let mut mgr = LayoutManager::new();
         let space = SpaceId::new(1);
         let pid = 1;
+        let config = &Config::default();
 
         let screen1 = rect(0, 0, 120, 120);
         _ = mgr.handle_event(SpaceExposed(space, screen1.size));
@@ -690,7 +711,8 @@ mod tests {
 
         // Make the first window float.
         _ = mgr.handle_command(Some(space), &[space], ToggleWindowFloating);
-        let sizes: HashMap<_, _> = mgr.calculate_layout(space, screen1).into_iter().collect();
+        let sizes: HashMap<_, _> =
+            mgr.calculate_layout(space, screen1, config).into_iter().collect();
         assert_eq!(sizes[&WindowId::new(pid, 2)], rect(0, 0, 60, 120));
         assert_eq!(sizes[&WindowId::new(pid, 3)], rect(60, 0, 60, 120));
 
@@ -707,7 +729,8 @@ mod tests {
 
         // Make the second window float.
         _ = mgr.handle_command(Some(space), &[space], ToggleWindowFloating);
-        let sizes: HashMap<_, _> = mgr.calculate_layout(space, screen1).into_iter().collect();
+        let sizes: HashMap<_, _> =
+            mgr.calculate_layout(space, screen1, config).into_iter().collect();
         assert_eq!(sizes[&WindowId::new(pid, 3)], rect(0, 0, 120, 120));
 
         // Toggle back to tiled.
@@ -734,6 +757,7 @@ mod tests {
         let mut mgr = LayoutManager::new();
         let space = SpaceId::new(1);
         let pid = 1;
+        let config = &Config::default();
 
         _ = mgr.handle_event(WindowFocused(vec![], WindowId::new(pid, 1)));
 
@@ -745,7 +769,8 @@ mod tests {
         _ = mgr.handle_event(SpaceExposed(space, screen1.size));
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, make_windows(pid, 3)));
 
-        let sizes: HashMap<_, _> = mgr.calculate_layout(space, screen1).into_iter().collect();
+        let sizes: HashMap<_, _> =
+            mgr.calculate_layout(space, screen1, config).into_iter().collect();
         assert_eq!(sizes[&WindowId::new(pid, 2)], rect(0, 0, 60, 120));
         assert_eq!(sizes[&WindowId::new(pid, 3)], rect(60, 0, 60, 120));
 

@@ -21,7 +21,8 @@ impl Reactor {
         config.settings.default_disable = false;
         config.settings.animate = false;
         let record = Record::new_for_test(tempfile::NamedTempFile::new().unwrap());
-        Reactor::new(Arc::new(config), layout, record)
+        let (group_indicators_tx, _) = crate::actor::channel();
+        Reactor::new(Arc::new(config), layout, record, group_indicators_tx)
     }
 
     pub fn handle_events(&mut self, events: Vec<Event>) {

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glide_wm::actor::channel;
+use glide_wm::actor::group_indicators::GroupIndicators;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
@@ -78,15 +79,19 @@ fn main() {
     };
     let (mouse_tx, mouse_rx) = channel();
     let (status_tx, status_rx) = channel();
+    let mtm = MainThreadMarker::new().unwrap();
+
+    // Create group indicators actor
+    let (group_indicators_tx, group_indicators_rx) = glide_wm::actor::channel();
+
     let events_tx = Reactor::spawn(
         config.clone(),
         layout,
         reactor::Record::new(opt.record.as_deref()),
         mouse_tx.clone(),
         status_tx.clone(),
+        group_indicators_tx,
     );
-
-    let mtm = MainThreadMarker::new().unwrap();
     let wm_config = wm_controller::Config {
         one_space: opt.one,
         restore_file: restore_file(),
@@ -97,6 +102,7 @@ fn main() {
     let notification_center = NotificationCenter::new(wm_controller_sender);
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);
+    let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
 
     Executor::run_main(mtm, async move {
         join!(
@@ -104,6 +110,7 @@ fn main() {
             notification_center.watch_for_notifications(),
             mouse.run(),
             status.run(),
+            group_indicators.run(),
         );
     });
 }

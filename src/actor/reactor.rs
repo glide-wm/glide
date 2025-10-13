@@ -28,15 +28,18 @@ use tracing::{Span, debug, error, info, instrument, trace, warn};
 use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager};
-use crate::actor::raise::{self, RaiseRequest};
 use crate::actor::status;
+use crate::actor::{
+    group_indicators,
+    raise::{self, RaiseRequest},
+};
 use crate::collections::{HashMap, HashSet};
 use crate::config::Config;
 use crate::log::{self, MetricsCommand};
 use crate::sys::event::MouseState;
 use crate::sys::executor::Executor;
 use crate::sys::geometry::{CGRectDef, CGRectExt, Round, SameAs};
-use crate::sys::screen::SpaceId;
+use crate::sys::screen::{CoordinateConverter, SpaceId};
 use crate::sys::window_server::{WindowServerId, WindowServerInfo};
 
 pub type Sender = tokio::sync::mpsc::UnboundedSender<(Span, Event)>;
@@ -56,6 +59,7 @@ pub enum Event {
         #[serde_as(as = "Vec<CGRectDef>")] Vec<CGRect>,
         Vec<Option<SpaceId>>,
         Vec<WindowServerInfo>,
+        CoordinateConverter,
     ),
 
     /// The current space changed.
@@ -177,6 +181,7 @@ pub struct Reactor {
     raise_manager_tx: raise::Sender,
     mouse_tx: Option<mouse::Sender>,
     status_tx: Option<status::Sender>,
+    group_indicators_tx: group_indicators::Sender,
 }
 
 #[derive(Debug)]
@@ -238,13 +243,14 @@ impl Reactor {
         record: Record,
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
+        group_indicators_tx: group_indicators::Sender,
     ) -> Sender {
         let (events_tx, events) = unbounded_channel();
         let events_tx_clone = events_tx.clone();
         thread::Builder::new()
             .name("reactor".to_string())
             .spawn(move || {
-                let mut reactor = Reactor::new(config, layout, record);
+                let mut reactor = Reactor::new(config, layout, record, group_indicators_tx);
                 reactor.mouse_tx.replace(mouse_tx);
                 reactor.status_tx.replace(status_tx);
                 Executor::run(reactor.run(events, events_tx_clone));
@@ -253,7 +259,12 @@ impl Reactor {
         events_tx
     }
 
-    pub fn new(config: Arc<Config>, layout: LayoutManager, mut record: Record) -> Reactor {
+    pub fn new(
+        config: Arc<Config>,
+        layout: LayoutManager,
+        mut record: Record,
+        group_indicators_tx: group_indicators::Sender,
+    ) -> Reactor {
         // FIXME: Remove apps that are no longer running from restored state.
         record.start(&config, &layout);
         let (raise_manager_tx, _rx) = mpsc::unbounded_channel();
@@ -273,6 +284,7 @@ impl Reactor {
             raise_manager_tx,
             mouse_tx: None,
             status_tx: None,
+            group_indicators_tx: group_indicators_tx,
         }
     }
 
@@ -407,11 +419,11 @@ impl Reactor {
                     self.in_drag = true;
                 }
             }
-            Event::ScreenParametersChanged(frames, spaces, ws_info) => {
+            Event::ScreenParametersChanged(frames, spaces, ws_info, converter) => {
                 info!("screen parameters changed");
                 self.screens = frames
                     .into_iter()
-                    .zip(spaces)
+                    .zip(spaces.clone())
                     .map(|(frame, space)| Screen { frame, space })
                     .collect();
                 let screens = self.screens.clone();
@@ -421,7 +433,14 @@ impl Reactor {
                 }
                 self.update_complete_window_server_info(ws_info);
                 self.update_active_screen();
-                // FIXME: Update visible windows if space changed
+                // FIXME: Update visible windows if space changed.
+                // Forward the event to group_indicators. We serialize these
+                // through the reactor instead of delivering directly from
+                // wm_controller in order to eliminate possible races with other
+                // events sent by the reactor.
+                self.group_indicators_tx.send(group_indicators::Event::ScreenParametersChanged(
+                    spaces, converter,
+                ));
             }
             Event::SpaceChanged(spaces, ws_info) => {
                 if spaces.len() != self.screens.len() {
@@ -727,8 +746,14 @@ impl Reactor {
         for screen in screens {
             let Some(space) = screen.space else { continue };
             trace!(?screen);
-            let layout = self.layout.calculate_layout(space, screen.frame.clone());
+
+            let (layout, groups) =
+                self.layout
+                    .calculate_layout_and_groups(space, screen.frame.clone(), &self.config);
             trace!(?layout, "Layout");
+
+            self.group_indicators_tx
+                .send(group_indicators::Event::GroupsUpdated { space_id: space, groups });
 
             for &(wid, target_frame) in &layout {
                 let Some(window) = self.windows.get_mut(&wid) else {
@@ -778,6 +803,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -806,6 +832,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -842,6 +869,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -882,6 +910,7 @@ pub mod tests {
             vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(3)));
@@ -929,6 +958,7 @@ pub mod tests {
             vec![full_screen],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -957,6 +987,7 @@ pub mod tests {
             vec![full_screen],
             vec![None],
             ws_info.clone(),
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(
@@ -986,6 +1017,7 @@ pub mod tests {
             vec![full_screen],
             vec![None],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1015,6 +1047,7 @@ pub mod tests {
             vec![screen1, screen2],
             vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         let mut windows = make_windows(2);
@@ -1046,6 +1079,7 @@ pub mod tests {
                 layer: 10,
                 frame: CGRect::ZERO,
             }],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(1, make_windows(1), None, true, false));
@@ -1078,6 +1112,7 @@ pub mod tests {
             vec![screen1, screen2],
             vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -1157,6 +1192,7 @@ pub mod tests {
             vec![full_screen],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(
@@ -1168,20 +1204,21 @@ pub mod tests {
         ));
         reactor.handle_event(Event::ApplicationGloballyActivated(1));
         apps.simulate_until_quiet(&mut reactor);
-        let default = reactor.layout.calculate_layout(space, full_screen);
+        let default = reactor.layout.calculate_layout(space, full_screen, &reactor.config);
 
         assert!(reactor.layout.selected_window(space).is_some());
         reactor.handle_event(Event::Command(Command::Layout(LayoutCommand::MoveNode(
             Direction::Up,
         ))));
         apps.simulate_until_quiet(&mut reactor);
-        let modified = reactor.layout.calculate_layout(space, full_screen);
+        let modified = reactor.layout.calculate_layout(space, full_screen, &reactor.config);
         assert_ne!(default, modified);
 
         reactor.handle_event(Event::ScreenParametersChanged(
             vec![CGRect::ZERO],
             vec![None],
             vec![],
+            CoordinateConverter::default(),
         ));
         reactor.handle_event(Event::ScreenParametersChanged(
             vec![full_screen],
@@ -1194,6 +1231,7 @@ pub mod tests {
                     frame: CGRect::ZERO,
                 })
                 .collect(),
+            CoordinateConverter::default(),
         ));
         let requests = apps.requests();
         for request in requests {
@@ -1218,7 +1256,10 @@ pub mod tests {
         }
         apps.simulate_until_quiet(&mut reactor);
 
-        assert_eq!(reactor.layout.calculate_layout(space, full_screen), modified);
+        assert_eq!(
+            reactor.layout.calculate_layout(space, full_screen, &reactor.config),
+            modified
+        );
     }
 
     #[test]
@@ -1230,6 +1271,7 @@ pub mod tests {
             vec![full_screen],
             vec![Some(SpaceId::new(1))],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1254,6 +1296,7 @@ pub mod tests {
                 layer: 0,
                 frame: CGRect::new(CGPoint::new(500., 0.), CGSize::new(500., 500.)),
             }],
+            CoordinateConverter::default(),
         ));
 
         let _events = apps.simulate_events();
@@ -1278,6 +1321,7 @@ pub mod tests {
             vec![CGRect::ZERO],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
         assert_eq!(None, reactor.main_window());
 

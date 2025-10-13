@@ -129,6 +129,8 @@ mod tests {
     use objc2_core_foundation::CGRect;
     use test_log::test;
 
+    use crate::sys::screen::CoordinateConverter;
+
     use super::super::testing::{Apps, make_windows};
     use super::super::{Event, LayoutManager, Quiet, Reactor, SpaceId, WindowId};
 
@@ -142,6 +144,7 @@ mod tests {
             vec![CGRect::ZERO],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
         assert_eq!(None, reactor.main_window());
 
@@ -204,6 +207,7 @@ mod tests {
             vec![CGRect::ZERO],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_event(ApplicationGloballyActivated(1));
@@ -268,6 +272,7 @@ mod tests {
             vec![CGRect::ZERO],
             vec![Some(space)],
             vec![],
+            CoordinateConverter::default(),
         ));
 
         reactor.handle_events(apps.make_app_with_opts(

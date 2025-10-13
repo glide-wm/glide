@@ -118,7 +118,7 @@ impl<S: System> ScreenCache<S> {
 }
 
 /// Converts between Quartz and Cocoa coordinate systems.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct CoordinateConverter {
     /// The y offset of the Cocoa origin in the Quartz coordinate system, and
     /// vice versa. This is the height of the first screen. The origins
