@@ -5,11 +5,12 @@ use std::sync::Arc;
 use accessibility_sys::pid_t;
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use tracing::{Span, debug};
+use tracing::{Span, debug, info};
 
 use super::{Event, Reactor, Record, Requested, TransactionId};
 use crate::actor::app::{AppThreadHandle, Request, WindowId};
 use crate::actor::layout::LayoutManager;
+use crate::actor::reactor;
 use crate::config::Config;
 use crate::sys::app::{AppInfo, WindowInfo};
 use crate::sys::geometry::SameAs;
@@ -40,10 +41,14 @@ impl Drop for Reactor {
         // Replay the recorded data to make sure we can do so without crashing.
         if let Some(temp) = self.record.temp() {
             temp.as_file().flush().unwrap();
-            let mut cmd = test_bin::get_test_bin("examples/devtool");
-            cmd.arg("replay").arg(temp.path());
-            println!("Replaying recorded data:\n{cmd:?}");
-            assert!(cmd.spawn().unwrap().wait().unwrap().success(), "replay failed");
+            println!("Replaying recorded data in {temp:?}:");
+            if let Err(e) = reactor::replay(temp.path(), |_span, request| {
+                info!(?request);
+            }) {
+                let persist_result = self.record.keep();
+                println!("Persisting temp file: {:?}", persist_result);
+                panic!("replay failed: {e}");
+            }
         }
     }
 }

@@ -6,6 +6,8 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[cfg(test)]
@@ -54,6 +56,14 @@ impl Record {
     #[cfg(test)]
     pub(super) fn temp(&mut self) -> Option<&mut NamedTempFile> {
         self.temp.as_mut()
+    }
+
+    #[cfg(test)]
+    pub(super) fn keep(&mut self) -> Result<PathBuf, anyhow::Error> {
+        let Some(temp) = self.temp.take() else {
+            anyhow::bail!("no temp file")
+        };
+        Ok(temp.keep()?.1)
     }
 
     fn file(&mut self) -> Option<&mut File> {
