@@ -56,11 +56,28 @@ impl<S: System> ScreenCache<S> {
     /// The main screen (if any) is always first. Note that there may be no
     /// screens.
     #[forbid(unsafe_code)] // called from test
-    pub fn update_screen_config(&mut self) -> (Vec<CGRect>, Vec<ScreenId>, CoordinateConverter) {
+    pub fn update_screen_config(
+        &mut self,
+    ) -> Option<(Vec<CGRect>, Vec<ScreenId>, CoordinateConverter)> {
+        let ns_screens = self.system.ns_screens();
+        debug!("ns_screens={ns_screens:?}");
+
         let mut cg_screens = self.system.cg_screens().unwrap();
         debug!("cg_screens={cg_screens:?}");
+
+        if ns_screens.len() != cg_screens.len() {
+            // This occasionally happens when unlocking (#16). The events where
+            // this happens have been extraneous, so ignoring them is fine.
+            warn!(
+                "Ignoring screen config change: There are {} ns_screens but {} cg_screens",
+                ns_screens.len(),
+                cg_screens.len(),
+            );
+            return None;
+        }
+
         if cg_screens.is_empty() {
-            return (vec![], vec![], CoordinateConverter::default());
+            return Some((vec![], vec![], CoordinateConverter::default()));
         };
 
         // Ensure that the main screen is always first.
@@ -79,9 +96,6 @@ impl<S: System> ScreenCache<S> {
 
         // We want to get the visible_frame of the NSScreenInfo, but in CG's
         // top-left coordinates from NSScreen's bottom-left.
-        let ns_screens = self.system.ns_screens();
-        debug!("ns_screens={ns_screens:?}");
-
         // The main screen has origin (0, 0) in both coordinate systems.
         let converter = CoordinateConverter {
             screen_height: cg_screens[0].bounds.max().y,
@@ -98,7 +112,7 @@ impl<S: System> ScreenCache<S> {
                 Some((converted, cg_id))
             })
             .unzip();
-        (visible_frames, ids, converter)
+        Some((visible_frames, ids, converter))
     }
 
     /// Returns a list of the active spaces on each screen. The order
@@ -417,7 +431,7 @@ mod test {
                 CGRect::new(CGPoint::new(0.0, 25.0), CGSize::new(3840.0, 2059.0)),
                 CGRect::new(CGPoint::new(3840.0, 1112.0), CGSize::new(1512.0, 950.0)),
             ],
-            sc.update_screen_config().0
+            sc.update_screen_config().unwrap().0
         );
     }
 }

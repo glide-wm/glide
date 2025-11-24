@@ -82,7 +82,9 @@ impl NotificationCenterInner {
 
     fn send_screen_parameters(&self) {
         let mut screen_cache = self.ivars().screen_cache.borrow_mut();
-        let (frames, ids, converter) = screen_cache.update_screen_config();
+        let Some((frames, ids, converter)) = screen_cache.update_screen_config() else {
+            return;
+        };
         let spaces = screen_cache.get_screen_spaces();
         self.send_event(WmEvent::ScreenParametersChanged(frames, ids, converter, spaces));
     }

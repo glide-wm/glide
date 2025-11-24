@@ -277,7 +277,9 @@ fn inspect(mtm: MainThreadMarker) {
 
 async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
     let mut screen_cache = ScreenCache::new(mtm);
-    let (_, _, converter) = screen_cache.update_screen_config();
+    let Some((_, _, converter)) = screen_cache.update_screen_config() else {
+        return;
+    };
     while let Some(()) = rx.recv().await {
         let Some(pos) = get_mouse_pos(converter) else { continue };
         // This API doesn't always work, but for some reason get_window_at_point
