@@ -136,7 +136,7 @@ struct State {
     windows: HashMap<WindowId, WindowState>,
     last_window_idx: u32,
     main_window: Option<WindowId>,
-    last_activated: Option<(Instant, Quiet, oneshot::Sender<()>)>,
+    last_activated: Option<(Instant, Quiet, Option<WindowId>, oneshot::Sender<()>)>,
     is_frontmost: bool,
     raises_tx: Sender<(Span, RaiseRequest)>,
 }
@@ -590,9 +590,17 @@ impl State {
         // or we may time out waiting for them.
         if !is_frontmost && make_key_result.is_ok() && is_standard {
             let (tx, rx) = oneshot::channel();
-            // `quiet` only applies to the last window.
-            let quiet_activation = if wids.len() == 1 { quiet } else { Quiet::Yes };
-            this.last_activated = Some((Instant::now(), quiet_activation, tx));
+            let (quiet_activation, quiet_window_change);
+            if wids.len() == 1 {
+                // `quiet` only applies if the first window is also the last.
+                quiet_activation = quiet;
+                quiet_window_change = (quiet == Quiet::Yes).then_some(first);
+            } else {
+                // Windows before the last are always quiet.
+                quiet_activation = Quiet::Yes;
+                quiet_window_change = Some(first);
+            }
+            this.last_activated = Some((Instant::now(), quiet_activation, quiet_window_change, tx));
             drop(this); // Don't use RefCell across await.
             trace!("Awaiting activation");
             select! {
@@ -724,7 +732,9 @@ impl State {
             self.pid, is_frontmost, old_frontmost
         );
 
-        let event = if is_frontmost {
+        let event = if !is_frontmost {
+            Event::ApplicationDeactivated(self.pid)
+        } else {
             // Suppress events from our own activation by attempting to match up
             // the event with `self.last_activated`.
             //
@@ -732,7 +742,7 @@ impl State {
             // "collapsed" anyway. If the raise action sets self.last_activated
             // it's because it observed the app not being frontmost, and even if
             // we haven't, we need to tell it that the app is activated again.
-            let quiet = match self.last_activated.take() {
+            let (quiet_activation, quiet_window_change) = match self.last_activated.take() {
                 // Since it is possible for an activation to not happen for some
                 // reason, we are stuck with using a timeout so we don't
                 // suppress real events in the future.
@@ -741,27 +751,27 @@ impl State {
                 // which can be caused by outside factors. If last_activated was
                 // set, it's because we initiated an activation event, so we
                 // still want to mark it as quiet if applicable.
-                Some((ts, quiet, tx)) if ts.elapsed() < Duration::from_millis(1000) => {
+                Some((ts, quiet_activation, quiet_window_change, tx))
+                    if ts.elapsed() < Duration::from_millis(1000) =>
+                {
                     // Initiated by us.
                     trace!("by us");
                     _ = tx.send(());
-                    quiet
+                    (quiet_activation, quiet_window_change)
                 }
                 _ => {
                     // Initiated by the user or system.
-                    //
-                    // Unfortunately, if the user clicks on a new main window to
-                    // activate this app, we get this notification before getting
-                    // the main window changed notification. First read the main
-                    // window and send a notification if it changed.
                     trace!("by user");
-                    self.on_main_window_changed(None);
-                    Quiet::No
+                    (Quiet::No, None)
                 }
             };
-            Event::ApplicationActivated(self.pid, quiet)
-        } else {
-            Event::ApplicationDeactivated(self.pid)
+
+            // We often get this notification before getting the main window
+            // changed notification. First read the main window and send a
+            // notification if it changed.
+            self.on_main_window_changed(quiet_window_change);
+
+            Event::ApplicationActivated(self.pid, quiet_activation)
         };
 
         if old_frontmost != is_frontmost {
