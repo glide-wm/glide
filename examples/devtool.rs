@@ -234,7 +234,7 @@ async fn main() -> anyhow::Result<()> {
                 vec![CGEventType::LeftMouseUp],
                 |_a, _b, d| {
                     println!("{:?}", d.location());
-                    None
+                    core_graphics::event::CallbackResult::Keep
                 },
             ) {
                 Ok(tap) => unsafe {

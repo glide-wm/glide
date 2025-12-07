@@ -19,15 +19,16 @@ test = false
 release.panic = "abort"
 
 [dependencies]
-accessibility = "0.1.6"
-accessibility-sys = "0.1.3"
+accessibility = "0.2.0"
+accessibility-sys = "0.2.0"
 anyhow = "1.0.83"
 ascii_tree = "0.1.1"
 bitflags = "2.4.1"
 clap = { version = "4.5.4", features = ["derive"] }
-core-foundation = "0.9.4"
-core-graphics = "0.23.2"
-core-graphics-types = "0.1.3"
+core-foundation = "0.10.1"
+core-graphics = "0.25.0"
+core-graphics-types = "0.2.0"
+core-graphics-types-old = { package = "core-graphics-types", version = "0.1.3" }
 dirs = "5.0.1"
 indexmap = { version = "2.10.0", features = ["serde"] }
 livesplit-hotkey = "0.8.0"
@@ -68,6 +69,9 @@ objc2-core-foundation = { version = "0.3.2", default-features = false, features 
     "CFRunLoop",
     "CFDate",
 ] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = [
+    "CGDirectDisplay", "CGRemoteOperation", "CGError"
+] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = [
     "NSArray",
     "NSEnumerator",
@@ -102,9 +106,5 @@ test-log = { version = "0.2.16", default-features = false, features = [
 tempfile = { version = "3.17.1", default-features = false }
 
 [patch.crates-io]
-core-foundation = { git = "https://github.com/tmandry/core-foundation-rs", branch = "master" }
-core-foundation-sys = { git = "https://github.com/tmandry/core-foundation-rs", branch = "master" }
-core-graphics = { git = "https://github.com/tmandry/core-foundation-rs", branch = "master" }
-core-graphics-types = { git = "https://github.com/tmandry/core-foundation-rs", branch = "master" }
 accessibility = { git = "https://github.com/tmandry/accessibility", branch = "master" }
 accessibility-sys = { git = "https://github.com/tmandry/accessibility", branch = "master" }

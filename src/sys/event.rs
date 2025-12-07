@@ -1,15 +1,14 @@
 use core_graphics::base::CGError;
-use core_graphics::display::{
-    CGDisplayHideCursor, CGDisplayShowCursor, CGWarpMouseCursorPosition, kCGNullDirectDisplayID,
-};
 use livesplit_hotkey::{ConsumePreference, Hook};
 pub use livesplit_hotkey::{Hotkey, KeyCode, Modifiers};
 use objc2_app_kit::NSEvent;
 use objc2_core_foundation::CGPoint;
+use objc2_core_graphics::{
+    CGDisplayHideCursor, CGDisplayShowCursor, CGWarpMouseCursorPosition, kCGNullDirectDisplay,
+};
 use serde::{Deserialize, Serialize};
 use tracing::info_span;
 
-use super::geometry::ToCGType;
 use super::screen::CoordinateConverter;
 use crate::actor::reactor::Command;
 use crate::actor::wm_controller::{Sender, WmCommand, WmEvent};
@@ -64,18 +63,18 @@ pub fn get_mouse_pos(converter: CoordinateConverter) -> Option<CGPoint> {
 }
 
 pub fn warp_mouse(point: CGPoint) -> Result<(), CGError> {
-    cg_result(unsafe { CGWarpMouseCursorPosition(point.to_cgtype()) })
+    cg_result(CGWarpMouseCursorPosition(point).0)
 }
 
 /// Hide the mouse. Note that this will have no effect unless
 /// [`window_server::allow_hide_mouse`] was called or this application is
 /// focused.
 pub fn hide_mouse() -> Result<(), CGError> {
-    cg_result(unsafe { CGDisplayHideCursor(kCGNullDirectDisplayID) })
+    cg_result(CGDisplayHideCursor(kCGNullDirectDisplay).0)
 }
 
 pub fn show_mouse() -> Result<(), CGError> {
-    cg_result(unsafe { CGDisplayShowCursor(kCGNullDirectDisplayID) })
+    cg_result(CGDisplayShowCursor(kCGNullDirectDisplay).0)
 }
 
 fn cg_result(err: CGError) -> Result<(), CGError> {

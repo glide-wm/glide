@@ -6,6 +6,7 @@ use std::sync::Arc;
 use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
 use core_graphics::event::{
     CGEvent, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
+    CallbackResult,
 };
 use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{MainThreadMarker, NSInteger};
@@ -60,31 +61,36 @@ impl Mouse {
 
     pub async fn run(mut self) {
         let mut requests_rx = self.requests_rx.take().unwrap();
-
         let this = Rc::new(self);
+
+        let events = vec![
+            // Any event we want the mouse to be shown for.
+            // Note that this does not include scroll events.
+            CGEventType::LeftMouseDown,
+            CGEventType::LeftMouseUp,
+            CGEventType::RightMouseDown,
+            CGEventType::RightMouseUp,
+            CGEventType::MouseMoved,
+            CGEventType::LeftMouseDragged,
+            CGEventType::RightMouseDragged,
+        ];
         let this_ = Rc::clone(&this);
         let current = CFRunLoop::get_current();
         let mtm = MainThreadMarker::new().unwrap();
-        let tap = CGEventTap::new(
-            CGEventTapLocation::Session,
-            CGEventTapPlacement::HeadInsertEventTap,
-            CGEventTapOptions::ListenOnly,
-            vec![
-                // Any event we want the mouse to be shown for.
-                // Note that this does not include scroll events.
-                CGEventType::LeftMouseDown,
-                CGEventType::LeftMouseUp,
-                CGEventType::RightMouseDown,
-                CGEventType::RightMouseUp,
-                CGEventType::MouseMoved,
-                CGEventType::LeftMouseDragged,
-                CGEventType::RightMouseDragged,
-            ],
-            move |_, event_type, event| {
-                this_.on_event(event_type, event, mtm);
-                None
-            },
-        )
+        // SAFETY: tap is dropped before all captures, and the tap is installed
+        // on the current thread.
+        let tap = unsafe {
+            CGEventTap::new_unchecked(
+                CGEventTapLocation::Session,
+                CGEventTapPlacement::HeadInsertEventTap,
+                CGEventTapOptions::ListenOnly,
+                events,
+                move |_, event_type, event| {
+                    this_.on_event(event_type, event, mtm);
+                    CallbackResult::Keep
+                },
+            )
+        }
         .expect("Could not create event tap");
 
         let loop_source = tap.mach_port().create_runloop_source(0).unwrap();

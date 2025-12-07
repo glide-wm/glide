@@ -10,11 +10,11 @@ use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::base::CGError;
 use core_graphics::display::{
-    CGWindowID, CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListOptionOnScreenOnly,
+    CGWindowListCopyWindowInfo,
 };
 use core_graphics::window::{
-    CGWindowListCreateDescriptionFromArray, kCGWindowBounds, kCGWindowLayer,
-    kCGWindowListExcludeDesktopElements, kCGWindowNumber, kCGWindowOwnerPID,
+    CGWindowID, CGWindowListCreateDescriptionFromArray, kCGWindowBounds, kCGWindowLayer,
+    kCGWindowListExcludeDesktopElements, kCGWindowNumber, kCGWindowOwnerPID,kCGNullWindowID, kCGWindowListOptionOnScreenOnly,
 };
 use objc2_app_kit::NSWindow;
 use objc2_core_foundation::{CGPoint, CGRect};
