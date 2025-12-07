@@ -7,17 +7,14 @@ use bitflags::bitflags;
 use core_foundation::array::{CFArray, CFArrayRef};
 use core_foundation::base::TCFType;
 use core_foundation::string::{CFString, CFStringRef};
-use core_graphics::display::{CGDisplayBounds, CGGetActiveDisplayList};
-use core_graphics_types::base::{CGError, kCGErrorSuccess};
 use objc2::rc::Retained;
 use objc2::{ClassType, msg_send};
 use objc2_app_kit::NSScreen;
 use objc2_core_foundation::{CGPoint, CGRect};
+use objc2_core_graphics::{CGDisplayBounds, CGError, CGGetActiveDisplayList};
 use objc2_foundation::{MainThreadMarker, NSArray, NSDictionary, NSNumber, ns_string};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
-
-use crate::sys::geometry::ToICrate;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
@@ -202,7 +199,7 @@ impl System for Actual {
                 ids.as_mut_ptr() as *mut CGDirectDisplayID,
                 &mut count,
             );
-            if err != kCGErrorSuccess {
+            if err != CGError::Success {
                 return Err(err);
             }
             std::slice::from_raw_parts(ids.as_ptr() as *const u32, count as usize)
@@ -211,7 +208,7 @@ impl System for Actual {
             .iter()
             .map(|&cg_id| CGScreenInfo {
                 cg_id: ScreenId(cg_id),
-                bounds: unsafe { CGDisplayBounds(cg_id).to_icrate() },
+                bounds: CGDisplayBounds(cg_id),
             })
             .collect())
     }
@@ -374,14 +371,14 @@ mod test {
     use core_foundation::string::CFString;
     use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 
-    use super::{CGScreenInfo, NSScreenInfo, ScreenCache, ScreenId, System};
+    use super::{CGError, CGScreenInfo, NSScreenInfo, ScreenCache, ScreenId, System};
 
     struct Stub {
         cg_screens: Vec<CGScreenInfo>,
         ns_screens: Vec<NSScreenInfo>,
     }
     impl System for Stub {
-        fn cg_screens(&self) -> Result<Vec<CGScreenInfo>, core_graphics_types::base::CGError> {
+        fn cg_screens(&self) -> Result<Vec<CGScreenInfo>, CGError> {
             Ok(self.cg_screens.clone())
         }
         fn ns_screens(&self) -> Vec<NSScreenInfo> {
