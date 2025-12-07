@@ -3,7 +3,7 @@
 //!
 //! These APIs support reading and writing window states like position and size.
 
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::fmt::Debug;
 use std::num::NonZeroU32;
 use std::sync::LazyLock;
@@ -589,28 +589,14 @@ impl State {
         // Workaround: Don't expect activation events for non-standard windows
         // or we may time out waiting for them.
         if !is_frontmost && make_key_result.is_ok() && is_standard {
-            let (tx, rx) = oneshot::channel();
-            let (quiet_activation, quiet_window_change);
             if wids.len() == 1 {
                 // `quiet` only applies if the first window is also the last.
-                quiet_activation = quiet;
-                quiet_window_change = (quiet == Quiet::Yes).then_some(first);
+                let quiet_window_change = (quiet == Quiet::Yes).then_some(first);
+                Self::wait_for_activation(this, quiet, quiet_window_change, &token).await?;
             } else {
                 // Windows before the last are always quiet.
-                quiet_activation = Quiet::Yes;
-                quiet_window_change = Some(first);
+                Self::wait_for_activation(this, Quiet::Yes, Some(first), &token).await?;
             }
-            this.last_activated = Some((Instant::now(), quiet_activation, quiet_window_change, tx));
-            drop(this); // Don't use RefCell across await.
-            trace!("Awaiting activation");
-            select! {
-                _ = rx => {}
-                _ = token.cancelled() => {
-                    debug!("Raise cancelled while awaiting activation event");
-                    return Err(RaiseError::RaiseCancelled);
-                }
-            }
-            trace!("Activation complete");
             this = this_ref.borrow_mut();
         } else {
             // Don't expect an activation event; send the raise completion right
@@ -777,6 +763,27 @@ impl State {
         if old_frontmost != is_frontmost {
             self.send_event(event);
         }
+        Ok(())
+    }
+
+    async fn wait_for_activation(
+        mut this: RefMut<'_, Self>,
+        quiet_activation: Quiet,
+        quiet_window_change: Option<WindowId>,
+        token: &CancellationToken,
+    ) -> Result<(), RaiseError> {
+        let (tx, rx) = oneshot::channel();
+        this.last_activated = Some((Instant::now(), quiet_activation, quiet_window_change, tx));
+        drop(this); // Don't use RefCell across await.
+        trace!("Awaiting activation");
+        select! {
+            _ = rx => {}
+            _ = token.cancelled() => {
+                debug!("Raise cancelled while awaiting activation event");
+                return Err(RaiseError::RaiseCancelled);
+            }
+        }
+        trace!("Activation complete");
         Ok(())
     }
 
