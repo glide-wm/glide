@@ -9,7 +9,9 @@ use std::sync::Arc;
 
 use objc2::rc::Retained;
 use objc2::{MainThreadMarker, MainThreadOnly};
-use objc2_app_kit::{NSBackingStoreType, NSFloatingWindowLevel, NSWindow, NSWindowStyleMask};
+use objc2_app_kit::{
+    NSBackingStoreType, NSColor, NSFloatingWindowLevel, NSWindow, NSWindowStyleMask,
+};
 use objc2_core_foundation::CGRect;
 use objc2_foundation::NSZeroRect;
 use tracing::debug;
@@ -193,7 +195,7 @@ fn make_indicator_window(mtm: MainThreadMarker) -> Retained<NSWindow> {
 
     // Configure as overlay window
     window.setLevel(NSFloatingWindowLevel);
-    window.setBackgroundColor(None);
+    window.setBackgroundColor(Some(&NSColor::clearColor()));
     window.setOpaque(true);
     window.setIgnoresMouseEvents(true);
 

@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use objc2::rc::Retained;
 use objc2::{DeclaredClass, MainThreadOnly, msg_send};
-use objc2_app_kit::{NSEvent, NSView};
+use objc2_app_kit::{NSColor, NSEvent, NSView};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::MainThreadMarker;
 use objc2_quartz_core::CALayer;
@@ -190,6 +190,11 @@ impl GroupIndicatorNSView {
         let view: Retained<_> = unsafe { msg_send![super(view), initWithFrame: frame] };
 
         view.setWantsLayer(true);
+        let parent_layer = view.makeBackingLayer();
+        view.setLayer(Some(&parent_layer));
+
+        // SAFETY: The mask must not have a superlayer; we use a brand new layer.
+        unsafe { parent_layer.setMask(Some(&CALayer::layer())) };
 
         Self { view }
     }
@@ -373,6 +378,15 @@ impl GroupIndicatorNSView {
         background_layer.setBackgroundColor(Some(&bg_color.to_nscolor().CGColor()));
         background_layer.setBorderColor(Some(&border_color.CGColor()));
         background_layer.setBorderWidth(state.config.border_width);
+
+        // Also update the mask here.
+        if let Some(mask) = parent_layer.mask() {
+            // This seems to look the best for a range of sizes.
+            const RADIUS_RATIO: f64 = 2.0 / 3.0;
+            mask.setFrame(bounds);
+            mask.setCornerRadius(RADIUS_RATIO * bounds.size.width);
+            mask.setBackgroundColor(Some(&NSColor::whiteColor().CGColor()));
+        }
     }
 
     fn update_separator_layers(
