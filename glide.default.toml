@@ -22,7 +22,7 @@ mouse_hides_on_focus = true
 
 # Visual indicators for window groups (tabbed/stacked containers).
 group_indicators.enable = true
-group_indicators.bar_thickness = 5.0
+group_indicators.bar_thickness = 6.0
 group_indicators.horizontal_placement = "top"
 group_indicators.vertical_placement = "right"
 
