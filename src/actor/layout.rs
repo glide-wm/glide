@@ -14,6 +14,7 @@ use crate::config::Config;
 use crate::model::{
     ContainerKind, Direction, LayoutId, LayoutTree, Orientation, SpaceLayoutMapping,
 };
+use crate::sys::geometry::CGSizeExt;
 use crate::sys::screen::SpaceId;
 
 #[allow(dead_code)]
@@ -186,15 +187,33 @@ impl LayoutManager {
                     let Some(node) = self.tree.window_node(layout, wid) else {
                         continue;
                     };
+                    if !screen.size.contains(old_frame.size)
+                        || !screen.size.contains(new_frame.size)
+                    {
+                        // Ignore resizes involving sizes outside the normal
+                        // screen bounds. This can happen for instance if the
+                        // window becomes fullscreen at the system level.
+                        debug!("Ignoring out-of-bounds resize");
+                        continue;
+                    }
                     if new_frame == screen {
+                        // Usually this happens because the user double-clicked
+                        // the title bar.
                         self.tree.set_fullscreen(node, true);
-                    } else if old_frame == screen {
+                    } else if self.tree.is_fullscreen(node) {
+                        // Either the user double-clicked the window to restore
+                        // it from full-size, or they are in an interactive
+                        // resize. In both cases we should ignore the old_frame
+                        // because it does not reflect the layout size in the
+                        // tree (fullscreen overrides that). In the interactive
+                        // case clearing the fullscreen bit will cause us to
+                        // resize the window to our expected restore size, and
+                        // the next resize event we see from the user will
+                        // correctly use that as the old_frame.
                         self.tree.set_fullscreen(node, false);
-                        // We don't have an accurate old_frame handy so just ignore
-                        // the actual new size for now. It's probably going back to
-                        // its original size, and if not, it's probably interactive
-                        // and we'll update on the next frame.
                     } else {
+                        // n.b.: old_frame should reflect the current size in
+                        // the layout tree so it can be accurately updated.
                         self.tree.set_frame_from_resize(node, old_frame, new_frame, screen);
                     }
                 }
@@ -1004,6 +1023,49 @@ mod tests {
             ],
             mgr.layout_sorted(space, screen1),
         );
+    }
+
+    #[test]
+    fn resize_to_system_full_screen_and_back_preserves_layout() {
+        use LayoutEvent::*;
+        let mut mgr = LayoutManager::new();
+        let space = SpaceId::new(1);
+        let pid = 1;
+
+        let screen1 = rect(0, 10, 300, 20);
+        let screen1_full = rect(0, 0, 300, 30);
+        _ = mgr.handle_event(SpaceExposed(space, screen1.size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, vec![]));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3)));
+
+        let orig = vec![
+            (WindowId::new(pid, 1), rect(0, 10, 100, 20)),
+            (WindowId::new(pid, 2), rect(100, 10, 100, 20)),
+            (WindowId::new(pid, 3), rect(200, 10, 100, 20)),
+        ];
+        assert_eq!(orig, mgr.layout_sorted(space, screen1));
+
+        // Simulate a window going fullscreen on the current space.
+        //
+        // The leftmost window is better for testing because it passes the
+        // "only resize in 2 directions" requirement.
+        _ = mgr.handle_event(WindowResized {
+            wid: WindowId::new(pid, 1),
+            old_frame: rect(0, 10, 100, 20),
+            new_frame: screen1_full,
+            screens: vec![(space, screen1)],
+        });
+
+        _ = mgr.handle_event(WindowResized {
+            wid: WindowId::new(pid, 1),
+            old_frame: screen1_full,
+            new_frame: rect(0, 10, 100, 20),
+            screens: vec![(space, screen1)],
+        });
+
+        assert_eq!(orig, mgr.layout_sorted(space, screen1));
     }
 
     #[test]

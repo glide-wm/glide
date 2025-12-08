@@ -159,6 +159,16 @@ impl SameAs for ic::CGRect {}
 impl SameAs for ic::CGPoint {}
 impl SameAs for ic::CGSize {}
 
+pub trait CGSizeExt {
+    fn contains(&self, other: Self) -> bool;
+}
+
+impl CGSizeExt for ic::CGSize {
+    fn contains(&self, other: Self) -> bool {
+        self.width >= other.width && self.height >= other.height
+    }
+}
+
 pub trait CGRectExt {
     fn intersection(&self, other: &Self) -> Self;
     fn contains(&self, point: ic::CGPoint) -> bool;

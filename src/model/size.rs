@@ -209,8 +209,7 @@ impl Size {
         self.info[node].is_fullscreen = is_fullscreen;
     }
 
-    pub(super) fn toggle_fullscreen(&mut self, node: NodeId) -> bool {
-        self.info[node].is_fullscreen = !self.info[node].is_fullscreen;
+    pub(super) fn is_fullscreen(&mut self, node: NodeId) -> bool {
         self.info[node].is_fullscreen
     }
 
