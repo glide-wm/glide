@@ -384,7 +384,7 @@ impl GroupIndicatorNSView {
             // This seems to look the best for a range of sizes.
             const RADIUS_RATIO: f64 = 2.0 / 3.0;
             mask.setFrame(bounds);
-            mask.setCornerRadius(RADIUS_RATIO * bounds.size.width);
+            mask.setCornerRadius(RADIUS_RATIO * f64::min(bounds.size.width, bounds.size.height));
             mask.setBackgroundColor(Some(&NSColor::whiteColor().CGColor()));
         }
     }
