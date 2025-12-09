@@ -24,7 +24,7 @@ jobs:
         run: cargo check --verbose --locked --target aarch64-apple-darwin
 
   build:
-    runs-on: macos-13
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Install latest stable
