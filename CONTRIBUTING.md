@@ -1,0 +1,163 @@
+# Contributing to Glide
+
+Thank you for helping make Glide better! We love to see new contributors join our community.
+
+## How to contribute
+
+Contributions can take the form of bug reports, feature requests, documentation, or code.
+
+Most of these should start as [issues] so we can discuss implementation strategy and track progress. However, small fixes can be submitted as pull requests directly.
+
+If you're looking for something to contribute, the issues are a good place to start, particularly open issues marked [help wanted]. To see what's on our roadmap, check the [roadmap] label.
+
+[issues]: https://github.com/glide-wm/glide/issues
+[help wanted]: https://github.com/glide-wm/glide/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22help%20wanted%22
+[roadmap]: https://github.com/glide-wm/glide/issues?q=is%3Aissue%20state%3Aopen%20label%3Aroadmap
+
+### Contribution philosophy
+
+If you aren't sure how to go about something it is generally best to start discussion early, before you think a PR is "ready". Besides initial discussion in an issue, uploading a draft PR is a great way to do this that can save time in the long run.
+
+We believe *perfection is a process* and do not strive to get everything perfect in the first PR. However, we do prefer to keep the amount of code as small as reasonably possible. Features that are not ready for broad consumption can be kept behind an experimental config flag, which exempts them from normal stability standards.
+
+We prefer code changes that are tested, and may ask for tests before merging. Tests should be manually verified to fail before the behavior change and succeed after. At some layers of the stack (e.g. the system level, app actor, and UI) this is not currently feasible, and we substitute with manual verification and sharing logs or screen captures instead.
+
+## Development process
+
+Glide is very easy to build, run, and test with cargo. Running tests is as simple as
+
+```
+git clone https://github.com/glide-wm/glide
+cd glide
+cargo test
+```
+
+You must have [Rust](https://rustup.rs) and Xcode installed. Xcode can be installed via the Mac App Store.
+
+### Logging
+
+Glide makes extensive use of the [tracing] crate to provide detailed and contextual logs of what is going on in its internals. You can enable logs by setting the `RUST_LOG` environment variable.
+
+For a tasteful amount of logs, start with `info`:
+
+```
+RUST_LOG=info cargo run
+```
+
+Often it makes sense to do this plus enable debug logging in a particular module you are developing. For example, to enable debugging in the reactor:
+
+```
+RUST_LOG=info,glide_wm::actor::reactor=debug cargo run
+```
+
+See the [tracing_subscriber EnvFilter docs](https://docs.rs/tracing-subscriber/0.3.22/tracing_subscriber/filter/struct.EnvFilter.html) for a complete reference of what you can specify here.
+
+[tracing]: https://docs.rs/tracing/latest/tracing/
+
+### Save and restore
+
+If you need to update Glide or restart it for any reason, exit with the
+`save_and_exit` key binding (default Alt+Shift+E). Then, when starting again,
+run it with the `--restore` flag:
+
+```
+cargo run --release -- --restore
+```
+
+### devtool
+
+Glide includes a developer tool called `devtool` that can be used to explore macOS APIs. To see the available commands, run it with no arguments like so:
+
+```
+❯ cargo run --example devtool
+   Compiling glide-wm v0.1.0 (/Users/tyler/code/glide)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.81s
+     Running `target/debug/examples/devtool`
+Usage: devtool [OPTIONS] <COMMAND>
+
+Commands:
+  list
+  app
+  window-server
+  replay
+  mouse
+  inspect
+  help           Print this message or the help of the given subcommand(s)
+
+Options:
+      --bundle <BUNDLE>
+      --verbose
+  -h, --help             Print help
+```
+
+To list the windows on screen using the accessibility APIs, use the `list ax` command. Note the use of `--` to separate arguments passed to cargo from arguments passed to devtool.
+
+```
+❯ cargo run --example devtool -- list ax
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `target/debug/examples/devtool list ax`
+WindowInfo { is_standard: false, title: "glide: cargo run --example devtool -- list ax", frame: CGRect { origin: CGPoint { x: 0.0, y: 39.0 }, size: CGSize { width: 1800.0, height: 1050.0 } }, sys_id: Some(WindowServerId(620)) } from com.googlecode.iterm2
+WindowInfo { is_standard: true, title: "installing xcode - Google Search - Google Chrome", frame: CGRect { origin: CGPoint { x: -0.0, y: 40.0 }, size: CGSize { width: 606.0, height: 1129.0 } }, sys_id: Some(WindowServerId(89)) } from com.google.Chrome
+WindowInfo { is_standard: true, title: "glide — CONTRIBUTING.md", frame: CGRect { origin: CGPoint { x: 606.0, y: 40.0 }, size: CGSize { width: 1188.0, height: 1129.0 } }, sys_id: Some(WindowServerId(16811)) } from dev.zed.Zed
+WindowInfo { is_standard: true, title: "accessibility — Cargo.toml", frame: CGRect { origin: CGPoint { x: 606.0, y: 40.0 }, size: CGSize { width: 1188.0, height: 1129.0 } }, sys_id: Some(WindowServerId(16812)) } from dev.zed.Zed
+WindowInfo { is_standard: false, title: "", frame: CGRect { origin: CGPoint { x: 0.0, y: 0.0 }, size: CGSize { width: 1800.0, height: 1169.0 } }, sys_id: None } from com.apple.finder
+```
+
+### Record and replay
+
+Another very useful debugging tool for Glide is the record/replay feature. Enable recording with the `--record` flag, e.g.
+
+```
+mkdir traces/
+RUST_LOG=info cargo run -- --record traces/trace-$(date +%Y%m%d-%H%M%S).ron
+```
+
+This records a trace of the events and commands passed to the Reactor. From this trace you can replay the events through the reactor using devtool and see what actions it takes as `info` level logs. You can also increase the logging level of any component "behind" the reactor, even if logging was not enabled originally. For example:
+
+```
+❯ RUST_LOG=info,glide_wm::actor::layout=debug cargo run --example devtool -- replay traces/trace-20251208-220116.ron
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `target/debug/examples/devtool replay traces/trace-20251208-220116.ron`
+2025-12-09 6:08:31.347928  INFO glide_wm::actor::reactor screen parameters changed
+2025-12-09 6:08:31.348716 DEBUG glide_wm::actor::layout event=WindowFocused([], WindowId { pid: 1582, idx: 89 })
+2025-12-09 6:08:31.348732 DEBUG glide_wm::actor::layout event=WindowFocused([], WindowId { pid: 1582, idx: 89 })
+2025-12-09 6:08:31.350923 DEBUG glide_wm::actor::layout event=WindowRemoved(WindowId { pid: 1601, idx: 620 })
+2025-12-09 6:08:31.351744  INFO glide_wm::actor::reactor space changed
+2025-12-09 6:08:31.351754 DEBUG glide_wm::actor::layout event=SpaceExposed(SpaceId(8), CGSize { width: 1800.0, height: 1129.0 })
+2025-12-09 6:08:31.351813 DEBUG glide_wm::actor::layout Tree
+NodeId(20v11) Horizontal [size 0 total=2.3033333; fullscreen]
+├─ ☐ NodeId(32v9) WindowId { pid: 1582, idx: 89 } [size 0.77606475]
+└─ ☒ NodeId(16v15) Stacked [size 1.5272684 total=3]
+    ├─ ☐ NodeId(29v9) WindowId { pid: 1582, idx: 10548 } [size 1]
+    ├─ ☒ NodeId(30v9) WindowId { pid: 16960, idx: 16811 } [size 1]
+    └─ ☐ NodeId(31v9) WindowId { pid: 16960, idx: 16812 } [size 1]
+2025-12-09 6:08:31.656719  INFO devtool request=BeginWindowAnimation(WindowId { pid: 1582, idx: 89 })
+...
+2025-12-09 6:08:31.95875  INFO devtool request=SetWindowFrame(WindowId { pid: 1582, idx: 89 }, CGRect { origin: CGPoint { x: 0.0, y: 40.0 }, size: CGSize { width: 606.0, height: 1129.0 } }, TransactionId(2))
+2025-12-09 6:08:31.95879  INFO devtool request=EndWindowAnimation(WindowId { pid: 1582, idx: 89 })
+```
+
+Note that the traces do not have a stable format, and may record personal details. If you share them, make sure to sanitize them for anything private and include the exact commit they were created with.
+
+## Website development
+
+Most website and documentation changes can be made directly in markdown.
+
+To preview the website locally you must have [npm] installed. I recommend installing nvm (brew install nvm, follow directions to enable in your shell) and using that to install node and npm.
+
+```
+$ cd site/
+$ npm run dev
+...
+
+ astro  v5.16.4 ready in 1228 ms
+
+┃ Local    http://localhost:4321/
+┃ Network  use --host to expose
+```
+
+From here you can make changes and see them reflected live. See the [Starlight] and [Astro] docs for more.
+
+[npm]: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
+[Astro]: https://astro.build/
+[Starlight]: https://starlight.astro.build/
