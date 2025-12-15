@@ -37,6 +37,10 @@ impl Color {
         Self::new(0.0, 0.5, 1.0, 1.0)
     }
 
+    pub fn dark_blue() -> Self {
+        Self::new(0.0, 0.3, 0.6, 1.0)
+    }
+
     pub fn light_gray() -> Self {
         Self::new(0.8, 0.8, 0.8, 1.0)
     }
@@ -72,7 +76,7 @@ impl Default for IndicatorConfig {
         Self {
             selected_color: Color::blue(),
             unselected_color: Color::light_gray(),
-            locally_selected_color: Color::light_gray(),
+            locally_selected_color: Color::dark_blue(),
             fully_unselected_color: Color::gray(),
             border_color: Color::dark_gray(),
             border_width: 0.5,
