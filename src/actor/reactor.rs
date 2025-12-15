@@ -28,11 +28,8 @@ use tracing::{Span, debug, error, info, instrument, trace, warn};
 use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager};
-use crate::actor::status;
-use crate::actor::{
-    group_indicators,
-    raise::{self, RaiseRequest},
-};
+use crate::actor::raise::{self, RaiseRequest};
+use crate::actor::{group_indicators, status};
 use crate::collections::{HashMap, HashSet};
 use crate::config::Config;
 use crate::log::{self, MetricsCommand};

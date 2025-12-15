@@ -129,10 +129,9 @@ mod tests {
     use objc2_core_foundation::CGRect;
     use test_log::test;
 
-    use crate::sys::screen::CoordinateConverter;
-
     use super::super::testing::{Apps, make_windows};
     use super::super::{Event, LayoutManager, Quiet, Reactor, SpaceId, WindowId};
+    use crate::sys::screen::CoordinateConverter;
 
     #[test]
     fn it_tracks_frontmost_app_and_main_window_correctly() {
