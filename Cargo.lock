@@ -697,6 +697,7 @@ dependencies = [
  "serde",
  "serde_with",
  "slotmap",
+ "sorted-vec",
  "static_assertions",
  "tempfile",
  "test-log",
@@ -1486,6 +1487,12 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+
+[[package]]
+name = "sorted-vec"
+version = "0.8.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19f58d7b0190c7f12df7e8be6b79767a0836059159811b869d5ab55721fe14d0"
 
 [[package]]
 name = "static_assertions"

@@ -16,6 +16,7 @@ pub mod notification_center;
 pub mod raise;
 pub mod reactor;
 pub mod status;
+pub mod window_server;
 pub mod wm_controller;
 
 pub struct Sender<Event>(UnboundedSender<(Span, Event)>);

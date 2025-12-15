@@ -9,6 +9,7 @@ use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
 use glide_wm::actor::reactor::{self, Reactor};
 use glide_wm::actor::status::Status;
+use glide_wm::actor::window_server::WindowServer;
 use glide_wm::actor::wm_controller::{self, WmController};
 use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
@@ -81,9 +82,7 @@ fn main() {
     let (status_tx, status_rx) = channel();
     let mtm = MainThreadMarker::new().unwrap();
 
-    // Create group indicators actor
     let (group_indicators_tx, group_indicators_rx) = glide_wm::actor::channel();
-
     let events_tx = Reactor::spawn(
         config.clone(),
         layout,
@@ -97,12 +96,14 @@ fn main() {
         restore_file: restore_file(),
         config: config.clone(),
     };
+    let (ws_tx, ws_rx) = glide_wm::actor::channel();
     let (wm_controller, wm_controller_sender) =
-        WmController::new(wm_config, events_tx.clone(), mouse_tx.clone(), status_tx);
+        WmController::new(wm_config, events_tx.clone(), mouse_tx.clone(), status_tx, ws_tx);
     let notification_center = NotificationCenter::new(wm_controller_sender);
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);
     let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
+    let window_server = WindowServer::new(mtm);
 
     Executor::run_main(mtm, async move {
         join!(
@@ -110,6 +111,7 @@ fn main() {
             notification_center.watch_for_notifications(),
             mouse.run(),
             status.run(),
+            window_server.run(ws_rx),
             group_indicators.run(),
         );
     });

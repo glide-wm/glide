@@ -96,6 +96,7 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-timing = { version = "0.6.0", features = ["layer"] }
 tracing-tree = { version = "0.3.0", features = ["time"] }
+sorted-vec = "0.8.10"
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
