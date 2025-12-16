@@ -18,7 +18,7 @@ type WeakSender = tokio::sync::mpsc::WeakUnboundedSender<(Span, WmEvent)>;
 type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, WmEvent)>;
 
 use crate::actor::app::AppInfo;
-use crate::actor::{self, mouse, reactor, status};
+use crate::actor::{self, mouse, reactor, status, window_server};
 use crate::collections::HashSet;
 use crate::sys;
 use crate::sys::event::HotkeyManager;
@@ -77,6 +77,7 @@ pub struct WmController {
     events_tx: reactor::Sender,
     mouse_tx: mouse::Sender,
     status_tx: status::Sender,
+    ws_tx: window_server::Sender,
     receiver: Receiver,
     sender: WeakSender,
     starting_space: Option<SpaceId>,
@@ -96,6 +97,7 @@ impl WmController {
         events_tx: reactor::Sender,
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
+        ws_tx: window_server::Sender,
     ) -> (Self, Sender) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let this = Self {
@@ -103,6 +105,7 @@ impl WmController {
             events_tx,
             mouse_tx,
             status_tx,
+            ws_tx,
             receiver,
             sender: sender.downgrade(),
             starting_space: None,
@@ -212,7 +215,7 @@ impl WmController {
             }
             self.login_window_pid = Some(pid);
         }
-        actor::app::spawn_app_thread(pid, info, self.events_tx.clone());
+        actor::app::spawn_app_thread(pid, info, self.events_tx.clone(), self.ws_tx.clone());
     }
 
     fn get_focused_space(&self) -> Option<SpaceId> {

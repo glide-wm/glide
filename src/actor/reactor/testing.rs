@@ -236,6 +236,7 @@ impl Apps {
                     ));
                 }
                 Request::Raise(..) => todo!(),
+                Request::WindowDestroyed(..) => todo!(),
             }
         }
         debug!(?events);

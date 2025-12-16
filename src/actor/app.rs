@@ -25,7 +25,8 @@ use objc2_app_kit::NSRunningApplication;
 use objc2_core_foundation::{CGPoint, CGRect};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{
-    UnboundedReceiver as Receiver, UnboundedSender as Sender, unbounded_channel as channel,
+    UnboundedReceiver as Receiver, UnboundedSender as Sender, WeakUnboundedSender,
+    unbounded_channel as channel,
 };
 use tokio::sync::oneshot;
 use tokio::{join, select};
@@ -34,6 +35,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span, debug, error, info, instrument, trace, warn};
 
+use crate::actor;
 use crate::actor::reactor::{self, Event, Requested, TransactionId};
 use crate::collections::HashMap;
 pub use crate::sys::app::{AppInfo, WindowInfo, pid_t};
@@ -108,6 +110,10 @@ pub enum Request {
     /// parameter for the last window only. Events for other windows will be
     /// marked `Quiet::Yes` automatically.
     Raise(Vec<WindowId>, CancellationToken, u64, Quiet),
+
+    /// Sent by WindowServer actor when a window is destroyed.
+    /// See [`actor::window_server::Request::RegisterWindow`].
+    WindowDestroyed(WindowId),
 }
 
 struct RaiseRequest(Vec<WindowId>, CancellationToken, u64, Quiet);
@@ -119,10 +125,15 @@ pub enum Quiet {
     No,
 }
 
-pub fn spawn_app_thread(pid: pid_t, info: AppInfo, events_tx: reactor::Sender) {
+pub fn spawn_app_thread(
+    pid: pid_t,
+    info: AppInfo,
+    events_tx: reactor::Sender,
+    ws_tx: actor::window_server::Sender,
+) {
     thread::Builder::new()
         .name(format!("{}({pid})", info.bundle_id.as_deref().unwrap_or("")))
-        .spawn(move || app_thread_main(pid, info, events_tx))
+        .spawn(move || app_thread_main(pid, info, events_tx, ws_tx))
         .unwrap();
 }
 
@@ -133,6 +144,8 @@ struct State {
     app: AXUIElement,
     observer: Observer,
     events_tx: reactor::Sender,
+    ws_tx: actor::window_server::Sender,
+    requests_tx: WeakUnboundedSender<(Span, Request)>,
     windows: HashMap<WindowId, WindowState>,
     last_window_idx: u32,
     main_window: Option<WindowId>,
@@ -414,6 +427,9 @@ impl State {
                     ))
                     .unwrap();
             }
+            &mut Request::WindowDestroyed(wid) => {
+                self.on_window_destroyed(wid);
+            }
         }
         Ok(false)
     }
@@ -447,11 +463,9 @@ impl State {
                 ));
             }
             kAXUIElementDestroyedNotification => {
-                let Some((&wid, _)) = self.windows.iter().find(|(_, w)| w.elem == elem) else {
-                    return;
-                };
-                self.windows.remove(&wid);
-                self.send_event(Event::WindowDestroyed(wid));
+                if let Some((&wid, _)) = self.windows.iter().find(|(_, w)| w.elem == elem) {
+                    self.on_window_destroyed(wid);
+                }
             }
             kAXWindowMovedNotification | kAXWindowResizedNotification => {
                 // The difference between these two events isn't very useful to
@@ -481,6 +495,12 @@ impl State {
             _ => {
                 error!("Unhandled notification {notif:?} on {elem:#?}");
             }
+        }
+    }
+
+    fn on_window_destroyed(&mut self, wid: WindowId) {
+        if self.windows.remove(&wid).is_some() {
+            self.send_event(Event::WindowDestroyed(wid));
         }
     }
 }
@@ -808,12 +828,13 @@ impl State {
         if !register_notifs(&elem, self) {
             return None;
         }
-        let idx = WindowServerId::try_from(&elem)
+        let wsid = WindowServerId::try_from(&elem)
             .or_else(|e| {
                 info!("Could not get window server id for {elem:?}: {e}");
                 Err(e)
             })
-            .ok()
+            .ok();
+        let idx = wsid
             .map(|id| NonZeroU32::new(id.as_u32()).expect("Window server id was 0"))
             .unwrap_or_else(|| {
                 self.last_window_idx += 1;
@@ -829,6 +850,15 @@ impl State {
             },
         );
         assert!(old.is_none(), "Duplicate window id {wid:?}");
+        if let Some(wsid) = wsid
+            && let Some(requests_tx) = self.requests_tx.upgrade()
+        {
+            _ = self.ws_tx.send(actor::window_server::Request::RegisterWindow(
+                wsid,
+                wid,
+                AppThreadHandle { requests_tx },
+            ));
+        }
         return Some((info, wid));
 
         fn register_notifs(win: &AXUIElement, state: &State) -> bool {
@@ -898,7 +928,12 @@ impl State {
     }
 }
 
-fn app_thread_main(pid: pid_t, info: AppInfo, events_tx: reactor::Sender) {
+fn app_thread_main(
+    pid: pid_t,
+    info: AppInfo,
+    events_tx: reactor::Sender,
+    ws_tx: actor::window_server::Sender,
+) {
     let app = AXUIElement::application(pid);
     let Some(running_app) = NSRunningApplication::with_process_id(pid) else {
         info!(?pid, "Making NSRunningApplication failed; exiting app thread");
@@ -930,6 +965,7 @@ fn app_thread_main(pid: pid_t, info: AppInfo, events_tx: reactor::Sender) {
 
     // Create our app state.
     let (raises_tx, raises_rx) = channel();
+    let (requests_tx, requests_rx) = channel();
     let state = State {
         pid,
         running_app,
@@ -937,6 +973,8 @@ fn app_thread_main(pid: pid_t, info: AppInfo, events_tx: reactor::Sender) {
         app: app.clone(),
         observer,
         events_tx,
+        ws_tx,
+        requests_tx: requests_tx.downgrade(),
         windows: HashMap::default(),
         last_window_idx: 0,
         main_window: None,
@@ -945,7 +983,6 @@ fn app_thread_main(pid: pid_t, info: AppInfo, events_tx: reactor::Sender) {
         raises_tx,
     };
 
-    let (requests_tx, requests_rx) = channel();
     Executor::run(state.run(info, requests_tx, requests_rx, notifications_rx, raises_rx));
 }
 
