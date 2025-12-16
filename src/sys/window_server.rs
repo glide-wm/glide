@@ -225,6 +225,12 @@ type SkylightNotifierCallback = extern "C-unwind" fn(
     cid: SLSConnectionID,
 );
 
+// TODO: The shape of this API is wrong. The only connection between the event
+// and window list is the connection, but we have to use the default connection
+// for the thread. So really there are two bits of state, one that manages the
+// event and callback which can be scoped, and one that manages the window list
+// and is thread-local.
+/// Subscribes to a Skylight event (private API).
 #[derive(Debug)]
 pub struct SkylightNotifier {
     cid: SLSConnectionID,
