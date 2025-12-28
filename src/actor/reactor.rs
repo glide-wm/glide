@@ -17,7 +17,7 @@ use std::{mem, thread};
 
 use animation::Animation;
 use main_window::MainWindowTracker;
-use objc2_core_foundation::{CGPoint, CGRect};
+use objc2_core_foundation::CGRect;
 pub use replay::{Record, replay};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -474,11 +474,21 @@ impl Reactor {
             Event::MouseMovedOverWindow(wsid) => {
                 let Some(&wid) = self.window_ids.get(&wsid) else { return };
                 let Some(window) = self.windows.get(&wid) else { return };
-                if self.best_space_for_window(&window.frame_monotonic).is_none() {
+                let Some(to_space) = self.best_space_for_window(&window.frame_monotonic) else {
                     // The space is disabled.
                     return;
-                }
-                self.raise_window(wid, Quiet::No, None);
+                };
+                let current_main = match (self.main_window_space(), self.main_window()) {
+                    (Some(space), Some(id)) => Some((space, id)),
+                    _ => None,
+                };
+                self.send_layout_event_from_mouse(
+                    LayoutEvent::MouseMovedOverWindow {
+                        over: (to_space, wid),
+                        current_main,
+                    },
+                    true,
+                );
             }
             Event::RaiseCompleted { window_id, sequence_id } => {
                 let msg = raise::Event::RaiseCompleted { window_id, sequence_id };
@@ -662,14 +672,26 @@ impl Reactor {
     }
 
     fn send_layout_event(&mut self, event: LayoutEvent) {
+        self.send_layout_event_from_mouse(event, false);
+    }
+
+    fn send_layout_event_from_mouse(&mut self, event: LayoutEvent, from_mouse: bool) {
         let response = self.layout.handle_event(event);
-        self.handle_layout_response(response);
+        self.handle_layout_response_from_mouse(response, from_mouse);
         for space in self.screens.iter().flat_map(|screen| screen.space) {
             self.layout.debug_tree_desc(space, "after event", false);
         }
     }
 
     fn handle_layout_response(&mut self, response: layout::EventResponse) {
+        self.handle_layout_response_from_mouse(response, false);
+    }
+
+    fn handle_layout_response_from_mouse(
+        &mut self,
+        response: layout::EventResponse,
+        from_mouse: bool,
+    ) {
         let layout::EventResponse { raise_windows, focus_window } = response;
         if raise_windows.is_empty() && focus_window.is_none() {
             return;
@@ -692,9 +714,12 @@ impl Reactor {
         }
 
         let focus_window_with_warp = focus_window.map(|wid| {
-            let warp = match self.config.settings.mouse_follows_focus {
-                true => self.windows.get(&wid).map(|w| w.frame_monotonic.mid()),
-                false => None,
+            let warp = if self.config.settings.mouse_follows_focus && !from_mouse {
+                self.windows.get(&wid).map(|w| w.frame_monotonic.mid())
+            } else {
+                // We disable warp above if the event itself is caused by mouse
+                // movement.
+                None
             };
             (wid, warp)
         });
@@ -706,22 +731,6 @@ impl Reactor {
         });
 
         _ = self.raise_manager_tx.send((Span::current(), msg));
-    }
-
-    #[instrument(skip(self))]
-    fn raise_window(&mut self, wid: WindowId, quiet: Quiet, warp: Option<CGPoint>) {
-        let mut app_handles = HashMap::default();
-        if let Some(app) = self.apps.get(&wid.pid) {
-            app_handles.insert(wid.pid, app.handle.clone());
-        }
-        _ = self.raise_manager_tx.send((
-            Span::current(),
-            raise::Event::RaiseRequest(RaiseRequest {
-                raise_windows: vec![],
-                focus_window: Some((wid, warp)),
-                app_handles: app_handles,
-            }),
-        ));
     }
 
     /// The main window of the active app, if any.
