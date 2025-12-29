@@ -109,3 +109,8 @@ tempfile = { version = "3.17.1", default-features = false }
 [patch.crates-io]
 accessibility = { git = "https://github.com/tmandry/accessibility", branch = "master" }
 accessibility-sys = { git = "https://github.com/tmandry/accessibility", branch = "master" }
+
+[package.metadata.bundle]
+name = "Glide"
+identifier = "org.glidewm.glide"
+icon = ["assets/app_icon-128x128@2x.png"]
