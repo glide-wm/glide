@@ -19,7 +19,9 @@ use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
 use objc2::MainThreadMarker;
+use objc2_app_kit::{NSApp, NSApplicationActivationPolicy};
 use tokio::join;
+use tracing::warn;
 
 #[derive(Parser)]
 struct Cli {
@@ -62,6 +64,17 @@ fn main() {
     }
     log::init_logging();
     install_panic_hook();
+    let mtm = MainThreadMarker::new().unwrap();
+
+    if glide_wm::ui::permission_flow::obtain_permissions(mtm).is_err() {
+        eprintln!("Permissions not granted; exiting");
+        std::process::exit(2)
+    }
+
+    if !NSApp(mtm).setActivationPolicy(NSApplicationActivationPolicy::Accessory) {
+        warn!("Failed to set activation policy");
+    }
+    NSApp(mtm).finishLaunching();
 
     let mut config = if config_file().exists() {
         Config::read(&config_file()).unwrap()
@@ -84,7 +97,6 @@ fn main() {
     };
     let (mouse_tx, mouse_rx) = channel();
     let (status_tx, status_rx) = channel();
-    let mtm = MainThreadMarker::new().unwrap();
 
     let (group_indicators_tx, group_indicators_rx) = glide_wm::actor::channel();
     let events_tx = Reactor::spawn(
