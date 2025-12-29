@@ -19,9 +19,9 @@ pub struct HotkeyManager {
 }
 
 impl HotkeyManager {
-    pub fn new(events_tx: Sender) -> Self {
-        let hook = Hook::with_consume_preference(ConsumePreference::MustConsume).unwrap();
-        HotkeyManager { hook, events_tx }
+    pub fn new(events_tx: Sender) -> Result<Self, livesplit_hotkey::Error> {
+        let hook = Hook::with_consume_preference(ConsumePreference::MustConsume)?;
+        Ok(HotkeyManager { hook, events_tx })
     }
 
     pub fn register(&self, modifiers: Modifiers, key_code: KeyCode, cmd: Command) {
