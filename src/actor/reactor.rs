@@ -375,7 +375,9 @@ impl Reactor {
                 }
             }
             Event::WindowDestroyed(wid) => {
-                self.windows.remove(&wid).unwrap();
+                if self.windows.remove(&wid).is_none() {
+                    warn!("Got destroyed event for unknown window {wid:?}");
+                }
                 //animation_focus_wid = self.window_order.last().cloned();
                 self.send_layout_event(LayoutEvent::WindowRemoved(wid));
             }
