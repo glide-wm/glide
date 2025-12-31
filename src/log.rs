@@ -1,21 +1,45 @@
+use std::fs::File;
+use std::io::{Stderr, stderr};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Layer, Registry};
+use tracing_subscriber::{EnvFilter, Layer};
 use tracing_timing::{Histogram, group};
 use tracing_tree::time::UtcDateTime;
 
 pub fn init_logging() {
+    let pid = std::process::id();
+    // let logfile = tracing_appender::rolling::never("/tmp", format!("glide.{pid}.log"));
+    let logfile = File::create(format!("/tmp/glide.{pid}.log")).unwrap();
+    let (file_appender, file_appender_guard) = tracing_appender::non_blocking(logfile);
+    let (err_appender, err_appender_guard) = tracing_appender::non_blocking(stderr());
+    let original_hook = std::panic::take_hook();
     tracing_subscriber::registry()
-        .with(tree_layer())
-        .with(timing_layer())
-        .with(EnvFilter::from_default_env())
+        // .with(EnvFilter::from_default_env())
+        // .with(timing_layer())
+        .with(
+            tree_layer()
+                .with_writer(err_appender)
+                .with_filter(EnvFilter::from_default_env()),
+        )
+        .with(tracing_subscriber::fmt::layer().with_writer(file_appender).with_ansi(false))
         .init();
+
+    let appender_guards = Mutex::new(Some((file_appender_guard, err_appender_guard)));
+    std::panic::set_hook(Box::new(move |info| {
+        // Because we abort and don't unwind on panic, make sure to flush the
+        // appenders before that happens.
+        if let Ok(mut guards) = appender_guards.try_lock() {
+            guards.take();
+        }
+        original_hook(info);
+    }));
 }
 
-pub fn tree_layer() -> impl Layer<Registry> {
+pub fn tree_layer() -> tracing_tree::HierarchicalLayer<fn() -> Stderr, UtcDateTime> {
     tracing_tree::HierarchicalLayer::default()
         .with_indent_amount(2)
         .with_indent_lines(true)
@@ -27,6 +51,7 @@ pub fn tree_layer() -> impl Layer<Registry> {
 
 type TimingLayer = tracing_timing::TimingLayer<group::ByName, group::ByMessage>;
 
+#[expect(unused, reason = "not yet useful")]
 fn timing_layer() -> TimingLayer {
     tracing_timing::Builder::default()
         //.events(group::ByName)
