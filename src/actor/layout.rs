@@ -174,14 +174,23 @@ impl LayoutManager {
     }
 
     pub fn debug_tree_desc(&self, space: SpaceId, desc: &'static str, print: bool) {
+        macro_rules! log {
+            ($print:expr, $($args:tt)*) => {
+                if $print {
+                    tracing::warn!($($args)*);
+                } else {
+                    tracing::debug!($($args)*);
+                }
+            };
+        }
         if let Some(layout) = self.try_layout(space) {
-            if print {
-                println!("Tree {desc}\n{}", self.tree.draw_tree(layout).trim());
-            } else {
-                debug!("Tree {desc}\n{}", self.tree.draw_tree(layout).trim());
-            }
+            log!(print, "Tree {desc}\n{}", self.tree.draw_tree(layout).trim());
         } else {
-            debug!("No layout for space {space:?}");
+            log!(print, "No layout for space {space:?}");
+        }
+        if let Some(floating) = self.active_floating_windows.get(&space) {
+            let floating = floating.values().flatten().collect::<Vec<_>>();
+            log!(print, "Floating {floating:?}");
         }
     }
 
