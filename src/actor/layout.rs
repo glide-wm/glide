@@ -97,6 +97,8 @@ pub struct LayoutManager {
     active_floating_windows: HashMap<SpaceId, HashMap<pid_t, HashSet<WindowId>>>,
     #[serde(skip)]
     focused_window: Option<WindowId>,
+    /// Last window focused in floating mode.
+    // TODO: We should keep a stack for each space.
     last_floating_focus: Option<WindowId>,
 }
 
@@ -142,17 +144,22 @@ impl LayoutManager {
                 self.debug_tree(space);
                 // The windows may already be in the layout if we restored a saved state, so
                 // make sure not to duplicate or erase them here.
+                let window_set = windows.iter().cloned().collect::<HashSet<_>>();
+                self.last_floating_focus.take_if(|f| f.pid == pid && !window_set.contains(f));
                 let floating_active =
                     self.active_floating_windows.entry(space).or_default().entry(pid).or_default();
                 floating_active.clear();
-                windows.retain(|wid| {
-                    let floating = self.floating_windows.contains(wid);
-                    if floating {
-                        floating_active.insert(*wid);
-                    }
-                    !floating
-                });
-                self.tree.set_windows_for_app(self.layout(space), pid, windows);
+                let tree_windows = {
+                    windows.retain(|wid| {
+                        let floating = self.floating_windows.contains(wid);
+                        if floating {
+                            floating_active.insert(*wid);
+                        }
+                        !floating
+                    });
+                    windows
+                };
+                self.tree.set_windows_for_app(self.layout(space), pid, tree_windows);
             }
             LayoutEvent::AppClosed(pid) => {
                 self.tree.remove_windows_for_app(pid);
