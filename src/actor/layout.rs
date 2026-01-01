@@ -37,9 +37,9 @@ pub enum LayoutCommand {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LayoutEvent {
-    WindowsOnScreenUpdated(SpaceId, pid_t, Vec<WindowId>),
+    WindowsOnScreenUpdated(SpaceId, pid_t, Vec<(WindowId, LayoutWindowInfo)>),
     AppClosed(pid_t),
-    WindowAdded(SpaceId, WindowId),
+    WindowAdded(SpaceId, WindowId, LayoutWindowInfo),
     WindowRemoved(WindowId),
     WindowFocused(Vec<SpaceId>, WindowId),
     WindowResized {
@@ -53,6 +53,14 @@ pub enum LayoutEvent {
         over: (SpaceId, WindowId),
         current_main: Option<(SpaceId, WindowId)>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayoutWindowInfo {
+    pub bundle_id: Option<String>,
+    pub layer: Option<i32>,
+    pub is_standard: bool,
+    pub is_resizable: bool,
 }
 
 #[must_use]
@@ -88,6 +96,18 @@ impl LayoutCommand {
 ///
 /// LayoutManager keeps a different layout for each screen size a space is used
 /// on. See [`SpaceLayoutInfo`] for more details.
+//
+// TODO: LayoutManager has too many roles. Consider splitting into a few layers:
+//
+// * Restoration and new/removed windows/apps.
+//   * Convert WindowsOnScreenUpdated events into adds/removes.
+// * (Virtual workspaces could go around here.)
+// * Floating/tiling split.
+// * Tiling layout selection (manual and automatic based on size).
+// * Tiling layout-specific commands.
+//
+// If glide core had a true public API I'd expect it to go after the restoration
+// or virtual workspaces layer.
 #[derive(Serialize, Deserialize)]
 pub struct LayoutManager {
     tree: LayoutTree,
@@ -100,6 +120,41 @@ pub struct LayoutManager {
     /// Last window focused in floating mode.
     // TODO: We should keep a stack for each space.
     last_floating_focus: Option<WindowId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum WindowClass {
+    Untracked,
+    FloatByDefault,
+    Regular,
+}
+
+fn classify_window(info: &LayoutWindowInfo) -> WindowClass {
+    use LayoutWindowInfo as Info;
+    match info {
+        &Info { layer: Some(layer), .. } if layer != 0 => WindowClass::Untracked,
+
+        // Finder reports a nonstandard window that doesn't actually "exist".
+        // In general windows with no layer info are suspect, since it means
+        // we couldn't find a corresponding window server window, but we try
+        // not to lean on this too much since it depends on a private API.
+        Info {
+            layer: None,
+            is_standard: false,
+            bundle_id: Some(bundle_id),
+            ..
+        } if bundle_id == "com.apple.finder" => WindowClass::Untracked,
+
+        Info { is_standard: false, .. } => WindowClass::FloatByDefault,
+        Info { is_resizable: false, .. } => WindowClass::FloatByDefault,
+
+        // Float system preferences windows, since they don't resize horiztonally.
+        Info { bundle_id: Some(bundle_id), .. } if bundle_id == "com.apple.systempreferences" => {
+            WindowClass::FloatByDefault
+        }
+
+        _ => WindowClass::Regular,
+    }
 }
 
 impl LayoutManager {
@@ -140,35 +195,59 @@ impl LayoutManager {
                     .or_insert_with(|| SpaceLayoutMapping::new(size, &mut self.tree))
                     .activate_size(size, &mut self.tree);
             }
-            LayoutEvent::WindowsOnScreenUpdated(space, pid, mut windows) => {
+            LayoutEvent::WindowsOnScreenUpdated(space, pid, windows) => {
                 self.debug_tree(space);
                 // The windows may already be in the layout if we restored a saved state, so
                 // make sure not to duplicate or erase them here.
-                let window_set = windows.iter().cloned().collect::<HashSet<_>>();
-                self.last_floating_focus.take_if(|f| f.pid == pid && !window_set.contains(f));
+                let window_map = windows.iter().cloned().collect::<HashMap<_, _>>();
+                self.last_floating_focus
+                    .take_if(|f| f.pid == pid && !window_map.contains_key(f));
+                let layout = self.layout(space);
                 let floating_active =
                     self.active_floating_windows.entry(space).or_default().entry(pid).or_default();
                 floating_active.clear();
-                let tree_windows = {
-                    windows.retain(|wid| {
+                let mut add_floating = Vec::new();
+                let tree_windows = windows
+                    .iter()
+                    .map(|(wid, _info)| *wid)
+                    .filter(|wid| {
                         let floating = self.floating_windows.contains(wid);
                         if floating {
                             floating_active.insert(*wid);
+                            return false;
                         }
-                        !floating
-                    });
-                    windows
-                };
+                        if self.tree.window_node(layout, *wid).is_some() {
+                            return true;
+                        }
+                        match classify_window(window_map.get(wid).unwrap()) {
+                            WindowClass::Untracked => false,
+                            WindowClass::FloatByDefault => {
+                                add_floating.push(*wid);
+                                false
+                            }
+                            WindowClass::Regular => true,
+                        }
+                    })
+                    .collect();
                 self.tree.set_windows_for_app(self.layout(space), pid, tree_windows);
+                for wid in add_floating {
+                    self.add_floating_window(wid, Some(space));
+                }
             }
             LayoutEvent::AppClosed(pid) => {
                 self.tree.remove_windows_for_app(pid);
                 self.floating_windows.remove_all_for_pid(pid);
             }
-            LayoutEvent::WindowAdded(space, wid) => {
+            LayoutEvent::WindowAdded(space, wid, info) => {
                 self.debug_tree(space);
-                let layout = self.layout(space);
-                self.tree.add_window_after(layout, self.tree.selection(layout), wid);
+                match classify_window(&info) {
+                    WindowClass::FloatByDefault => self.add_floating_window(wid, Some(space)),
+                    WindowClass::Regular => {
+                        let layout = self.layout(space);
+                        self.tree.add_window_after(layout, self.tree.selection(layout), wid);
+                    }
+                    WindowClass::Untracked => (),
+                }
             }
             LayoutEvent::WindowRemoved(wid) => {
                 self.tree.remove_window(wid);
@@ -290,31 +369,11 @@ impl LayoutManager {
                 return EventResponse::default();
             };
             if is_floating {
-                if let Some(space) = space {
-                    let layout = self.layout(space);
-                    let selection = self.tree.selection(layout);
-                    let node = self.tree.add_window_after(layout, selection, wid);
-                    self.tree.select(node);
-                    self.active_floating_windows
-                        .entry(space)
-                        .or_default()
-                        .entry(wid.pid)
-                        .or_default()
-                        .remove(&wid);
-                }
-                self.floating_windows.remove(&wid);
+                self.remove_floating_window(wid, space);
                 self.last_floating_focus = None;
             } else {
-                if let Some(space) = space {
-                    self.active_floating_windows
-                        .entry(space)
-                        .or_default()
-                        .entry(wid.pid)
-                        .or_default()
-                        .insert(wid);
-                }
+                self.add_floating_window(wid, space);
                 self.tree.remove_window(wid);
-                self.floating_windows.insert(wid);
                 self.last_floating_focus = Some(wid);
             }
             return EventResponse::default();
@@ -384,6 +443,7 @@ impl LayoutManager {
             LayoutCommand::ToggleFocusFloating => unreachable!(),
 
             LayoutCommand::NextLayout => {
+                // FIXME: Update windows in the new layout.
                 let layout = mapping.change_layout_index(1);
                 if let Some(wid) = self.focused_window
                     && let Some(node) = self.tree.window_node(layout, wid)
@@ -393,6 +453,7 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::PrevLayout => {
+                // FIXME: Update windows in the new layout.
                 let layout = mapping.change_layout_index(-1);
                 if let Some(wid) = self.focused_window
                     && let Some(node) = self.tree.window_node(layout, wid)
@@ -477,6 +538,34 @@ impl LayoutManager {
         }
     }
 
+    fn add_floating_window(&mut self, wid: WindowId, space: Option<SpaceId>) {
+        if let Some(space) = space {
+            self.active_floating_windows
+                .entry(space)
+                .or_default()
+                .entry(wid.pid)
+                .or_default()
+                .insert(wid);
+        }
+        self.floating_windows.insert(wid);
+    }
+
+    fn remove_floating_window(&mut self, wid: WindowId, space: Option<SpaceId>) {
+        if let Some(space) = space {
+            let layout = self.layout(space);
+            let selection = self.tree.selection(layout);
+            let node = self.tree.add_window_after(layout, selection, wid);
+            self.tree.select(node);
+            self.active_floating_windows
+                .entry(space)
+                .or_default()
+                .entry(wid.pid)
+                .or_default()
+                .remove(&wid);
+        }
+        self.floating_windows.remove(&wid);
+    }
+
     pub fn calculate_layout(
         &self,
         space: SpaceId,
@@ -545,8 +634,17 @@ mod tests {
         CGRect::new(CGPoint::new(x as f64, y as f64), CGSize::new(w as f64, h as f64))
     }
 
-    fn make_windows(pid: pid_t, num: u32) -> Vec<WindowId> {
-        (1..=num).map(|idx| WindowId::new(pid, idx)).collect()
+    fn make_windows(pid: pid_t, num: u32) -> Vec<(WindowId, LayoutWindowInfo)> {
+        (1..=num).map(|idx| (WindowId::new(pid, idx), win_info())).collect()
+    }
+
+    fn win_info() -> LayoutWindowInfo {
+        LayoutWindowInfo {
+            bundle_id: None,
+            layer: Some(0),
+            is_standard: true,
+            is_resizable: true,
+        }
     }
 
     impl LayoutManager {
@@ -893,7 +991,7 @@ mod tests {
 
         // Add a new window when the left window is selected.
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 1)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 75, 30)),
@@ -908,7 +1006,7 @@ mod tests {
 
         // Add a new window when the top middle is selected.
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 2)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
@@ -939,7 +1037,7 @@ mod tests {
 
         // Add a new window when the bottom middle is selected.
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 3)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
@@ -954,7 +1052,7 @@ mod tests {
 
         // Add a new window when the right window is selected.
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 4)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 75, 30)),
@@ -978,9 +1076,9 @@ mod tests {
         let screen1 = rect(0, 0, 300, 30);
         _ = mgr.handle_event(SpaceExposed(space, screen1.size));
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, vec![]));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3), win_info()));
 
         assert_eq!(
             vec![
@@ -994,9 +1092,9 @@ mod tests {
         _ = mgr.handle_event(WindowRemoved(WindowId::new(pid, 3)));
         _ = mgr.handle_event(WindowRemoved(WindowId::new(pid, 1)));
         _ = mgr.handle_event(WindowRemoved(WindowId::new(pid, 2)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3), win_info()));
 
         assert_eq!(
             vec![
@@ -1018,9 +1116,9 @@ mod tests {
         let screen1 = rect(0, 0, 300, 30);
         _ = mgr.handle_event(SpaceExposed(space, screen1.size));
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, vec![]));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3), win_info()));
 
         assert_eq!(
             vec![
@@ -1078,9 +1176,9 @@ mod tests {
         let screen1_full = rect(0, 0, 300, 30);
         _ = mgr.handle_event(SpaceExposed(space, screen1.size));
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, vec![]));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2)));
-        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3)));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 1), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 2), win_info()));
+        _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3), win_info()));
 
         let orig = vec![
             (WindowId::new(pid, 1), rect(0, 10, 100, 20)),
@@ -1126,12 +1224,18 @@ mod tests {
         _ = mgr.handle_event(WindowsOnScreenUpdated(
             space1,
             pid,
-            vec![WindowId::new(pid, 1), WindowId::new(pid, 2)],
+            vec![
+                (WindowId::new(pid, 1), win_info()),
+                (WindowId::new(pid, 2), win_info()),
+            ],
         ));
         _ = mgr.handle_event(WindowsOnScreenUpdated(
             space2,
             pid,
-            vec![WindowId::new(pid, 3), WindowId::new(pid, 4)],
+            vec![
+                (WindowId::new(pid, 3), win_info()),
+                (WindowId::new(pid, 4), win_info()),
+            ],
         ));
         _ = mgr.handle_event(WindowFocused(vec![space1, space2], WindowId::new(pid, 3)));
         _ = mgr.handle_event(WindowFocused(vec![space1, space2], WindowId::new(pid, 1)));

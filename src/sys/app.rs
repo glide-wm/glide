@@ -1,4 +1,4 @@
-use accessibility::{AXUIElement, AXUIElementAttributes};
+use accessibility::{AXAttribute, AXUIElement, AXUIElementAttributes};
 pub use accessibility_sys::pid_t;
 use accessibility_sys::{kAXStandardWindowSubrole, kAXWindowRole};
 use objc2::rc::Retained;
@@ -51,7 +51,7 @@ impl NSRunningApplicationExt for NSRunningApplication {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct AppInfo {
     pub bundle_id: Option<String>,
@@ -67,13 +67,14 @@ impl From<&NSRunningApplication> for AppInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WindowInfo {
     pub is_standard: bool,
     pub title: String,
     #[serde(with = "CGRectDef")]
     pub frame: CGRect,
     pub sys_id: Option<WindowServerId>,
+    pub is_resizable: bool,
 }
 
 impl TryFrom<&AXUIElement> for WindowInfo {
@@ -85,6 +86,7 @@ impl TryFrom<&AXUIElement> for WindowInfo {
             title: element.title().map(|t| t.to_string()).unwrap_or_default(),
             frame: element.frame()?.to_icrate(),
             sys_id: WindowServerId::try_from(element).ok(),
+            is_resizable: element.is_settable(&AXAttribute::size())?,
         })
     }
 }

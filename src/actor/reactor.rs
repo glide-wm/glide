@@ -27,7 +27,7 @@ use tracing::{Span, debug, error, info, instrument, trace, warn};
 
 use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
-use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager};
+use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager, LayoutWindowInfo};
 use crate::actor::raise::{self, RaiseRequest};
 use crate::actor::{group_indicators, status};
 use crate::collections::{HashMap, HashSet};
@@ -209,6 +209,7 @@ struct WindowState {
     /// words, we only accept reads when we know they come after the last write.
     frame_monotonic: CGRect,
     is_ax_standard: bool,
+    is_resizable: bool,
     last_sent_txid: TransactionId,
     window_server_id: Option<WindowServerId>,
 }
@@ -227,6 +228,7 @@ impl From<WindowInfo> for WindowState {
             title: info.title,
             frame_monotonic: info.frame,
             is_ax_standard: info.is_standard,
+            is_resizable: info.is_resizable,
             last_sent_txid: TransactionId::default(),
             window_server_id: info.sys_id,
         }
@@ -357,16 +359,22 @@ impl Reactor {
                 if let Some(wsid) = window.sys_id {
                     self.window_ids.insert(wsid, wid);
                 }
-                let frame = window.frame;
-                self.windows.insert(wid, window.into());
-                if let Some(info) = ws_info {
+                self.windows.insert(wid, window.clone().into());
+                if let Some(info) = ws_info.clone() {
                     self.window_server_info.insert(info.id, info);
                 }
-                if let Some(space) = self.best_space_for_window(&frame) {
-                    if self.window_is_standard(wid) {
-                        animation_focus_wid = Some(wid);
-                        self.send_layout_event(LayoutEvent::WindowAdded(space, wid));
-                    }
+                if self.window_is_tracked(wid)
+                    && let Some(space) = self.best_space_for_window(&window.frame)
+                    && let Some(app) = self.apps.get(&wid.pid)
+                {
+                    animation_focus_wid = Some(wid);
+                    let info = LayoutWindowInfo {
+                        bundle_id: app.info.bundle_id.clone(),
+                        layer: ws_info.map(|i| i.layer),
+                        is_standard: window.is_standard,
+                        is_resizable: window.is_resizable,
+                    };
+                    self.send_layout_event(LayoutEvent::WindowAdded(space, wid, info));
                 }
                 if mouse_state == MouseState::Down {
                     self.in_drag = true;
@@ -596,20 +604,31 @@ impl Reactor {
         self.window_ids
             .extend(new.iter().flat_map(|(wid, info)| info.sys_id.map(|wsid| (wsid, *wid))));
         self.windows.extend(new.into_iter().map(|(wid, info)| (wid, info.into())));
-        let mut app_windows: BTreeMap<SpaceId, Vec<WindowId>> = BTreeMap::new();
+        let mut app_windows: BTreeMap<SpaceId, Vec<(WindowId, LayoutWindowInfo)>> = BTreeMap::new();
+        let app = self.apps.get(&pid);
         for wid in self
             .visible_windows
             .iter()
             .flat_map(|wsid| self.window_ids.get(wsid))
             .copied()
             .filter(|wid| wid.pid == pid)
-            .filter(|wid| self.window_is_standard(*wid))
+            .filter(|wid| self.window_is_tracked(*wid))
         {
             let Some(space) = self.best_space_for_window(&self.windows[&wid].frame_monotonic)
             else {
                 continue;
             };
-            app_windows.entry(space).or_default().push(wid);
+            let window = self.windows.get(&wid).unwrap(); // added above
+            let layout_info = LayoutWindowInfo {
+                bundle_id: app.and_then(|a| a.info.bundle_id.clone()),
+                layer: window
+                    .window_server_id
+                    .and_then(|wsid| self.window_server_info.get(&wsid))
+                    .map(|info| info.layer),
+                is_standard: window.is_ax_standard,
+                is_resizable: window.is_resizable,
+            };
+            app_windows.entry(space).or_default().push((wid, layout_info));
         }
         let screens = self.screens.clone();
         for screen in screens {
@@ -655,18 +674,10 @@ impl Reactor {
         }
     }
 
-    fn window_is_standard(&self, id: WindowId) -> bool {
-        let Some(window) = self.windows.get(&id) else {
-            return false;
-        };
-        if let Some(id) = window.window_server_id {
-            if let Some(info) = self.window_server_info.get(&id) {
-                if info.layer != 0 {
-                    return false;
-                }
-            }
-        }
-        window.is_ax_standard
+    fn window_is_tracked(&self, _id: WindowId) -> bool {
+        // For now we track all windows in the reactor and let the LayoutManager
+        // decide what to keep.
+        true
     }
 
     fn send_layout_event(&mut self, event: LayoutEvent) {
