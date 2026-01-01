@@ -10,7 +10,7 @@ use std::sync::LazyLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use accessibility::{AXAttribute, AXUIElement, AXUIElementActions, AXUIElementAttributes};
+use accessibility::{AXUIElement, AXUIElementActions, AXUIElementAttributes};
 use accessibility_sys::{
     kAXApplicationActivatedNotification, kAXApplicationDeactivatedNotification,
     kAXErrorCannotComplete, kAXMainWindowChangedNotification, kAXStandardWindowSubrole,
@@ -19,7 +19,6 @@ use accessibility_sys::{
     kAXWindowMovedNotification, kAXWindowResizedNotification, kAXWindowRole,
 };
 use core_foundation::runloop::CFRunLoop;
-use core_foundation::string::CFString;
 use objc2::rc::Retained;
 use objc2_app_kit::NSRunningApplication;
 use objc2_core_foundation::{CGPoint, CGRect};
@@ -809,21 +808,9 @@ impl State {
 
     #[must_use]
     fn register_window(&mut self, elem: AXUIElement) -> Option<(WindowInfo, WindowId)> {
-        let Ok(mut info) = WindowInfo::try_from(&elem) else {
+        let Ok(info) = WindowInfo::try_from(&elem) else {
             return None;
         };
-
-        // HACK: Ignore hotkey iTerm2 windows.
-        // Obviously this should be done with some configurable feature.
-        if self.bundle_id.as_deref() == Some("com.googlecode.iterm2")
-            && elem
-                .attribute(&AXAttribute::new(&CFString::from_static_string(
-                    "AXTitleUIElement",
-                )))
-                .is_err()
-        {
-            info.is_standard = false;
-        }
 
         if !register_notifs(&elem, self) {
             return None;
