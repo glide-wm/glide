@@ -596,10 +596,6 @@ impl Reactor {
         self.window_ids
             .extend(new.iter().flat_map(|(wid, info)| info.sys_id.map(|wsid| (wsid, *wid))));
         self.windows.extend(new.into_iter().map(|(wid, info)| (wid, info.into())));
-        if !self.windows.iter().any(|(wid, _)| wid.pid == pid) {
-            // Filter out log noise from NPCs.
-            return;
-        }
         let mut app_windows: BTreeMap<SpaceId, Vec<WindowId>> = BTreeMap::new();
         for wid in self
             .visible_windows
