@@ -10,7 +10,7 @@ use core_graphics::event::{
 };
 use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{MainThreadMarker, NSInteger};
-use tracing::{Span, debug, error, trace, warn};
+use tracing::{Span, debug, error, warn};
 
 use super::reactor::{self, Event};
 use crate::config::Config;
@@ -158,7 +158,8 @@ impl Mouse {
             }
             CGEventType::MouseMoved if self.config.settings.focus_follows_mouse => {
                 let loc = event.location();
-                trace!("Mouse moved {loc:?}");
+                #[cfg(false)]
+                tracing::trace!("Mouse moved {loc:?}");
                 if let Some(wsid) = state.track_mouse_move(loc.to_icrate(), mtm) {
                     _ = self.events_tx.send((Span::current(), Event::MouseMovedOverWindow(wsid)));
                 }
@@ -174,7 +175,8 @@ impl State {
         // that may run many times a second on the main thread. For now this
         // isn't a problem, but when we start doing anything with UI we might
         // want to compute this internally.
-        let new_window = trace_call!(window_server::get_window_at_point(loc, self.converter, mtm));
+        // let new_window = trace_call!(window_server::get_window_at_point(loc, self.converter, mtm));
+        let new_window = window_server::get_window_at_point(loc, self.converter, mtm);
         if self.above_window == new_window {
             return None;
         }
