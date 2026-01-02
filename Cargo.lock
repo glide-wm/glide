@@ -4,13 +4,13 @@ version = 4
 
 [[package]]
 name = "accessibility"
-version = "0.2.0"
-source = "git+https://github.com/tmandry/accessibility?branch=master#ad08c04486462de4058da7e70a20a034fc3dc830"
+version = "0.3.0"
+source = "git+https://github.com/eiz/accessibility?branch=master#173e898d4a52ee0afe0224ecb458d324057856e7"
 dependencies = [
  "accessibility-sys",
  "cocoa",
- "core-foundation 0.10.1",
- "core-graphics-types 0.1.3",
+ "core-foundation",
+ "core-graphics-types",
  "objc",
  "thiserror 1.0.69",
 ]
@@ -18,7 +18,7 @@ dependencies = [
 [[package]]
 name = "accessibility-sys"
 version = "0.2.0"
-source = "git+https://github.com/tmandry/accessibility?branch=master#ad08c04486462de4058da7e70a20a034fc3dc830"
+source = "git+https://github.com/eiz/accessibility?branch=master#173e898d4a52ee0afe0224ecb458d324057856e7"
 dependencies = [
  "core-foundation-sys",
 ]
@@ -291,7 +291,7 @@ dependencies = [
  "bitflags 2.9.1",
  "block",
  "cocoa-foundation",
- "core-foundation 0.10.1",
+ "core-foundation",
  "core-graphics 0.24.0",
  "foreign-types",
  "libc",
@@ -306,8 +306,8 @@ checksum = "81411967c50ee9a1fc11365f8c585f863a22a9697c89239c452292c40ba79b0d"
 dependencies = [
  "bitflags 2.9.1",
  "block",
- "core-foundation 0.10.1",
- "core-graphics-types 0.2.0",
+ "core-foundation",
+ "core-graphics-types",
  "objc",
 ]
 
@@ -316,16 +316,6 @@ name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
-
-[[package]]
-name = "core-foundation"
-version = "0.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
 
 [[package]]
 name = "core-foundation"
@@ -350,8 +340,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa95a34622365fa5bbf40b20b75dba8dfa8c94c734aea8ac9a5ca38af14316f1"
 dependencies = [
  "bitflags 2.9.1",
- "core-foundation 0.10.1",
- "core-graphics-types 0.2.0",
+ "core-foundation",
+ "core-graphics-types",
  "foreign-types",
  "libc",
 ]
@@ -363,20 +353,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "064badf302c3194842cf2c5d61f56cc88e54a759313879cdf03abdd27d0c3b97"
 dependencies = [
  "bitflags 2.9.1",
- "core-foundation 0.10.1",
- "core-graphics-types 0.2.0",
+ "core-foundation",
+ "core-graphics-types",
  "foreign-types",
- "libc",
-]
-
-[[package]]
-name = "core-graphics-types"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45390e6114f68f718cc7a830514a96f903cccd70d02a8f6d9f643ac4ba45afaf"
-dependencies = [
- "bitflags 1.3.2",
- "core-foundation 0.9.4",
  "libc",
 ]
 
@@ -387,7 +366,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d44a101f213f6c4cdc1853d4b78aef6db6bdfa3468798cc1d9912f4735013eb"
 dependencies = [
  "bitflags 2.9.1",
- "core-foundation 0.10.1",
+ "core-foundation",
  "libc",
 ]
 
@@ -676,10 +655,9 @@ dependencies = [
  "ascii_tree",
  "bitflags 2.9.1",
  "clap",
- "core-foundation 0.10.1",
+ "core-foundation",
  "core-graphics 0.25.0",
- "core-graphics-types 0.1.3",
- "core-graphics-types 0.2.0",
+ "core-graphics-types",
  "dirs",
  "indexmap 2.10.0",
  "livesplit-hotkey",

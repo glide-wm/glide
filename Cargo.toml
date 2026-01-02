@@ -19,8 +19,8 @@ test = false
 release.panic = "abort"
 
 [dependencies]
-accessibility = "0.2.0"
-accessibility-sys = "0.2.0"
+accessibility = { version = "0.3.0", git = "https://github.com/eiz/accessibility", branch = "master" }
+accessibility-sys = { version = "0.2.0", git = "https://github.com/eiz/accessibility", branch = "master" }
 anyhow = "1.0.83"
 ascii_tree = "0.1.1"
 bitflags = "2.4.1"
@@ -28,7 +28,6 @@ clap = { version = "4.5.4", features = ["derive"] }
 core-foundation = "0.10.1"
 core-graphics = "0.25.0"
 core-graphics-types = "0.2.0"
-core-graphics-types-old = { package = "core-graphics-types", version = "0.1.3" }
 dirs = "5.0.1"
 indexmap = { version = "2.10.0", features = ["serde"] }
 livesplit-hotkey = "0.8.0"
@@ -107,10 +106,6 @@ test-log = { version = "0.2.16", default-features = false, features = [
     "trace",
 ] }
 tempfile = { version = "3.17.1", default-features = false }
-
-[patch.crates-io]
-accessibility = { git = "https://github.com/tmandry/accessibility", branch = "master" }
-accessibility-sys = { git = "https://github.com/tmandry/accessibility", branch = "master" }
 
 [package.metadata.bundle]
 name = "Glide"
