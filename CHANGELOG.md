@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.16](https://github.com/glide-wm/glide/compare/v0.0.15...v0.0.16) (2026-01-03)
+
+
+### Bug Fixes
+
+* prdata ([4dbf1e4](https://github.com/glide-wm/glide/commit/4dbf1e420e59b7bf5975892d694ac08ea2907445))
+
 ## [0.0.15](https://github.com/glide-wm/glide/compare/v0.0.14...v0.0.15) (2026-01-03)
 
 
