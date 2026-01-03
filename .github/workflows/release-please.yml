@@ -38,14 +38,20 @@ jobs:
           git push origin ${{ steps.release.outputs.tag_name }}
 
       # Add a comment with a durable link instead of the temporary unpublished one.
+      - name: Get Pull Request Number
+        id: pr
+        # release-please doesn't give us PR info even though the docs say it will on release creation.
+        run: |
+          PR_NUMBER=$(gh pr view --json number -q .number || echo "")
+          echo "pull_request_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Comment on merged PR
-        if: ${{ steps.release.outputs.release_created }}
+        if: steps.release.outputs.release_created && steps.pr.outputs.pull_request_number != ''
         uses: actions/github-script@v7
         with:
           script: |
-            // The 'pr' output is a JSON string; parse it to get the PR number
-            const prData = JSON.parse('${{ steps.release.outputs.prs }}');
-            const prNumber = prData[0].number;
+            const prNumber = ${{ steps.pr.outputs.pull_request_number }};
 
             github.rest.issues.createComment({
               owner: context.repo.owner,
