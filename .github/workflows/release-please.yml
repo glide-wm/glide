@@ -29,8 +29,8 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         run: |
           git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git remote add gh-token "https://${{ secrets.RELEASE_PLEASE_TOKEN }}@github.com/glide-wm/glide.git"
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git remote set-url origin "https://x-access-token:${{ secrets.RELEASE_PLEASE_TOKEN }}@github.com/{{ github.repository }}.git"
           git tag -d ${{ steps.release.outputs.tag_name }} || true
           git tag -a ${{ steps.release.outputs.tag_name }} -m "Release ${{ steps.release.outputs.tag_name }}"
           git push gh-token ${{ steps.release.outputs.tag_name }}
