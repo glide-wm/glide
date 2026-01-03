@@ -30,15 +30,26 @@ jobs:
         with:
           tool: parse-changelog@0.6.14
 
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # release-please doesn't have a nice workflow for customizing notes. We
+      # parse the notes out of the changelog to allow for editing them right
+      # before merging release PRs. The workflow isn't perfect because
+      # release-please can overwrite the PR if new changes land, but it's good
+      # enough for now.
+      - name: Parse changelog
+        if: github.ref_type == 'tag'
+        run: |
+          GLIDE_VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "glide-wm") | .version')
+          parse-changelog CHANGELOG.md $GLIDE_VERSION > CHANGELOG_version.md
+
       - name: Install latest stable
         run: |
           rustup update stable
           rustup target add aarch64-apple-darwin
           rustup target add x86_64-apple-darwin
-
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
       - name: Build
         run: |
@@ -73,11 +84,6 @@ jobs:
         with:
           path: target/*-apple-darwin/release/Glide_*.dmg
 
-      - name: Parse changelog
-        if: github.ref_type == 'tag'
-        run: |
-          GLIDE_VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "glide-wm") | .version')
-          parse-changelog CHANGELOG.md $GLIDE_VERSION > CHANGELOG_version.md
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
