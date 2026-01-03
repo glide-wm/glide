@@ -33,7 +33,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ secrets.RELEASE_PLEASE_TOKEN }}@github.com/{{ github.repository }}.git"
           git tag -d ${{ steps.release.outputs.tag_name }} || true
           git tag -a ${{ steps.release.outputs.tag_name }} -m "Release ${{ steps.release.outputs.tag_name }}"
-          git push gh-token ${{ steps.release.outputs.tag_name }}
+          git push origin ${{ steps.release.outputs.tag_name }}
 
       - uses: googleapis/release-please-action@v4
         with:
