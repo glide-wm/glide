@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [0.0.13](https://github.com/glide-wm/glide/compare/v0.0.12...v0.0.13) (2026-01-03)
+
+
+### Features
+
+* experiment with custom notes more ([3119f60](https://github.com/glide-wm/glide/commit/3119f60a03fc3b1409bfe024d20b1241747487cd))
+
+
+### Bug Fixes
+
+* Missing punctuation ([71a2ac2](https://github.com/glide-wm/glide/commit/71a2ac23478272d61c914aa90a9fd0cfb9ed6bb7))
+
 ## [0.0.12](https://github.com/glide-wm/glide/compare/v0.0.11...v0.0.12) (2026-01-03)
 
 Trying custom notes again.
