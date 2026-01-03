@@ -4,10 +4,11 @@
 
 ## [0.0.11](https://github.com/glide-wm/glide/compare/v0.0.10...v0.0.11) (2026-01-03)
 
+In this release I'm trying custom release notes.
 
 ### Features
 
-* try custom msg ([016b439](https://github.com/glide-wm/glide/commit/016b4391fbc7ba4a400493a07237c7a8927e4416))
+* try custom msg ([016b439](https://github.com/glide-wm/glide/commit/016b4391fbc7ba4a400493a07237c7a8927e4416)): A customized message was added.
 
 ## [0.0.10](https://github.com/glide-wm/glide/compare/v0.0.9...v0.0.10) (2026-01-03)
 
