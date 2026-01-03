@@ -2,6 +2,7 @@
   "release-type": "rust",
   "bump-patch-for-minor-pre-major": true,
 
+  "draft": true,
   "prerelease": true,
 
   "packages": {

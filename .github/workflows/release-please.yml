@@ -15,9 +15,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          # this is a built-in strategy in release-please, see "Action Inputs"
-          # for more options
-          #release-type: rust
           target-branch: release-please
+          skip-github-pull-request: true
+
+      # Ensure that a tag is created, even if the release is created as a draft.
+      # This works around https://github.com/googleapis/release-please-action/issues/962.
+      # It also triggers the package action, which will mark it as not-a-draft when finished.
+      - name: tag release
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git remote add gh-token "https://${{ secrets.RELEASE_PLEASE_TOKEN }}@github.com/googleapis/release-please-action.git"
+          git tag -d ${{ steps.release.outputs.tag_name }} || true
+          git tag -a ${{ steps.release.outputs.tag_name }} -m "Release ${{ steps.release.outputs.tag_name }}"
+          git push origin ${{ steps.release.outputs.tag_name }}
+
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: release-please
+          skip-github-release: true
