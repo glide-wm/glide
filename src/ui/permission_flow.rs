@@ -40,7 +40,7 @@ fn obtain_ax_permissions(mtm: MainThreadMarker) -> Result<(), PermissionNotGrant
     alert.setInformativeText(&NSString::from_str(&format!(
         "\
         Glide needs permission to access accessibility APIs in order to \
-        function..
+        function...
 
         1.  Hit the button below to request permissions.
         2. Choose \"𝗢𝗽𝗲𝗻 𝗦𝘆𝘀𝘁𝗲𝗺 𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀\".
