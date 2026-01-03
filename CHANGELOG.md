@@ -2,13 +2,6 @@
 
 ## Unreleased
 
-## [0.0.3](https://github.com/glide-wm/glide/compare/v0.0.2...v0.0.3) (2026-01-03)
-
-
-### Bug Fixes
-
-* Remove unnecessary emphasis ([3ffd7b7](https://github.com/glide-wm/glide/commit/3ffd7b766983da6672eacb4a0a9c4f6f2ab9bee3))
-
 ## [0.0.2](https://github.com/glide-wm/glide/compare/v0.0.1...v0.0.2) (2026-01-03)
 
 
