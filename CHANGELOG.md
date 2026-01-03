@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.20](https://github.com/glide-wm/glide/compare/v0.0.19...v0.0.20) (2026-01-03)
+
+
+### Bug Fixes
+
+* unnecessary token ([b62f9ba](https://github.com/glide-wm/glide/commit/b62f9ba95da428f15f58796bfe1b552bb5962de0))
+
 ## [0.0.19](https://github.com/glide-wm/glide/compare/v0.0.18...v0.0.19) (2026-01-03)
 
 
