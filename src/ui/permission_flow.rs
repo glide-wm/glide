@@ -172,7 +172,7 @@ fn check_input_permissions(mtm: MainThreadMarker) -> Result<(), PermissionNotGra
         Try going to System Settings > Privacy & Security > Input Monitoring \
         to see if Glide is listed, and grant it permissions.
 
-        PLEASE file a bug so we can investigate further: \
+        Please file a bug so we can investigate further: \
         https://github.com/glide-wm/glide/issues
         "
     ));
