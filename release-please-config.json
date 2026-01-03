@@ -8,8 +8,7 @@
   "packages": {
     ".": {
       "exclude-paths": ["site"],
-      "include-component-in-tag": false,
-      "pull-request-footer": "This PR was generated with [Release Please](https://github.com/googleapis/release-please). See [documentation](https://github.com/googleapis/release-please#release-please).\n\nWhen this release is live, it will be available at https://github.com/glide-wm/glide/releases/tag/v${version}."
+      "include-component-in-tag": false
     }
   },
 

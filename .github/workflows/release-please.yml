@@ -42,10 +42,11 @@ jobs:
       # release-please doesn't give us PR info even though the docs say it will on release creation.
       - uses: jwalton/gh-find-current-pr@master
         id: pr
+        if: steps.release.outputs.release_created
         with:
           state: closed
       - name: Comment on merged PR
-        if: steps.release.outputs.release_created && steps.pr.outputs.pull_request_number != ''
+        if: steps.release.outputs.release_created && steps.pr.outputs.number
         uses: actions/github-script@v7
         with:
           script: |
