@@ -164,7 +164,7 @@ fn check_input_permissions(mtm: MainThreadMarker) -> Result<(), PermissionNotGra
     let alert = NSAlert::new(mtm);
     alert.setMessageText(ns_string!("Input monitoring permissions not granted"));
     alert.setInformativeText(ns_string!(
-        "Key bindings will not work!
+        "Key bindings will not work.
 
         Input monitoring should be included as part of accessibility \
         permissions, but Glide was not granted permission for some reason.
