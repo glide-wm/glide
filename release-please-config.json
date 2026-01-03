@@ -6,10 +6,8 @@
 
   "packages": {
     ".": {
-      "exclude-paths": ["site"]
+      "exclude-paths": ["site"],
+      "include-component-in-tag": false
     }
-  },
-
-  "release-as": "0.0.0",
-  "bootstrap-sha": "92ff815f6f2eb4cb9b490b51b96a6dc5a74bdd78"
+  }
 }
