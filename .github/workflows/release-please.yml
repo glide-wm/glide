@@ -18,7 +18,6 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           target-branch: release-please
           skip-github-pull-request: true
 
@@ -56,7 +55,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              body: `🤖 Packaging action triggered; release here:
+              body: `🤖 Packaging action triggered. Release will be available here when complete:
 
               ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag_name }}`
             });
