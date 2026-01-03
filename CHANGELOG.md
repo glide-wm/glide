@@ -4,10 +4,11 @@
 
 ## [0.0.12](https://github.com/glide-wm/glide/compare/v0.0.11...v0.0.12) (2026-01-03)
 
+Trying custom notes again.
 
 ### Features
 
-* support custom msg ([7951c52](https://github.com/glide-wm/glide/commit/7951c52bf2fb91e3e5986529d774acd20178d889))
+* support custom msg ([7951c52](https://github.com/glide-wm/glide/commit/7951c52bf2fb91e3e5986529d774acd20178d889)): Here are some notes
 
 ## [0.0.11](https://github.com/glide-wm/glide/compare/v0.0.10...v0.0.11) (2026-01-03)
 
