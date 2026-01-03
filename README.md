@@ -50,5 +50,5 @@ Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
 [MIT license](LICENSE-MIT) at your option.
 
 [GitHub Actions]: https://github.com/glide-wm/glide/actions
-[GHA Status]: https://github.com/glide-wm/glide/actions/workflows/rust.yml/badge.svg
+[GHA Status]: https://github.com/glide-wm/glide/actions/workflows/test.yml/badge.svg
 <!-- GUIDE_EXCLUDE_END -->
