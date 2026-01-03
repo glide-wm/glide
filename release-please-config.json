@@ -2,5 +2,8 @@
   "release-type": "rust",
   "bump-patch-for-minor-pre-major": true,
 
-  "draft": true
+  "draft": true,
+
+  "release-as": "0.0.0",
+  "bootstrap-sha": "92ff815f6f2eb4cb9b490b51b96a6dc5a74bdd78"
 }
