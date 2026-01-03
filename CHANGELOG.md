@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.7](https://github.com/glide-wm/glide/compare/v0.0.6...v0.0.7) (2026-01-03)
+
+
+### Features
+
+* empty ([3a83e92](https://github.com/glide-wm/glide/commit/3a83e921554b28af96aca638bdf9b643f63f2f1a))
+
 ## [0.0.6](https://github.com/glide-wm/glide/compare/v0.0.5...v0.0.6) (2026-01-03)
 
 
