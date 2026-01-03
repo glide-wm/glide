@@ -3,7 +3,14 @@ name = "glide-wm"
 version = "0.0.0"
 edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "Apache-2.0 OR MIT"
+description = "A tiling window manager for macOS"
+authors = ["Tyler Mandry"]
+readme = "README.md"
+homepage = "https://glidewm.org"
+repository = "https://github.com/glide-wm/glide"
+
+publish = false
 
 [[bin]]
 name = "glide"
