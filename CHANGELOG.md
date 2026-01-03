@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.15](https://github.com/glide-wm/glide/compare/v0.0.14...v0.0.15) (2026-01-03)
+
+
+### Features
+
+* Add comment with correct link ([753d50b](https://github.com/glide-wm/glide/commit/753d50b10cfc632e6ec53c4155bef67b4baa2ac6))
+
 ## [0.0.14](https://github.com/glide-wm/glide/compare/v0.0.13...v0.0.14) (2026-01-03)
 
 
