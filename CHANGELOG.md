@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.1](https://github.com/glide-wm/glide/compare/v0.0.0...v0.0.1) (2026-01-03)
+
+
+### Features
+
+* Add link to error message ([3e51773](https://github.com/glide-wm/glide/commit/3e51773c18e2f5ead02ba8061bb12bcfd09fc550))
+
 ## 0.0.0 (2026-01-03)
 
 
