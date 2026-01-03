@@ -90,4 +90,6 @@ jobs:
             target/aarch64-apple-darwin/release/Glide_*.dmg
             target/x86_64-apple-darwin/release/Glide_*.dmg
           fail_on_unmatched_files: true
-          body_path: CHANGELOG_version.md
+          #body_path: CHANGELOG_version.md
+          body: ""
+          append_body: true
