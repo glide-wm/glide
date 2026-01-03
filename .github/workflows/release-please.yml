@@ -25,12 +25,13 @@ jobs:
       # This works around https://github.com/googleapis/release-please-action/issues/962.
       # It also triggers the package action, which will mark it as not-a-draft when finished.
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RL_TOKEN_CLASSIC }}
       - name: tag release
         if: ${{ steps.release.outputs.release_created }}
         run: |
           git config user.name github-actions[bot]
           git config user.email github-actions[bot]@users.noreply.github.com
-          git remote set-url origin "https://x-access-token:${{ secrets.RL_TOKEN_CLASSIC }}@github.com/${{ github.repository }}.git"
           git tag -d ${{ steps.release.outputs.tag_name }} || true
           git tag -a ${{ steps.release.outputs.tag_name }} -m "Release ${{ steps.release.outputs.tag_name }}"
           git push origin ${{ steps.release.outputs.tag_name }}

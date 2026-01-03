@@ -1,9 +1,9 @@
 name: Package
 
 on:
-  #push:
-  #  tags:
-  #    - "v*.*.*"
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
   release:
     types: ["created"]
