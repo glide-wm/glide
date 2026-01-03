@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.18](https://github.com/glide-wm/glide/compare/v0.0.17...v0.0.18) (2026-01-03)
+
+
+### Bug Fixes
+
+* one more ([c165d70](https://github.com/glide-wm/glide/commit/c165d70740ffad133b48fa231bf3e00105d68d90))
+
 ## [0.0.17](https://github.com/glide-wm/glide/compare/v0.0.16...v0.0.17) (2026-01-03)
 
 
