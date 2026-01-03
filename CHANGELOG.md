@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.0.17](https://github.com/glide-wm/glide/compare/v0.0.16...v0.0.17) (2026-01-03)
+
+
+### Bug Fixes
+
+* again ([fc7622a](https://github.com/glide-wm/glide/commit/fc7622a74d74d92d89f3e07a8cae2c5036c5f4f5))
+* custom footer ([ff96d81](https://github.com/glide-wm/glide/commit/ff96d819dae8e5dedc59f172a685133cea3fe1e1))
+
 ## [0.0.16](https://github.com/glide-wm/glide/compare/v0.0.15...v0.0.16) (2026-01-03)
 
 
