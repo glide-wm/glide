@@ -24,6 +24,7 @@ jobs:
       # Ensure that a tag is created, even if the release is created as a draft.
       # This works around https://github.com/googleapis/release-please-action/issues/962.
       # It also triggers the package action, which will mark it as not-a-draft when finished.
+      - uses: actions/checkout@v4
       - name: tag release
         if: ${{ steps.release.outputs.release_created }}
         run: |
