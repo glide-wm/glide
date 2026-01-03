@@ -1,0 +1,6 @@
+[[package]]
+name = "glide-wm"
+semver_check = false
+publish = false
+git_release_enable = true
+git_release_draft = true
