@@ -1,0 +1,77 @@
+# Automate releases with Release Please.
+# https://github.com/googleapis/release-please#release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+name: release-please
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Create releases for merged release PRs.
+      - name: Create releases for merged release PRs
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          # Note: We use the default github token here because it doesn't
+          # actually do any workflow-triggering actions. The triggering step is
+          # the tag, below.
+          target-branch: main
+          skip-github-pull-request: true
+
+      # Ensure that a tag is created, even if the release is created as a draft.
+      # This works around https://github.com/googleapis/release-please-action/issues/962.
+      # It also triggers the package action, which will publish the release when finished.
+      - uses: actions/checkout@v4
+        with:
+          # Use a custom access token so downstream actions are triggered.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      - name: tag release
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git tag -d ${{ steps.release.outputs.tag_name }} || true
+          git tag -a ${{ steps.release.outputs.tag_name }} -m "Release ${{ steps.release.outputs.tag_name }}"
+          git push origin ${{ steps.release.outputs.tag_name }}
+
+      # Add a comment with a durable link instead of the temporary unpublished one.
+      - name: Find merged PR
+        # release-please doesn't give us PR info even though the docs say it
+        # will on release creation.
+        if: steps.release.outputs.release_created
+        uses: jwalton/gh-find-current-pr@master
+        id: pr
+        with:
+          state: closed
+      - name: Comment on merged PR
+        if: steps.release.outputs.release_created && steps.pr.outputs.number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.pr.outputs.number }};
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `Packaging action triggered. Release will be available here when complete:
+
+              ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag_name }}`
+            });
+
+      - name: Create release PRs for new commits on main
+        uses: googleapis/release-please-action@v4
+        with:
+          # Use a custom access token so pull request actions are triggered.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: main
+          skip-github-release: true

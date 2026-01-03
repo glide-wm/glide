@@ -4,7 +4,8 @@ on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch:
+    branches:
+      - main
 
 env:
   CARGO_INCREMENTAL: 0
@@ -20,19 +21,36 @@ jobs:
       contents: write
 
     steps:
-      - uses: taiki-e/cache-cargo-install-action@v2
+      - name: Install cargo-packager
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-packager@0.11.8
+
+      - name: Install parse-changelog
+        uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: parse-changelog@0.6.14
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # release-please normally parses the pull request description for release notes.
+      # Instead of having two sources of truth, get them from the changelog.
+      #
+      # The workflow still isn't perfect because release-please can overwrite
+      # the PR if new changes land, but it's good enough for now.
+      - name: Parse changelog
+        if: github.ref_type == 'tag'
+        run: |
+          GLIDE_VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "glide-wm") | .version')
+          parse-changelog CHANGELOG.md $GLIDE_VERSION > CHANGELOG_version.md
 
       - name: Install latest stable
         run: |
           rustup update stable
           rustup target add aarch64-apple-darwin
           rustup target add x86_64-apple-darwin
-
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
       - name: Build
         run: |
@@ -46,12 +64,14 @@ jobs:
           p12-password: ${{ secrets.P12_PASSWORD }}
 
       - name: Import notarization API key
+        if: github.ref_type == 'tag'
         env:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
         run: |
           echo "$APPLE_API_KEY_BASE64" | base64 --decode > AuthKey.p8
 
       - name: Package, sign, and notarize
+        if: github.ref_type == 'tag'
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
@@ -75,6 +95,8 @@ jobs:
             target/aarch64-apple-darwin/release/Glide_*.dmg
             target/x86_64-apple-darwin/release/Glide_*.dmg
           fail_on_unmatched_files: true
-          body: ""
-          append_body: true
-          make_latest: true
+          body_path: CHANGELOG_version.md
+          # To keep release-please's notes, comment the line above and uncomment
+          # these lines:
+          # body: ""
+          # append_body: true
