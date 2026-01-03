@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.8](https://github.com/glide-wm/glide/compare/v0.0.7...v0.0.8) (2026-01-03)
+
+
+### Features
+
+* classic ([ed89ff4](https://github.com/glide-wm/glide/commit/ed89ff4f89e1d37dce265ed5ead7c5fdea46219d))
+
 ## [0.0.7](https://github.com/glide-wm/glide/compare/v0.0.6...v0.0.7) (2026-01-03)
 
 
