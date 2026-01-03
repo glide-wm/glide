@@ -57,7 +57,7 @@ pub fn make_window(idx: usize) -> WindowInfo {
     WindowInfo {
         is_standard: true,
         is_resizable: true,
-        title: format!("Window{idx}"),
+        title: format!("Window{idx}").into(),
         frame: CGRect::new(
             CGPoint::new(100.0 * f64::from(idx as u32), 100.0),
             CGSize::new(50.0, 50.0),

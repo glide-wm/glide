@@ -1,3 +1,7 @@
+use std::backtrace::Backtrace;
+use std::fs::File;
+use std::io::Write;
+use std::panic::PanicHookInfo;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -15,7 +19,9 @@ use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
 use objc2::MainThreadMarker;
+use objc2_app_kit::{NSApp, NSApplicationActivationPolicy};
 use tokio::join;
+use tracing::warn;
 
 #[derive(Parser)]
 struct Cli {
@@ -58,6 +64,17 @@ fn main() {
     }
     log::init_logging();
     install_panic_hook();
+    let mtm = MainThreadMarker::new().unwrap();
+
+    if glide_wm::ui::permission_flow::obtain_permissions(mtm).is_err() {
+        eprintln!("Permissions not granted; exiting");
+        std::process::exit(2)
+    }
+
+    if !NSApp(mtm).setActivationPolicy(NSApplicationActivationPolicy::Accessory) {
+        warn!("Failed to set activation policy");
+    }
+    NSApp(mtm).finishLaunching();
 
     let mut config = if config_file().exists() {
         Config::read(&config_file()).unwrap()
@@ -80,7 +97,6 @@ fn main() {
     };
     let (mouse_tx, mouse_rx) = channel();
     let (status_tx, status_rx) = channel();
-    let mtm = MainThreadMarker::new().unwrap();
 
     let (group_indicators_tx, group_indicators_rx) = glide_wm::actor::channel();
     let events_tx = Reactor::spawn(
@@ -117,16 +133,47 @@ fn main() {
     });
 }
 
-#[cfg(panic = "unwind")]
 fn install_panic_hook() {
-    // Abort on panic instead of propagating panics to the main thread.
-    // See Cargo.toml for why we don't use panic=abort everywhere.
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        write_panic_log(&info);
         original_hook(info);
+        // Abort on panic instead of propagating panics to the main thread.
+        // See Cargo.toml for why we don't use panic=abort everywhere.
+        #[cfg(panic = "unwind")]
         std::process::abort();
     }));
 }
 
-#[cfg(not(panic = "unwind"))]
-fn install_panic_hook() {}
+fn write_panic_log(info: &PanicHookInfo) {
+    let pid = std::process::id();
+    let filename = format!("/tmp/glide.{pid}.panic.log");
+    let mut file = File::options().append(true).create(true).write(true).open(&filename).unwrap();
+
+    let payload = info
+        .payload()
+        .downcast_ref::<String>()
+        .map(|s| &**s)
+        .or(info.payload().downcast_ref::<&str>().map(|s| &**s))
+        .unwrap_or("Unknown error");
+    let location = info
+        .location()
+        .map(|l| format!(" at {}:{}", l.file(), l.line()))
+        .unwrap_or_default();
+    let thread = std::thread::current();
+    let thread_id = thread.id();
+    let thread_info = match thread.name() {
+        Some(name) => format!("'{name}' {thread_id:?}"),
+        None => format!("{thread_id:?}"),
+    };
+
+    let backtrace = Backtrace::force_capture();
+    let log_message = format!(
+        "thread {thread_info} panicked{location}:\n{payload}\nstack backtrace:\n{backtrace}"
+    );
+
+    if let Err(e) = writeln!(&mut file, "{}", log_message) {
+        eprintln!("Failed to write panic message to file: {}", e);
+    }
+    eprintln!("wrote panic info to {filename}");
+}

@@ -18,6 +18,7 @@ use std::{mem, thread};
 use animation::Animation;
 use main_window::MainWindowTracker;
 use objc2_core_foundation::CGRect;
+use redact::Secret;
 pub use replay::{Record, replay};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -202,7 +203,7 @@ pub struct TransactionId(u32);
 #[derive(Debug)]
 struct WindowState {
     #[allow(unused)]
-    title: String,
+    title: Secret<String>,
     /// The last known frame of the window. Always includes the last write.
     ///
     /// This value only updates monotonically with respect to writes; in other

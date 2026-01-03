@@ -1,5 +1,4 @@
 use core_graphics_types::geometry as cg;
-use core_graphics_types_old::geometry as cgo;
 use objc2_core_foundation as ic;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_with::{DeserializeAs, SerializeAs};
@@ -14,22 +13,7 @@ impl ToICrate<ic::CGPoint> for cg::CGPoint {
     }
 }
 
-impl ToICrate<ic::CGPoint> for cgo::CGPoint {
-    fn to_icrate(&self) -> ic::CGPoint {
-        ic::CGPoint { x: self.x, y: self.y }
-    }
-}
-
 impl ToICrate<ic::CGSize> for cg::CGSize {
-    fn to_icrate(&self) -> ic::CGSize {
-        ic::CGSize {
-            width: self.width,
-            height: self.height,
-        }
-    }
-}
-
-impl ToICrate<ic::CGSize> for cgo::CGSize {
     fn to_icrate(&self) -> ic::CGSize {
         ic::CGSize {
             width: self.width,
@@ -47,37 +31,28 @@ impl ToICrate<ic::CGRect> for cg::CGRect {
     }
 }
 
-impl ToICrate<ic::CGRect> for cgo::CGRect {
-    fn to_icrate(&self) -> ic::CGRect {
-        ic::CGRect {
-            origin: self.origin.to_icrate(),
-            size: self.size.to_icrate(),
-        }
-    }
-}
-
 pub trait ToCGType<T> {
     fn to_cgtype(&self) -> T;
 }
 
-impl ToCGType<cgo::CGPoint> for ic::CGPoint {
-    fn to_cgtype(&self) -> cgo::CGPoint {
-        cgo::CGPoint { x: self.x, y: self.y }
+impl ToCGType<cg::CGPoint> for ic::CGPoint {
+    fn to_cgtype(&self) -> cg::CGPoint {
+        cg::CGPoint { x: self.x, y: self.y }
     }
 }
 
-impl ToCGType<cgo::CGSize> for ic::CGSize {
-    fn to_cgtype(&self) -> cgo::CGSize {
-        cgo::CGSize {
+impl ToCGType<cg::CGSize> for ic::CGSize {
+    fn to_cgtype(&self) -> cg::CGSize {
+        cg::CGSize {
             width: self.width,
             height: self.height,
         }
     }
 }
 
-impl ToCGType<cgo::CGRect> for ic::CGRect {
-    fn to_cgtype(&self) -> cgo::CGRect {
-        cgo::CGRect {
+impl ToCGType<cg::CGRect> for ic::CGRect {
+    fn to_cgtype(&self) -> cg::CGRect {
+        cg::CGRect {
             origin: self.origin.to_cgtype(),
             size: self.size.to_cgtype(),
         }

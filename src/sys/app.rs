@@ -6,6 +6,7 @@ use objc2::{class, msg_send};
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use objc2_core_foundation::CGRect;
 use objc2_foundation::NSString;
+use redact::Secret;
 use serde::{Deserialize, Serialize};
 
 use super::geometry::{CGRectDef, ToICrate};
@@ -70,7 +71,9 @@ impl From<&NSRunningApplication> for AppInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WindowInfo {
     pub is_standard: bool,
-    pub title: String,
+    // This only gets used for the record/replay feature.
+    #[serde(serialize_with = "redact::expose_secret")]
+    pub title: Secret<String>,
     #[serde(with = "CGRectDef")]
     pub frame: CGRect,
     pub sys_id: Option<WindowServerId>,
@@ -83,7 +86,7 @@ impl TryFrom<&AXUIElement> for WindowInfo {
         Ok(WindowInfo {
             is_standard: element.role()? == kAXWindowRole
                 && element.subrole()? == kAXStandardWindowSubrole,
-            title: element.title().map(|t| t.to_string()).unwrap_or_default(),
+            title: element.title().map(|t| t.to_string().into()).unwrap_or_default(),
             frame: element.frame()?.to_icrate(),
             sys_id: WindowServerId::try_from(element).ok(),
             is_resizable: element.is_settable(&AXAttribute::size())?,

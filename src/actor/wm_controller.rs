@@ -267,7 +267,14 @@ impl WmController {
 
     fn register_hotkeys(&mut self) {
         debug!("register_hotkeys");
-        let mgr = HotkeyManager::new(self.sender.upgrade().unwrap());
+        self.hotkeys.take();
+        let mgr = match HotkeyManager::new(self.sender.upgrade().unwrap()) {
+            Ok(mgr) => mgr,
+            Err(e) => {
+                warn!("Failed to register hotkeys: {e:?}");
+                return;
+            }
+        };
         for (key, cmd) in &self.config.config.keys {
             mgr.register_wm(key.modifiers, key.key_code, cmd.clone());
         }
