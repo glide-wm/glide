@@ -26,6 +26,10 @@ jobs:
         with:
           tool: cargo-packager@0.11.8
 
+      - uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: parse-changelog@0.6.14
+
       - name: Install latest stable
         run: |
           rustup update stable
@@ -69,6 +73,11 @@ jobs:
         with:
           path: target/*-apple-darwin/release/Glide_*.dmg
 
+      - name: Parse changelog
+        if: github.ref_type == 'tag'
+        run: |
+          GLIDE_VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "glide-wm") | .version')
+          parse-changelog CHANGELOG.md $GLIDE_VERSION > CHANGELOG_version.md
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
@@ -77,6 +86,5 @@ jobs:
             target/aarch64-apple-darwin/release/Glide_*.dmg
             target/x86_64-apple-darwin/release/Glide_*.dmg
           fail_on_unmatched_files: true
-          body: ""
-          append_body: true
+          body_path: CHANGELOG_version.md
           make_latest: true
