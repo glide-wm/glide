@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.14](https://github.com/glide-wm/glide/compare/v0.0.13...v0.0.14) (2026-01-03)
+
+
+### Bug Fixes
+
+* Use fine-grained token ([2e8bbe5](https://github.com/glide-wm/glide/commit/2e8bbe52ed4de840d9c7dca4c30fef6ce02ea192))
+
 ## [0.0.13](https://github.com/glide-wm/glide/compare/v0.0.12...v0.0.13) (2026-01-03)
 
 Custom changelog notes.
