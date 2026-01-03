@@ -19,5 +19,5 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           # this is a built-in strategy in release-please, see "Action Inputs"
           # for more options
-          release-type: rust
+          #release-type: rust
           target-branch: release-please
