@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.4](https://github.com/glide-wm/glide/compare/v0.0.3...v0.0.4) (2026-01-03)
+
+
+### Features
+
+* Improve punctuation ([34b2197](https://github.com/glide-wm/glide/commit/34b21976d47efad7b73ec458f73e99f4475663c3))
+
 ## [0.0.3](https://github.com/glide-wm/glide/compare/v0.0.2...v0.0.3) (2026-01-03)
 
 
