@@ -39,13 +39,13 @@ jobs:
           cargo build --release --verbose --locked --target aarch64-apple-darwin
           cargo build --release --verbose --locked --target x86_64-apple-darwin
 
-      - name: Import Code-Signing Certificates
+      - name: Import code-signing certificates
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           p12-password: ${{ secrets.P12_PASSWORD }}
 
-      - name: Import Notarization API Key
+      - name: Import notarization API key
         env:
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
         run: |
@@ -72,8 +72,9 @@ jobs:
         if: github.ref_type == 'tag'
         with:
           files: |
-            target/*-apple-darwin/release/Glide_*.dmg
-          prerelease: true
+            target/aarch64-apple-darwin/release/Glide_*.dmg
+            target/x86_64-apple-darwin/release/Glide_*.dmg
           fail_on_unmatched_files: true
+          body: ""
           append_body: true
           make_latest: true
