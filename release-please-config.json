@@ -1,0 +1,17 @@
+{
+  "release-type": "rust",
+  "bump-patch-for-minor-pre-major": true,
+
+  "packages": {
+    ".": {
+      "exclude-paths": ["site"],
+      "include-component-in-tag": false
+    }
+  },
+
+  "draft": true,
+  "prerelease": false,
+
+  "release-as": "0.1.0",
+  "bootstrap-sha": "92ff815f6f2eb4cb9b490b51b96a6dc5a74bdd78"
+}
