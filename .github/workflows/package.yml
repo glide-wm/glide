@@ -1,0 +1,77 @@
+name: Package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  package:
+    runs-on: macos-15
+
+    steps:
+      - uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: cargo-packager@0.11.8
+
+      - name: Install latest stable
+        run: |
+          rustup update stable
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build
+        run: |
+          cargo build --release --verbose --locked --target aarch64-apple-darwin
+          cargo build --release --verbose --locked --target x86_64-apple-darwin
+
+      - name: Import Code-Signing Certificates
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+
+      - name: Import Notarization API Key
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > AuthKey.p8
+
+      - name: Package, sign, and notarize
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: AuthKey.p8
+        run: |
+          # For debugging; should show the signing identity
+          security find-identity -v -p codesigning
+          # Package, sign, and notarize
+          cargo packager --release --target aarch64-apple-darwin
+          cargo packager --release --target x86_64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          path: target/*-apple-darwin/release/Glide_*.dmg
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: |
+            target/*-apple-darwin/release/Glide_*.dmg
+          prerelease: true
+          fail_on_unmatched_files: true
+          append_body: true
+          make_latest: true
