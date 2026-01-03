@@ -16,6 +16,8 @@ env:
 jobs:
   package:
     runs-on: macos-15
+    permissions:
+      contents: write
 
     steps:
       - uses: taiki-e/cache-cargo-install-action@v2
