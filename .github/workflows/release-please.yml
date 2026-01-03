@@ -44,16 +44,16 @@ jobs:
         with:
           script: |
             // The 'pr' output is a JSON string; parse it to get the PR number
-            const prData = JSON.parse('${{ steps.release.outputs.pr }}');
-            const prNumber = prData.number;
+            const prData = JSON.parse('${{ steps.release.outputs.prs }}');
+            const prNumber = prData[0].number;
 
             github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              body: '🤖 Packaging action triggered; release here:\n\n\
-              ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag_name }}
-              '
+              body: `🤖 Packaging action triggered; release here:
+
+              ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag_name }}`
             });
 
       # Create PRs for new commits.
