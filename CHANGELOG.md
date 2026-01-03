@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [0.0.9](https://github.com/glide-wm/glide/compare/v0.0.8...v0.0.9) (2026-01-03)
+
+
+### Features
+
+* no draft ([35aac40](https://github.com/glide-wm/glide/commit/35aac407807e24ea3fd6d3de89a7121e3578a16f))
+
 ## [0.0.8](https://github.com/glide-wm/glide/compare/v0.0.7...v0.0.8) (2026-01-03)
 
 
