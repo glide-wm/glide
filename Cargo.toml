@@ -108,7 +108,16 @@ test-log = { version = "0.2.16", default-features = false, features = [
 ] }
 tempfile = { version = "3.17.1", default-features = false }
 
-[package.metadata.bundle]
-name = "Glide"
+[package.metadata.packager]
+productName = "Glide"
 identifier = "org.glidewm.glide"
-icon = ["assets/app_icon-128x128@2x.png"]
+icons = ["assets/app_icon-128x128@2x.png"]
+binaries = [
+    {path = "glide", main = true}
+]
+macos.signingIdentity = "Developer ID Application: Tyler Mandry (77455J9D7M)"
+
+# We want the application to activate on first run so the permission flow isn't
+# covered by other apps, so we don't mark it as a background app for now.
+# Instead, we set the activation policy after the app starts.
+# macos.backgroundApp = true
