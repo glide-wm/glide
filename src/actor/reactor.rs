@@ -610,16 +610,14 @@ impl Reactor {
         for wid in self
             .visible_windows
             .iter()
-            .flat_map(|wsid| self.window_ids.get(wsid))
-            .copied()
+            .flat_map(|wsid| self.window_ids.get(wsid).copied())
             .filter(|wid| wid.pid == pid)
             .filter(|wid| self.window_is_tracked(*wid))
         {
-            let Some(space) = self.best_space_for_window(&self.windows[&wid].frame_monotonic)
-            else {
+            let Some(window) = self.windows.get(&wid) else { continue };
+            let Some(space) = self.best_space_for_window(&window.frame_monotonic) else {
                 continue;
             };
-            let window = self.windows.get(&wid).unwrap(); // added above
             let layout_info = LayoutWindowInfo {
                 bundle_id: app.and_then(|a| a.info.bundle_id.clone()),
                 layer: window
