@@ -10,18 +10,18 @@ managers like i3, Sway, and Hyprland.
 
 ## Quick start
 
-Download the latest release from the [releases page][latest].
-
-Optional: Read [glide.default.toml] and customize any config values in
-`$HOME/.glide.toml`.
+[Download the latest release][latest] from the releases page.
 
 Open the disk image and install Glide by dragging it into Applications, then
 launch the app. The first time you do this, you will have to follow instructions
 to enable Accessibility permissions.
 
 Once Glide is running, press Alt+Z to start managing the current space. Note:
-This will resize all your windows! See [glide.default.toml] for a list of key
-bindings.
+This will resize all your windows!
+
+See [glide.default.toml] for a list of key bindings. You can customize these by
+editing `~/.glide.toml` and restarting Glide (hit Alt+Shift+E to exit, then
+re-launch).
 
 [latest]: https://github.com/glide-wm/glide/releases/latest
 [glide.default.toml]: ./glide.default.toml
