@@ -9,15 +9,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
-use glide_wm::actor::channel;
 use glide_wm::actor::group_indicators::GroupIndicators;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
 use glide_wm::actor::reactor::{self, Reactor};
+use glide_wm::actor::server::MessageServer;
 use glide_wm::actor::status::Status;
 use glide_wm::actor::window_server::WindowServer;
 use glide_wm::actor::wm_controller::{self, WmController};
+use glide_wm::actor::{channel, server};
 use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
@@ -124,6 +125,10 @@ fn main() {
     let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
     let window_server = WindowServer::new(mtm);
 
+    // TODO: Run on another thread so we don't tie up the main thread.
+    let message_server =
+        MessageServer::new(server::PORT_NAME).expect("Glide may be already running");
+
     Executor::run_main(mtm, async move {
         join!(
             wm_controller.run(),
@@ -132,6 +137,7 @@ fn main() {
             status.run(),
             window_server.run(ws_rx),
             group_indicators.run(),
+            message_server.run(),
         );
     });
 }
