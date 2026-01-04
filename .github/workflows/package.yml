@@ -71,12 +71,16 @@ jobs:
           echo "$APPLE_API_KEY_BASE64" | base64 --decode > AuthKey.p8
 
       - name: Package, sign, and notarize
-        if: github.ref_type == 'tag'
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: AuthKey.p8
         run: |
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            # Disable notarization.
+            unset APPLE_API_KEY
+            unset APPLE_API_ISSUER
+          fi
           # For debugging; should show the signing identity
           security find-identity -v -p codesigning
           # Package, sign, and notarize
