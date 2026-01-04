@@ -2,9 +2,18 @@
 
 ## 0.1.0 (2026-01-04)
 
+This is the first official release of Glide, a tiling window manager for macOS.
 
-### Bug Fixes
+Glide is inspired by Sway and i3 on Linux. Features include:
 
-* Add link to issue tracker ([4e9d010](https://github.com/glide-wm/glide/commit/4e9d0106565eaeb44dfba4bc5f626a32484c8055))
+* Spaces support
+* Keyboard-based navigation
+* Tiled and untiled windows
+* Tabbed and stacked groups with navigation bars
+* Enable/disable on individual spaces
+* Text based config
+* Animations
 
-## Changelog
+For a better idea of what Glide can do, have a look at the [default config].
+
+[default config]: https://github.com/glide-wm/glide/blob/3cc588bdd22cf65dc33c4e5a3afe4e6b840c41f9/glide.default.toml
