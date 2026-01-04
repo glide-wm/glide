@@ -6,7 +6,6 @@
 Glide is a tiling window manager for macOS. It takes inspiration from window
 managers like i3, Sway, and Hyprland.
 
-#### Status
 <!-- GUIDE_EXCLUDE_END -->
 
 ## Quick start
