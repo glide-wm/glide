@@ -34,6 +34,16 @@ cargo test
 
 You must have [Rust](https://rustup.rs) and Xcode installed. Xcode can be installed via the Mac App Store.
 
+Running from source is as easy as
+
+```
+cargo run
+```
+
+The first time you do this, you may have to follow instructions to enable
+Accessibility permissions. Instead of enabling them for Glide, enable them for
+whatever application your terminal is running in.
+
 ### Logging
 
 Glide makes extensive use of the [tracing] crate to provide detailed and contextual logs of what is going on in its internals. You can enable logs by setting the `RUST_LOG` environment variable.

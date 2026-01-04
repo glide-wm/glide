@@ -9,14 +9,27 @@ managers like i3, Sway, and Hyprland.
 #### Status
 <!-- GUIDE_EXCLUDE_END -->
 
-Glide is in "beta" and is recommended for early adopters.
+## Quick start
 
-## Quick start with Cargo
-
-First, [install Rust](https://rustup.rs) and make sure you have the latest Xcode command line tools installed.
+Download the latest release from the [releases page][latest].
 
 Optional: Read [glide.default.toml] and customize any config values in
 `$HOME/.glide.toml`.
+
+Open the disk image and install Glide by dragging it into Applications, then
+launch the app. The first time you do this, you will have to follow instructions
+to enable Accessibility permissions.
+
+Once Glide is running, press Alt+Z to start managing the current space. Note:
+This will resize all your windows! See [glide.default.toml] for a list of key
+bindings.
+
+[latest]: https://github.com/glide-wm/glide/releases/latest
+[glide.default.toml]: ./glide.default.toml
+
+## Building from source
+
+First, [install Rust](https://rustup.rs) and make sure you have the latest Xcode command line tools installed.
 
 Then, run the following:
 
@@ -26,12 +39,14 @@ cd glide
 cargo run --release
 ```
 
-Press Alt+Z to start managing the current space. Note: This will resize all your
-windows! See [glide.default.toml] for a list of key bindings.
+The first time you do this, you may have to follow instructions to enable
+Accessibility permissions. Instead of enabling them for Glide, enable them for
+whatever application your terminal is running in.
 
-[glide.default.toml]: ./glide.default.toml
+If you are interested in contributing, there are lots of tips in
+[CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## Save and restore
+### Save and restore
 
 If you need to update Glide or restart it for any reason, exit with the
 `save_and_exit` key binding (default Alt+Shift+E). Then, when starting again,
@@ -41,7 +56,8 @@ run it with the `--restore` flag:
 cargo run --release -- --restore
 ```
 
-Note that this does not work across machine restarts.
+Note that this does not work across machine restarts. Currently it only works
+when running Glide from the command line.
 
 <!-- GUIDE_EXCLUDE_START -->
 #### License and usage notes
