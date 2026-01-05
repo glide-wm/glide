@@ -1,14 +1,14 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{sync::mpsc, time::Duration};
+use std::{borrow::Borrow, sync::mpsc, time::Duration};
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use glide_wm::{
     actor::server::{self, AsciiEscaped, Request, Response},
     config::{self, Config},
-    sys::message_port::{RemoteMessagePort, RemotePortCreateError},
+    sys::message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
 };
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
@@ -56,7 +56,7 @@ struct CmdUpdate {
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
-    let client = Client::new().context("Could not find server")?;
+    let mut client = Client::new().context("Could not find server")?;
 
     match opt.command {
         Command::Ping(send) => {
@@ -67,29 +67,40 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
         Command::Config(CmdConfig::Update(CmdUpdate { watch })) => {
-            let update_config = || {
-                let config = Config::read(&config::config_file())?;
-                match client.send(Request::UpdateConfig(config))? {
-                    Response::Success => eprintln!("config updated"),
-                    _ => bail!("Unexpected response"),
+            let mut update_config = || {
+                let config = match Config::read(&config::config_file()) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error: {e}");
+                        return;
+                    }
+                };
+                let request = Request::UpdateConfig(config);
+                loop {
+                    match client.send(&request) {
+                        Ok(Response::Success) => eprintln!("config updated"),
+                        Ok(resp) => eprintln!("Unexpected response: {resp:?}"),
+                        Err(ClientError::SendError(SendError::InvalidPort)) => {
+                            eprintln!("Could not send to server; will attempt reconnect");
+                            client = Client::new().expect("Could not find server");
+                            continue;
+                        }
+                        Err(e) => eprintln!("Error: {e}"),
+                    }
+                    break;
                 }
-                Ok(())
             };
             if watch {
                 let (tx, rx) = mpsc::channel();
-                let mut debouncer = new_debouncer(Duration::from_millis(100), tx)?;
+                let mut debouncer = new_debouncer(Duration::from_millis(50), tx)?;
                 debouncer.watcher().watch(&config::config_file(), RecursiveMode::NonRecursive)?;
-                if let Err(e) = update_config() {
-                    eprintln!("Error: {e}");
-                }
+                update_config();
                 for event in rx {
                     event?;
-                    if let Err(e) = update_config() {
-                        eprintln!("Error: {e}");
-                    }
+                    update_config();
                 }
             } else {
-                update_config()?;
+                update_config();
             }
         }
         Command::Config(CmdConfig::Verify) => {
@@ -105,6 +116,14 @@ struct Client {
     port: RemoteMessagePort,
 }
 
+#[derive(thiserror::Error, Debug)]
+enum ClientError {
+    #[error("Serialization error")]
+    SerializationError(#[source] anyhow::Error),
+    #[error("Sending message failed")]
+    SendError(#[source] SendError),
+}
+
 impl Client {
     fn new() -> Result<Self, RemotePortCreateError> {
         Ok(Self {
@@ -112,15 +131,18 @@ impl Client {
         })
     }
 
-    fn send(&self, req: Request) -> Result<Response, anyhow::Error> {
-        let msg = ron::ser::to_string(&req).context("Serializing message failed")?;
+    fn send(&self, req: impl Borrow<Request>) -> Result<Response, ClientError> {
+        let msg = ron::ser::to_string(req.borrow())
+            .context("Serializing message failed")
+            .map_err(ClientError::SerializationError)?;
         let resp = self
             .port
             .send_message(0, msg.as_bytes(), TIMEOUT)
-            .context("Sending message failed")?;
+            .map_err(ClientError::SendError)?;
         let response = ron::de::from_bytes(&resp)
             .with_context(|| format!("Response: \"{}\"", AsciiEscaped(&resp)))
-            .context("Deserializing response failed")?;
+            .context("Deserializing response failed")
+            .map_err(ClientError::SerializationError)?;
         Ok(response)
     }
 }
