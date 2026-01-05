@@ -143,6 +143,7 @@ pub enum Event {
     },
 
     Command(Command),
+    ConfigChanged(Arc<Config>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -539,6 +540,9 @@ impl Reactor {
                         std::process::exit(3);
                     }
                 }
+            }
+            Event::ConfigChanged(config) => {
+                self.config = config;
             }
         }
         if let Some(raised_window) = raised_window {
