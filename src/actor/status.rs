@@ -34,12 +34,15 @@ pub type Receiver = actor::Receiver<Event>;
 
 impl Status {
     pub fn new(config: Arc<Config>, rx: Receiver, mtm: MainThreadMarker) -> Self {
-        Self { icon: None, config, rx, mtm }
+        let mut this = Self { icon: None, config, rx, mtm };
+        this.apply_config();
+        this
     }
 
     fn apply_config(&mut self) {
+        let icon = self.icon.take();
         if self.config.settings.experimental.status_icon.enable {
-            self.icon = self.icon.take().or_else(|| Some(StatusIcon::new(self.mtm)));
+            self.icon = icon.or_else(|| Some(StatusIcon::new(self.mtm)));
         }
     }
 
