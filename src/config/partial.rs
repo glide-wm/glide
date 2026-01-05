@@ -18,6 +18,7 @@ pub trait PartialConfig {
 }
 
 #[derive(Default, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct ValidationError {
     pub fields: Vec<&'static str>,
     pub path: Vec<String>,
@@ -130,7 +131,7 @@ macro_rules! PartialConfig {
                 ];
                 [
                     $($merge)*
-                    $field_name: <$source_field_ty as PartialConfig>::merge($high.$field_name, $low.$field_name),
+                    $field_name: <$source_field_ty as PartialConfig>::merge($low.$field_name, $high.$field_name),
                 ];
                 [
                     $($check)*
@@ -186,4 +187,63 @@ macro_rules! PartialConfig {
             ]
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+
+    #[test]
+    fn merge_nested() {
+        use macro_rules_attribute::derive;
+
+        #[derive(PartialConfig!)]
+        #[derive_args(SettingsPartial)]
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        struct Settings {
+            #[derive_args(InnerPartial)]
+            inner: Inner,
+            outer_field: i32,
+        }
+
+        #[derive(PartialConfig!)]
+        #[derive_args(InnerPartial)]
+        #[derive(Serialize, Deserialize, Debug, PartialEq)]
+        struct Inner {
+            field1: bool,
+            field2: i32,
+            field3: String,
+        }
+
+        let default = SettingsPartial {
+            inner: InnerPartial {
+                field1: Some(false),
+                field2: Some(6),
+                field3: Some("foo".to_owned()),
+            },
+            outer_field: Some(100),
+        };
+
+        let user = SettingsPartial {
+            inner: InnerPartial {
+                field1: Some(true),
+                field2: Some(42),
+                field3: None,
+            },
+            outer_field: Some(50),
+        };
+
+        assert_eq!(
+            SettingsPartial::merge(default, user).validate(),
+            Ok(Settings {
+                inner: Inner {
+                    field1: true,
+                    field2: 42,
+                    field3: "foo".to_owned()
+                },
+                outer_field: 50,
+            })
+        );
+    }
 }
