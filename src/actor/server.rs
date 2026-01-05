@@ -5,23 +5,30 @@ use std::{
     fmt::{Display, Formatter},
     future::pending,
     rc::Rc,
+    sync::Arc,
 };
 
 use serde::{Deserialize, Serialize};
-use tracing::{error, info, instrument, warn};
+use tracing::{Span, error, info, instrument, warn};
 
-use crate::sys::message_port::{LocalMessagePort, LocalPortCreateError};
+use crate::{
+    actor::wm_controller,
+    config::Config,
+    sys::message_port::{LocalMessagePort, LocalPortCreateError},
+};
 
 pub const PORT_NAME: &str = "org.glidewm.server";
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Request {
     Ping(String),
+    UpdateConfig(Config),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     Pong(String),
+    Success,
 }
 
 pub struct MessageServer {
@@ -31,11 +38,13 @@ pub struct MessageServer {
     state: Rc<RefCell<State>>,
 }
 
-struct State;
+struct State {
+    wm_tx: wm_controller::Sender,
+}
 
 impl MessageServer {
-    pub fn new(name: &str) -> Result<Self, LocalPortCreateError> {
-        let state = Rc::new(RefCell::new(State));
+    pub fn new(name: &str, wm_tx: wm_controller::Sender) -> Result<Self, LocalPortCreateError> {
+        let state = Rc::new(RefCell::new(State { wm_tx }));
         let state_ = state.clone();
         Ok(MessageServer {
             port: LocalMessagePort::new(name, move |id, msg| {
@@ -77,6 +86,13 @@ impl State {
             Request::Ping(payload) => {
                 let resp = payload.chars().into_iter().rev().collect();
                 Response::Pong(resp)
+            }
+            Request::UpdateConfig(config) => {
+                _ = self.wm_tx.send((
+                    Span::current(),
+                    wm_controller::WmEvent::ConfigUpdated(Arc::new(config)),
+                ));
+                Response::Success
             }
         }
     }

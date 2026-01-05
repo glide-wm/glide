@@ -114,7 +114,7 @@ fn main() {
         config: config.clone(),
     };
     let (ws_tx, ws_rx) = glide_wm::actor::channel();
-    let (wm_controller, wm_controller_sender) = WmController::new(
+    let (wm_controller, wm_controller_tx) = WmController::new(
         wm_config,
         events_tx.clone(),
         mouse_tx.clone(),
@@ -122,15 +122,15 @@ fn main() {
         ws_tx,
         group_indicators_tx,
     );
-    let notification_center = NotificationCenter::new(wm_controller_sender);
+    let notification_center = NotificationCenter::new(wm_controller_tx.clone());
     let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
     let status = Status::new(config.clone(), status_rx, mtm);
     let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
     let window_server = WindowServer::new(mtm);
 
     // TODO: Run on another thread so we don't tie up the main thread.
-    let message_server =
-        MessageServer::new(server::PORT_NAME).expect("Glide may be already running");
+    let message_server = MessageServer::new(server::PORT_NAME, wm_controller_tx)
+        .expect("Glide may be already running");
 
     Executor::run_main(mtm, async move {
         join!(

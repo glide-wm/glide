@@ -4,11 +4,13 @@ use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use glide_wm::{
     actor::server::{self, AsciiEscaped, Request, Response},
+    config::{self, Config},
     sys::message_port::{RemoteMessagePort, RemotePortCreateError},
 };
 
 const TIMEOUT: Duration = Duration::from_millis(1000);
 
+/// Client to control a running Glide server.
 #[derive(Parser)]
 struct Opt {
     #[command(subcommand)]
@@ -18,24 +20,42 @@ struct Opt {
 #[derive(Subcommand, Clone)]
 enum Command {
     #[command()]
-    Send(SendMsg),
+    Ping(Ping),
+    #[command(subcommand)]
+    Config(CmdConfig),
 }
 
+/// Checks if the server is running.
 #[derive(Parser, Clone)]
-struct SendMsg {
-    msg: String,
+struct Ping {
+    msg: Option<String>,
+}
+
+/// Updates the server config by parsing the config file on disk.
+///
+/// The config file lives at ~/.glide.toml.
+#[derive(Subcommand, Clone)]
+enum CmdConfig {
+    Update,
 }
 
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
-    let client = Client::new().expect("Could not find remote");
+    let client = Client::new().context("Could not find server")?;
 
     match opt.command {
-        Command::Send(send) => {
-            let response = client.send(Request::Ping(send.msg))?;
+        Command::Ping(send) => {
+            let response = client.send(Request::Ping(send.msg.unwrap_or_default()))?;
             match response {
                 Response::Pong(data) => eprintln!("Got response {data}"),
+                _ => bail!("Unexpected response"),
+            }
+        }
+        Command::Config(CmdConfig::Update) => {
+            let config = Config::read(&config::config_file())?;
+            match client.send(Request::UpdateConfig(config))? {
+                Response::Success => eprintln!("config updated"),
                 _ => bail!("Unexpected response"),
             }
         }
