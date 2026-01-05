@@ -318,8 +318,17 @@ impl WmController {
         vec![]
     }
 
-    fn exec_cmd(&self, cmd_args: ExecCmd) {
+    fn exec_cmd(&self, #[allow(unused)] cmd_args: ExecCmd) {
+        #[cfg(not(feature = "exec_cmd"))]
+        {
+            error!(
+                "exec_cmd is disabled in Glide due to security concerns. Enable it by rebuilding with the exec_cmd feature."
+            );
+            return;
+        }
+
         // Spawn so we don't block the main thread.
+        #[allow(unreachable_code)]
         std::thread::spawn(move || {
             let cmd_args = cmd_args.as_array();
             let [cmd, args @ ..] = &*cmd_args else {
