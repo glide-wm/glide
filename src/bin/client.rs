@@ -1,7 +1,7 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::time::Duration;
+use std::{sync::mpsc, time::Duration};
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
@@ -10,6 +10,8 @@ use glide_wm::{
     config::{self, Config},
     sys::message_port::{RemoteMessagePort, RemotePortCreateError},
 };
+use notify::RecursiveMode;
+use notify_debouncer_mini::new_debouncer;
 
 const TIMEOUT: Duration = Duration::from_millis(1000);
 
@@ -23,23 +25,31 @@ struct Opt {
 #[derive(Subcommand, Clone)]
 enum Command {
     #[command()]
-    Ping(Ping),
+    Ping(CmdPing),
     #[command(subcommand)]
     Config(CmdConfig),
 }
 
 /// Checks if the server is running.
 #[derive(Parser, Clone)]
-struct Ping {
+struct CmdPing {
     msg: Option<String>,
+}
+
+/// Commands to manage server config.
+#[derive(Subcommand, Clone)]
+enum CmdConfig {
+    Update(CmdUpdate),
 }
 
 /// Updates the server config by parsing the config file on disk.
 ///
 /// The config file lives at ~/.glide.toml.
-#[derive(Subcommand, Clone)]
-enum CmdConfig {
-    Update,
+#[derive(Parser, Clone)]
+struct CmdUpdate {
+    /// Watch for config changes, continuously updating the file.
+    #[arg(long)]
+    watch: bool,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -55,11 +65,30 @@ fn main() -> Result<(), anyhow::Error> {
                 _ => bail!("Unexpected response"),
             }
         }
-        Command::Config(CmdConfig::Update) => {
-            let config = Config::read(&config::config_file())?;
-            match client.send(Request::UpdateConfig(config))? {
-                Response::Success => eprintln!("config updated"),
-                _ => bail!("Unexpected response"),
+        Command::Config(CmdConfig::Update(CmdUpdate { watch })) => {
+            let update_config = || {
+                let config = Config::read(&config::config_file())?;
+                match client.send(Request::UpdateConfig(config))? {
+                    Response::Success => eprintln!("config updated"),
+                    _ => bail!("Unexpected response"),
+                }
+                Ok(())
+            };
+            if watch {
+                let (tx, rx) = mpsc::channel();
+                let mut debouncer = new_debouncer(Duration::from_millis(100), tx)?;
+                debouncer.watcher().watch(&config::config_file(), RecursiveMode::NonRecursive)?;
+                if let Err(e) = update_config() {
+                    eprintln!("Error: {e}");
+                }
+                for event in rx {
+                    event?;
+                    if let Err(e) = update_config() {
+                        eprintln!("Error: {e}");
+                    }
+                }
+            } else {
+                update_config()?;
             }
         }
     }
