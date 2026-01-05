@@ -40,6 +40,7 @@ struct CmdPing {
 #[derive(Subcommand, Clone)]
 enum CmdConfig {
     Update(CmdUpdate),
+    Verify,
 }
 
 /// Updates the server config by parsing the config file on disk.
@@ -90,6 +91,10 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 update_config()?;
             }
+        }
+        Command::Config(CmdConfig::Verify) => {
+            Config::read(&config::config_file())?;
+            eprintln!("config ok");
         }
     }
 
