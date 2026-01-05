@@ -12,8 +12,10 @@ repository = "https://github.com/glide-wm/glide"
 
 publish = false
 
+default-run = "glide_server"
+
 [[bin]]
-name = "glide"
+name = "glide_server"
 test = false
 
 # We don't have a need for unwinding, and aborting means we don't have to worry
@@ -127,7 +129,7 @@ productName = "Glide"
 identifier = "org.glidewm.glide"
 icons = ["assets/app_icon-128x128@2x.png"]
 binaries = [
-    {path = "glide", main = true}
+    {path = "glide_server", main = true}
 ]
 macos.signingIdentity = "Developer ID Application: Tyler Mandry (77455J9D7M)"
 
