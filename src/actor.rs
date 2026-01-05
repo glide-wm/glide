@@ -15,7 +15,6 @@ pub mod mouse;
 pub mod notification_center;
 pub mod raise;
 pub mod reactor;
-pub mod server;
 pub mod status;
 pub mod window_server;
 pub mod wm_controller;

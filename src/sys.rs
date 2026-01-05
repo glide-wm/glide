@@ -4,7 +4,6 @@ pub mod app;
 pub mod event;
 pub mod executor;
 pub mod geometry;
-pub mod message_port;
 pub mod observer;
 pub mod run_loop;
 pub mod screen;

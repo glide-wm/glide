@@ -28,11 +28,10 @@ pub enum Request {
     /// happens, so we can re-hide the mouse if it is supposed to be hidden.
     EnforceHidden,
     ScreenParametersChanged(Vec<CGRect>, CoordinateConverter),
-    ConfigUpdated(Arc<Config>),
 }
 
 pub struct Mouse {
-    config: RefCell<Arc<Config>>,
+    config: Arc<Config>,
     events_tx: reactor::Sender,
     requests_rx: Option<Receiver>,
     state: RefCell<State>,
@@ -53,7 +52,7 @@ pub type Receiver = actor::Receiver<Request>;
 impl Mouse {
     pub fn new(config: Arc<Config>, events_tx: reactor::Sender, requests_rx: Receiver) -> Self {
         Mouse {
-            config: RefCell::new(config),
+            config,
             events_tx,
             requests_rx: Some(requests_rx),
             state: RefCell::new(State::default()),
@@ -101,21 +100,17 @@ impl Mouse {
         // running by the time this function is awaited.
         tap.enable();
 
-        this.apply_config();
-
-        while let Some((_span, request)) = requests_rx.recv().await {
-            this.on_request(request);
-        }
-    }
-
-    fn apply_config(&self) {
-        if self.config.borrow().settings.mouse_hides_on_focus {
+        if this.config.settings.mouse_hides_on_focus {
             if let Err(e) = window_server::allow_hide_mouse() {
                 error!(
                     "Could not enable mouse hiding: {e:?}. \
                     mouse_hides_on_focus will have no effect."
                 );
             }
+        }
+
+        while let Some((_span, request)) = requests_rx.recv().await {
+            this.on_request(request);
         }
     }
 
@@ -126,7 +121,7 @@ impl Mouse {
                 if let Err(e) = event::warp_mouse(point) {
                     warn!("Failed to warp mouse: {e:?}");
                 }
-                if self.config.borrow().settings.mouse_hides_on_focus && !state.hidden {
+                if self.config.settings.mouse_hides_on_focus && !state.hidden {
                     debug!("Hiding mouse");
                     if let Err(e) = event::hide_mouse() {
                         warn!("Failed to hide mouse: {e:?}");
@@ -145,10 +140,6 @@ impl Mouse {
                 state.screens = frames;
                 state.converter = converter;
             }
-            Request::ConfigUpdated(config) => {
-                *self.config.borrow_mut() = config;
-                self.apply_config();
-            }
         }
     }
 
@@ -165,7 +156,7 @@ impl Mouse {
             CGEventType::LeftMouseUp => {
                 _ = self.events_tx.send((Span::current().clone(), Event::MouseUp));
             }
-            CGEventType::MouseMoved if self.config.borrow().settings.focus_follows_mouse => {
+            CGEventType::MouseMoved if self.config.settings.focus_follows_mouse => {
                 let loc = event.location();
                 #[cfg(false)]
                 tracing::trace!("Mouse moved {loc:?}");

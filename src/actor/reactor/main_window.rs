@@ -84,8 +84,7 @@ impl MainWindowTracker {
             | Event::MouseMovedOverWindow(..)
             | Event::RaiseCompleted { .. }
             | Event::RaiseTimeout { .. }
-            | Event::Command(..)
-            | Event::ConfigChanged(_) => return None,
+            | Event::Command(..) => return None,
         };
         if Some(event_pid) == self.global_frontmost && quiet_edge == Quiet::No {
             if let Some(wid) = self.main_window() {
