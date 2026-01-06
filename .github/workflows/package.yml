@@ -16,6 +16,7 @@ env:
 
 jobs:
   package:
+    environment: packaging
     runs-on: macos-15
     permissions:
       contents: write
