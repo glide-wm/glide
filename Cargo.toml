@@ -140,8 +140,8 @@ productName = "Glide"
 identifier = "org.glidewm.glide"
 icons = ["assets/app_icon-128x128@2x.png"]
 binaries = [
-    {path = "glide_server", main = true},
     {path = "glide"},
+    {path = "glide_server", main = true},
 ]
 macos.signingIdentity = "Developer ID Application: Tyler Mandry (77455J9D7M)"
 
