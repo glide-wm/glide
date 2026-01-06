@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Manages raise requests.
 //!
 //! This actor sits behind the Reactor and is responsible for managing raise requests.

@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! This module defines the [`LayoutTree`][layout_tree::LayoutTree] data
 //! structure, on which all layout logic is defined.
 

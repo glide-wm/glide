@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 pub mod actor;
 pub mod config;
 pub mod log;

@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! A simple async executor that integrates with CFRunLoop.
 
 use std::cell::RefCell;

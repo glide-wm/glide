@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Utilities for interfacing with OS-specific APIs.
 
 pub mod app;

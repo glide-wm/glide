@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::borrow::Borrow;
 #[allow(unused_imports)]
 pub(crate) use std::collections::{BTreeMap, BTreeSet, hash_map};

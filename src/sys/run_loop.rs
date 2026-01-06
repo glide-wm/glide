@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Helpers for managing run loops.
 
 use std::ffi::c_void;

@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Group indicator UI component for displaying window group information.
 //!
 //! This module provides a segmented bar for visualizing groups:

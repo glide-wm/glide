@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::fs::File;
 use std::io::{Stderr, stderr};
 use std::sync::Mutex;

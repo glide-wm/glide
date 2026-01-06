@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! The WM Controller handles major events like enabling and disabling the
 //! window manager on certain spaces and launching app threads. It also
 //! controls hotkey registration.

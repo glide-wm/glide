@@ -1,4 +1,7 @@
 #![allow(dead_code)]
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use serde::{Deserialize, Serialize};

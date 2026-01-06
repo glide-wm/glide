@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::cell::RefCell;
 use std::mem::replace;
 use std::rc::Rc;

@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::sync::Arc;

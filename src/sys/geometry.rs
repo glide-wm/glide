@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use core_graphics_types::geometry as cg;
 use objc2_core_foundation as ic;
 use serde::{Deserialize, Deserializer, Serialize};

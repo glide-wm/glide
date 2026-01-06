@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::ffi::{c_int, c_void};
 
 use accessibility::AXUIElement;

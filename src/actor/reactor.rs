@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! The Reactor's job is to maintain coherence between the system and model state.
 //!
 //! It takes events from the rest of the system and builds a coherent picture of

@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Visual example demonstrating the GroupIndicatorView with segmented bar rendering.
 //!
 //! This example creates a window with rendered group indicators showing

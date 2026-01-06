@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::f64;
 use std::ffi::c_int;
 use std::mem::MaybeUninit;

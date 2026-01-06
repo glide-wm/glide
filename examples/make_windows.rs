@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Example that creates numbered windows using AppKit and demonstrates the
 //! effect of calling different system APIs on them.
 

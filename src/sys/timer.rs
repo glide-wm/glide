@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Timer functionality using CFRunLoopTimer that integrates with the async executor.
 //!
 //! This module provides async timer functionality that works seamlessly with the

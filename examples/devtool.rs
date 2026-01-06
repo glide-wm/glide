@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! This tool is used to exercise glide and system APIs during development.
 
 use std::future::Future;

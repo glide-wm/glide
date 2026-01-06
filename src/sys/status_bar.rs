@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Menu bar icon for displaying the current space ID.
 
 use std::ffi::c_void;

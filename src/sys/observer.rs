@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::borrow::Cow;
 use std::ffi::c_void;
 use std::marker::PhantomData;

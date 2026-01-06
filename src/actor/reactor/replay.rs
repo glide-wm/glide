@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Support for recording reactor events to a file and replaying them later.
 //!
 //! This is used in development.

@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! This actor manages the global notification queue, which tells us when an
 //! application is launched or focused or the screen state changes.
 

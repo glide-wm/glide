@@ -1,4 +1,4 @@
-// Copyright 2025 The Glide Authors
+// Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Post-install/update flow for obtaining accessibility permissions.

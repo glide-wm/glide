@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Manages visual indicators for window groups.
 //!
 //! The layout system calculates indicator frames and state. This actor is

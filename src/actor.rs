@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Actors in the window manager.
 //!
 //! Each actor manages some important resource, like an external application or

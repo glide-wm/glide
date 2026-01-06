@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 /// The set of layouts for a given space, keyed by screen size.
 ///
 /// These layouts all track approximately the same windows, but we save one per

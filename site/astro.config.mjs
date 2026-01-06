@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // @ts-check
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
