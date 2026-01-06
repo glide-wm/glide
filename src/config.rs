@@ -53,8 +53,8 @@ pub struct Settings {
     pub mouse_follows_focus: bool,
     pub mouse_hides_on_focus: bool,
     pub focus_follows_mouse: bool,
-    #[derive_args(GroupIndicatorsPartial)]
-    pub group_indicators: GroupIndicators,
+    #[derive_args(GroupBarsPartial)]
+    pub group_bars: GroupBars,
     #[derive_args(ExperimentalPartial)]
     pub experimental: Experimental,
 }
@@ -77,12 +77,12 @@ pub struct StatusIcon {
 }
 
 #[derive(PartialConfig!)]
-#[derive_args(GroupIndicatorsPartial)]
+#[derive_args(GroupBarsPartial)]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct GroupIndicators {
+pub struct GroupBars {
     pub enable: bool,
-    pub bar_thickness: f64,
+    pub thickness: f64,
     pub horizontal_placement: HorizontalPlacement,
     pub vertical_placement: VerticalPlacement,
 }
@@ -101,10 +101,10 @@ pub enum VerticalPlacement {
     Right,
 }
 
-impl GroupIndicators {
+impl GroupBars {
     /// Get the indicator thickness for layout space reservation
     pub fn indicator_thickness(&self) -> f64 {
-        if self.enable { self.bar_thickness } else { 0.0 }
+        if self.enable { self.thickness } else { 0.0 }
     }
 }
 

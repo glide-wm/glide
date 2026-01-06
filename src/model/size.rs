@@ -336,13 +336,8 @@ impl<'a, 'out> Visitor<'a, 'out> {
         use ContainerKind::*;
         match info.kind {
             Tabbed | Stacked => {
-                let (group_frame, indicator_frame) = if self.config.settings.group_indicators.enable
-                {
-                    size_with_group_indicator(
-                        rect,
-                        info.kind,
-                        &self.config.settings.group_indicators,
-                    )
+                let (group_frame, indicator_frame) = if self.config.settings.group_bars.enable {
+                    size_with_group_indicator(rect, info.kind, &self.config.settings.group_bars)
                 } else {
                     (rect, CGRect::ZERO)
                 };
@@ -442,11 +437,11 @@ impl<'a, 'out> Visitor<'a, 'out> {
 fn size_with_group_indicator(
     rect: CGRect,
     container_kind: ContainerKind,
-    config: &crate::config::GroupIndicators,
+    config: &crate::config::GroupBars,
 ) -> (CGRect, CGRect) {
     use crate::config::{HorizontalPlacement, VerticalPlacement};
 
-    let thickness = config.bar_thickness;
+    let thickness = config.thickness;
 
     match container_kind {
         ContainerKind::Tabbed => {
@@ -758,14 +753,14 @@ mod tests {
 
         // Test with indicators disabled
         let mut config_disabled = Config::default();
-        config_disabled.settings.group_indicators.enable = false;
+        config_disabled.settings.group_bars.enable = false;
         let (frames_disabled, groups_disabled) =
             tree.calculate_layout_and_groups(layout, screen, &config_disabled);
 
         // Test with indicators enabled
         let mut config_enabled = Config::default();
-        config_enabled.settings.group_indicators.enable = true;
-        config_enabled.settings.group_indicators.bar_thickness = 20.0;
+        config_enabled.settings.group_bars.enable = true;
+        config_enabled.settings.group_bars.thickness = 20.0;
         let (frames_enabled, groups_enabled) =
             tree.calculate_layout_and_groups(layout, screen, &config_enabled);
 

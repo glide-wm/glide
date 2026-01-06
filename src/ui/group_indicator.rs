@@ -89,8 +89,8 @@ impl Default for IndicatorConfig {
     }
 }
 
-impl From<&crate::config::GroupIndicators> for IndicatorConfig {
-    fn from(config: &crate::config::GroupIndicators) -> Self {
+impl From<&crate::config::GroupBars> for IndicatorConfig {
+    fn from(config: &crate::config::GroupBars) -> Self {
         Self {
             horizontal_placement: config.horizontal_placement,
             vertical_placement: config.vertical_placement,

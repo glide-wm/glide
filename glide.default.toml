@@ -20,11 +20,11 @@ mouse_follows_focus = true
 # mouse_follows_focus is false.
 mouse_hides_on_focus = true
 
-# Visual indicators for window groups (tabbed/stacked containers).
-group_indicators.enable = true
-group_indicators.bar_thickness = 6.0
-group_indicators.horizontal_placement = "top"
-group_indicators.vertical_placement = "right"
+# Visual bars for window groups (tabbed/stacked containers).
+group_bars.enable = true
+group_bars.thickness = 6
+group_bars.horizontal_placement = "top"
+group_bars.vertical_placement = "right"
 
 [settings.experimental]
 
