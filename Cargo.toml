@@ -12,8 +12,10 @@ repository = "https://github.com/glide-wm/glide"
 
 publish = false
 
+default-run = "glide_server"
+
 [[bin]]
-name = "glide"
+name = "glide_server"
 test = false
 
 # We don't have a need for unwinding, and aborting means we don't have to worry
@@ -24,6 +26,17 @@ test = false
 # with a panic hook that aborts so we can reuse dependency builds.
 [profile]
 release.panic = "abort"
+
+[features]
+
+# WARNING: exec_cmd causes Glide to run any arbitrary command with full access
+# to accessibility APIs, which can read anything on your screen and monitor
+# input. Paired with the glide CLI it allows anyone who can modify your config
+# and run the CLI command, or who can connect to Glide's server port, including
+# other users on the same machine, to escalate to these privileges.
+#
+# Make sure you understand these risks before enabling the feature.
+exec_cmd = []
 
 [dependencies]
 accessibility = { version = "0.3.0", git = "https://github.com/eiz/accessibility", branch = "master" }
@@ -72,9 +85,13 @@ objc2-quartz-core = { version = "0.3.2", default-features = false, features = [
     "objc2-core-graphics",
 ] }
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = [
+    "alloc",
     "CFCGTypes",
+    "CFMessagePort",
     "CFRunLoop",
+    "CFData",
     "CFDate",
+    "CFString",
 ] }
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = [
     "CGDirectDisplay", "CGRemoteOperation", "CGError"
@@ -92,7 +109,7 @@ rand = "0.8.5"
 redact = { version = "0.1.11", features = ["serde"] }
 ron = "0.12.0"
 rustc-hash = "2.0.0"
-serde = { version = "1.0.201", features = ["derive"] }
+serde = { version = "1.0.201", features = ["derive", "rc"] }
 serde_with = "3.9.0"
 slotmap = { version = "1.0.7", features = ["serde"] }
 sorted-vec = "0.8.10"
@@ -106,6 +123,9 @@ tracing-appender = { version = "0.2.4" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-timing = { version = "0.6.0", features = ["layer"] }
 tracing-tree = { version = "0.4.1", features = ["time"] }
+notify = "8.2.0"
+notify-debouncer-mini = "0.7.0"
+thiserror = "2.0.17"
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"
@@ -120,7 +140,8 @@ productName = "Glide"
 identifier = "org.glidewm.glide"
 icons = ["assets/app_icon-128x128@2x.png"]
 binaries = [
-    {path = "glide", main = true}
+    {path = "glide"},
+    {path = "glide_server", main = true},
 ]
 macos.signingIdentity = "Developer ID Application: Tyler Mandry (77455J9D7M)"
 

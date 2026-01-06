@@ -29,7 +29,7 @@ pub fn config_file() -> PathBuf {
     dirs::home_dir().unwrap().join(".glide.toml")
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub settings: Settings,
     pub keys: Vec<(Hotkey, WmCommand)>,

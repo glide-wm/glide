@@ -83,6 +83,17 @@ jobs:
           fi
           # For debugging; should show the signing identity
           security find-identity -v -p codesigning
+
+          # HACK: Add --deep flag so codesign doesn't complain about signing
+          # binaries in the wrong order (only on x86_64, wtf)
+          mkdir -p ~/.bin
+          echo <<END >~/.bin/codesign
+          #!/bin/bash
+          exec /usr/bin/codesign "$@" --deep
+          END
+          chmod +x ~/.bin/codesign
+          export PATH=~/.bin:"$PATH"
+
           # Package, sign, and notarize
           cargo packager --release --target aarch64-apple-darwin
           cargo packager --release --target x86_64-apple-darwin

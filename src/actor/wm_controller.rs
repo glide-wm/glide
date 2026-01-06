@@ -21,7 +21,7 @@ type WeakSender = tokio::sync::mpsc::WeakUnboundedSender<(Span, WmEvent)>;
 type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, WmEvent)>;
 
 use crate::actor::app::AppInfo;
-use crate::actor::{self, mouse, reactor, status, window_server};
+use crate::actor::{self, group_indicators, mouse, reactor, status, window_server};
 use crate::collections::HashSet;
 use crate::sys;
 use crate::sys::event::HotkeyManager;
@@ -43,6 +43,7 @@ pub enum WmEvent {
         Vec<Option<SpaceId>>,
     ),
     Command(WmCommand),
+    ConfigUpdated(Arc<crate::config::Config>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +82,7 @@ pub struct WmController {
     mouse_tx: mouse::Sender,
     status_tx: status::Sender,
     ws_tx: window_server::Sender,
+    group_indicators_tx: group_indicators::Sender,
     receiver: Receiver,
     sender: WeakSender,
     starting_space: Option<SpaceId>,
@@ -101,6 +103,7 @@ impl WmController {
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
         ws_tx: window_server::Sender,
+        group_indicators_tx: group_indicators::Sender,
     ) -> (Self, Sender) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let this = Self {
@@ -109,6 +112,7 @@ impl WmController {
             mouse_tx,
             status_tx,
             ws_tx,
+            group_indicators_tx,
             receiver,
             sender: sender.downgrade(),
             starting_space: None,
@@ -208,6 +212,16 @@ impl WmController {
             Command(ReactorCommand(cmd)) => {
                 self.send_event(Event::Command(cmd));
             }
+            ConfigUpdated(config) => {
+                self.group_indicators_tx
+                    .send(group_indicators::Event::ConfigChanged(config.clone()));
+                self.mouse_tx.send(mouse::Request::ConfigUpdated(config.clone()));
+                self.status_tx.send(status::Event::ConfigUpdated(config.clone()));
+                self.send_event(reactor::Event::ConfigChanged(config.clone()));
+                self.config.config = config;
+                self.unregister_hotkeys();
+                self.ensure_hotkey_registration();
+            }
         }
     }
 
@@ -230,19 +244,14 @@ impl WmController {
 
     fn handle_space_changed(&mut self, spaces: Vec<Option<SpaceId>>) {
         self.cur_space = spaces;
-        let Some(&Some(space)) = self.cur_space.first() else {
-            return;
-        };
         if self.starting_space.is_none() {
-            self.starting_space = Some(space);
-            self.register_hotkeys();
-        } else if self.config.one_space {
-            if Some(space) == self.starting_space {
-                self.register_hotkeys();
-            } else {
-                self.unregister_hotkeys();
-            }
+            self.starting_space = self.first_space();
         }
+        self.ensure_hotkey_registration();
+    }
+
+    fn first_space(&self) -> Option<SpaceId> {
+        self.cur_space.first().copied().flatten()
     }
 
     fn active_spaces(&self) -> Vec<Option<SpaceId>> {
@@ -266,6 +275,19 @@ impl WmController {
     fn send_event(&mut self, event: reactor::Event) {
         trace!(?event, "Sending event");
         _ = self.events_tx.send((Span::current().clone(), event));
+    }
+
+    fn ensure_hotkey_registration(&mut self) {
+        let all_spaces = !self.config.one_space;
+        let active = self.starting_space.is_some()
+            && (all_spaces || self.starting_space == self.first_space());
+        if active {
+            if self.hotkeys.is_none() {
+                self.register_hotkeys();
+            }
+        } else {
+            self.unregister_hotkeys();
+        }
     }
 
     fn register_hotkeys(&mut self) {
@@ -296,8 +318,17 @@ impl WmController {
         vec![]
     }
 
-    fn exec_cmd(&self, cmd_args: ExecCmd) {
+    fn exec_cmd(&self, #[allow(unused)] cmd_args: ExecCmd) {
+        #[cfg(not(feature = "exec_cmd"))]
+        {
+            error!(
+                "exec_cmd is disabled in Glide due to security concerns. Enable it by rebuilding with the exec_cmd feature."
+            );
+            return;
+        }
+
         // Spawn so we don't block the main thread.
+        #[allow(unreachable_code)]
         std::thread::spawn(move || {
             let cmd_args = cmd_args.as_array();
             let [cmd, args @ ..] = &*cmd_args else {

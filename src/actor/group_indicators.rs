@@ -41,6 +41,7 @@ pub enum Event {
     },
     ScreenParametersChanged(Vec<Option<SpaceId>>, CoordinateConverter),
     SpaceChanged(Vec<Option<SpaceId>>),
+    ConfigChanged(Arc<Config>),
 }
 
 pub struct GroupIndicators {
@@ -68,18 +69,10 @@ impl GroupIndicators {
     }
 
     pub async fn run(mut self) {
-        if !self.is_enabled() {
-            return;
-        }
-
         while let Some((span, event)) = self.rx.recv().await {
             let _guard = span.enter();
             self.handle_event(event);
         }
-    }
-
-    fn is_enabled(&self) -> bool {
-        self.config.settings.group_indicators.enable
     }
 
     fn handle_event(&mut self, event: Event) {
@@ -102,12 +95,26 @@ impl GroupIndicators {
             Event::SpaceChanged(spaces) => {
                 self.active_spaces = spaces;
             }
+            Event::ConfigChanged(config) => {
+                self.config = config;
+                // Nothing to do; we rely on the reactor to tell us which
+                // indicators to show. Otherwise we would have to retain the
+                // GroupInfo struct for every space.
+                //
+                // For now we keep the config for when it will be used to
+                // customize indicator appearance.
+            }
         }
     }
 
     fn handle_groups_updated(&mut self, space_id: SpaceId, groups: Vec<GroupInfo>) {
-        let group_nodes: crate::collections::HashSet<NodeId> =
-            groups.iter().map(|g| g.node_id).collect();
+        let group_nodes: crate::collections::HashSet<NodeId> = groups
+            .iter()
+            // If indicators are disabled, we will get group info but the frames
+            // will be empty.
+            .filter(|g| !g.indicator_frame.is_empty())
+            .map(|g| g.node_id)
+            .collect();
         let space_indicators = self.indicators.entry(space_id).or_default();
         space_indicators.retain(|&node_id, (indicator, window)| {
             if group_nodes.contains(&node_id) {
@@ -183,6 +190,7 @@ impl GroupIndicators {
 }
 
 fn make_indicator_window(mtm: MainThreadMarker) -> Retained<NSWindow> {
+    // TODO: This shoould probably happen at the UI layer instead of the actor.
     let window = unsafe {
         NSWindow::initWithContentRect_styleMask_backing_defer(
             NSWindow::alloc(mtm),
