@@ -6,7 +6,9 @@ Thank you for helping make Glide better! We love to see new contributors join ou
 
 Contributions can take the form of bug reports, feature requests, documentation, or code.
 
-Most of these should start as [issues] so we can discuss implementation strategy and track progress. However, small fixes can be submitted as pull requests directly.
+We try to keep the codebase accessible to new contributors so you can dive in freely. Help with this is welcome. If something is unclear to you but you figure it out, please open a pull request to make it clearer.
+
+Most significant features should start as [issues] so we can discuss implementation strategy and track progress. However, small fixes can be submitted as pull requests directly.
 
 If you're looking for something to contribute, the issues are a good place to start, particularly open issues marked [help wanted]. To see what's on our roadmap, check the [roadmap] label.
 
