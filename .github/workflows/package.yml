@@ -88,7 +88,7 @@ jobs:
           # HACK: Add --deep flag so codesign doesn't complain about signing
           # binaries in the wrong order (only on x86_64, wtf)
           mkdir -p ~/.bin
-          echo <<END >~/.bin/codesign
+          cat <<'END' >~/.bin/codesign
           #!/bin/bash
           exec /usr/bin/codesign "$@" --deep
           END
