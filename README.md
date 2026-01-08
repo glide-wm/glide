@@ -25,7 +25,7 @@ Supports animations, too!
 
 [Download the latest release][latest] from the releases page.
 
-Open the disk image and install Glide by dragging it into Applications. We
+Open the disk image and install Glide by dragging it into Applications. I
 recommend installing the glide CLI; you can do this by running in a terminal:
 
 ```
@@ -69,9 +69,6 @@ The first time you do this, you may have to follow instructions to enable
 Accessibility permissions. Instead of enabling them for Glide, enable them for
 whatever application your terminal is running in.
 
-If you are interested in contributing, there are lots of tips in
-[CONTRIBUTING.md](./CONTRIBUTING.md).
-
 ### Save and restore
 
 If you need to update Glide or restart it for any reason, exit with the
@@ -86,6 +83,23 @@ Note that this does not work across machine restarts. Currently it only works
 when running Glide from the command line.
 
 <!-- GUIDE_EXCLUDE_START -->
+## Acknowledgements
+
+Glide builds on the work of many who came before. [Yabai] contains a wealth of information
+about the tricks and techniques needed to write window managers on macOS. [objc2] and related
+crates make it possible for Glide to be written in Rust. [tracing] provides tree-structured
+logging to follow the complex asynchronous flows that are inherently required in a macOS
+window manager like Glide.
+
+[Yabai]: https://github.com/asmvik/yabai
+[objc2]: https://github.com/madsmtm/objc2
+[tracing]: https://github.com/tokio-rs/tracing
+
+## Contributing
+
+New contributions are welcome, whether they are filing an issue, improving docs, or writing code.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) to get started.
+
 #### License and usage notes
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
