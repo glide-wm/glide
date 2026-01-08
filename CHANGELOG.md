@@ -6,6 +6,7 @@
 ### ⚠ BREAKING CHANGES
 
 * Disable exec_cmd unless a cargo feature is enabled
+* group_indicators config was renamed to group_bars
 
 ### Features
 
