@@ -68,7 +68,10 @@ fn main() -> Result<(), anyhow::Error> {
         }
         Command::Config(CmdConfig::Update(CmdUpdate { watch })) => {
             let mut update_config = || {
-                let config = match Config::read(&config::config_file()) {
+                if !config::config_file().exists() {
+                    eprintln!("Warning: Config file missing; will load defaults");
+                }
+                let config = match Config::load() {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("Error: {e}");
@@ -104,7 +107,10 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
         Command::Config(CmdConfig::Verify) => {
-            Config::read(&config::config_file())?;
+            if !config::config_file().exists() {
+                bail!("Config file missing");
+            }
+            Config::load()?;
             eprintln!("config ok");
         }
     }

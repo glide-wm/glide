@@ -136,9 +136,16 @@ impl ConfigPartial {
 }
 
 impl Config {
-    pub fn read(path: &Path) -> anyhow::Result<Config> {
+    pub fn load() -> anyhow::Result<Config> {
+        Self::read_or_default(&config_file())
+    }
+
+    fn read_or_default(path: &Path) -> anyhow::Result<Config> {
         let mut buf = String::new();
-        File::open(path).unwrap().read_to_string(&mut buf)?;
+        let Ok(mut file) = File::open(path) else {
+            return Ok(Config::default());
+        };
+        file.read_to_string(&mut buf)?;
         Self::parse(&buf)
     }
 

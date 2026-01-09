@@ -80,11 +80,7 @@ fn main() {
     }
     NSApp(mtm).finishLaunching();
 
-    let mut config = if config_file().exists() {
-        Config::read(&config_file()).unwrap()
-    } else {
-        Config::default()
-    };
+    let mut config = Config::load().unwrap();
     config.settings.animate &= !opt.no_animate;
     config.settings.default_disable |= opt.default_disable;
     let config = Arc::new(config);
