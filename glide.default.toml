@@ -20,6 +20,12 @@ mouse_follows_focus = true
 # mouse_follows_focus is false.
 mouse_hides_on_focus = true
 
+# Gap between windows and screen edges (in pixels).
+outer_gap = 0
+
+# Gap between adjacent windows (in pixels).
+inner_gap = 0
+
 # Visual bars for window groups (tabbed/stacked containers).
 group_bars.enable = true
 group_bars.thickness = 6

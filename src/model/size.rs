@@ -306,6 +306,17 @@ impl<'a, 'out> Visitor<'a, 'out> {
         // Usually this should be false, except in the uncommon case where root
         // is fullscreen.
         let parent_visible = self.fullscreen_nodes.contains(&root);
+        let outer_gap = self.config.settings.outer_gap;
+        let rect = CGRect {
+            origin: CGPoint {
+                x: rect.origin.x + outer_gap,
+                y: rect.origin.y + outer_gap,
+            },
+            size: CGSize {
+                width: rect.size.width - outer_gap * 2.0,
+                height: rect.size.height - outer_gap * 2.0,
+            },
+        };
         self.visit_node(root, rect, true, parent_visible, true);
     }
 
@@ -385,12 +396,15 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 let mut x = rect.origin.x;
                 let total = self.size.info[node].total;
                 let local_selection = self.selection.local_selection(self.map, node);
+                let inner_gap = self.config.settings.inner_gap;
+                let width = rect.size.width - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+
                 for child in node.children(self.map) {
                     let ratio = f64::from(self.size.info[child].size) / f64::from(total);
                     let rect = CGRect {
                         origin: CGPoint { x, y: rect.origin.y },
                         size: CGSize {
-                            width: rect.size.width * ratio,
+                            width: width * ratio,
                             height: rect.size.height,
                         },
                     }
@@ -402,20 +416,23 @@ impl<'a, 'out> Visitor<'a, 'out> {
                         is_parent_visible,
                         is_selected && local_selection == Some(child),
                     );
-                    x = rect.max().x;
+                    x = rect.max().x + inner_gap;
                 }
             }
             Vertical => {
                 let mut y = rect.origin.y;
                 let total = self.size.info[node].total;
                 let local_selection = self.selection.local_selection(self.map, node);
+                let inner_gap = self.config.settings.inner_gap;
+                let height = rect.size.height - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+
                 for child in node.children(self.map) {
                     let ratio = f64::from(self.size.info[child].size) / f64::from(total);
                     let rect = CGRect {
                         origin: CGPoint { x: rect.origin.x, y },
                         size: CGSize {
                             width: rect.size.width,
-                            height: rect.size.height * ratio,
+                            height: height * ratio,
                         },
                     }
                     .round();
@@ -426,7 +443,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
                         is_parent_visible,
                         is_selected && local_selection == Some(child),
                     );
-                    y = rect.max().y;
+                    y = rect.max().y + inner_gap;
                 }
             }
         }
