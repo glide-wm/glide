@@ -23,7 +23,8 @@ use glide_wm::config::{Config, config_file, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApp, NSApplicationActivationPolicy};
+use objc2_app_kit::{NSAlert, NSApp, NSApplicationActivationPolicy};
+use objc2_foundation::ns_string;
 use tokio::join;
 use tracing::warn;
 
@@ -70,20 +71,35 @@ fn main() {
     install_panic_hook();
     let mtm = MainThreadMarker::new().unwrap();
 
+    // When run from the command line, alerts won't be visible unless this is called.
+    if !NSApp(mtm).setActivationPolicy(NSApplicationActivationPolicy::Regular) {
+        warn!("Failed to set activation policy");
+    }
+
     if glide_wm::ui::permission_flow::obtain_permissions(mtm).is_err() {
         eprintln!("Permissions not granted; exiting");
         std::process::exit(2)
     }
 
+    let Ok(mut config) = Config::load() else {
+        let alert = NSAlert::new(mtm);
+        alert.setMessageText(ns_string!(
+            "Failed to load config.
+
+            Run \"glide config verify\" on the command line to see errors."
+        ));
+        println!("{}", alert.messageText());
+        alert.runModal();
+        std::process::exit(3);
+    };
+    config.settings.animate &= !opt.no_animate;
+    config.settings.default_disable |= opt.default_disable;
+    let config = Arc::new(config);
+
     if !NSApp(mtm).setActivationPolicy(NSApplicationActivationPolicy::Accessory) {
         warn!("Failed to set activation policy");
     }
     NSApp(mtm).finishLaunching();
-
-    let mut config = Config::load().unwrap();
-    config.settings.animate &= !opt.no_animate;
-    config.settings.default_disable |= opt.default_disable;
-    let config = Arc::new(config);
 
     if opt.validate {
         LayoutManager::load(restore_file()).unwrap();
