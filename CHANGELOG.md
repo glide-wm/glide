@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/glide-wm/glide/compare/v0.2.0...v0.2.1) (2026-01-09)
+
+
+### Bug Fixes
+
+* **app:** Display error instead of panicking on invalid config ([1ef2a23](https://github.com/glide-wm/glide/commit/1ef2a23fe1964c10b185163a6f83f572d1cd31f5))
+* **cli:** Don't panic when config file is missing ([9fbbf21](https://github.com/glide-wm/glide/commit/9fbbf2170281caf1f355f19512ddeaf6932ad82d))
+
 ## [0.2.0](https://github.com/glide-wm/glide/compare/v0.1.1...v0.2.0) (2026-01-08)
 
 
