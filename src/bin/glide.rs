@@ -74,7 +74,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let config = match Config::load() {
                     Ok(c) => c,
                     Err(e) => {
-                        eprintln!("Error: {e}");
+                        eprintln!("{e}\n");
                         return;
                     }
                 };
@@ -110,7 +110,10 @@ fn main() -> Result<(), anyhow::Error> {
             if !config::config_file().exists() {
                 bail!("Config file missing");
             }
-            Config::load()?;
+            if let Err(e) = Config::load() {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
             eprintln!("config ok");
         }
     }

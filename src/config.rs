@@ -11,6 +11,7 @@ use std::str::FromStr;
 use anyhow::bail;
 use livesplit_hotkey::Hotkey;
 use macro_rules_attribute::derive;
+
 use partial::{PartialConfig, ValidationError};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -146,18 +147,38 @@ impl Config {
             return Ok(Config::default());
         };
         file.read_to_string(&mut buf)?;
-        Self::parse(&buf)
+        Self::parse(&buf).map_err(|e| anyhow::anyhow!("{}", format_toml_error(&e, &buf, path)))
     }
 
     pub fn default() -> Config {
         ConfigPartial::default().validate().unwrap()
     }
 
-    fn parse(buf: &str) -> anyhow::Result<Config> {
-        let c: ConfigPartial = toml::from_str(&buf)?;
+    fn parse(buf: &str) -> Result<Self, toml::de::Error> {
+        let c: ConfigPartial = toml::from_str(buf)?;
         let defaults = ConfigPartial::default();
-        ConfigPartial::merge(defaults, c).validate()
+        Ok(ConfigPartial::merge(defaults, c)
+            .validate()
+            .expect("merging into default config should never fail"))
     }
+}
+
+fn format_toml_error(error: &toml::de::Error, input: &str, path: &Path) -> String {
+    use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
+
+    let message = error.message();
+    let Some(span) = error.span() else {
+        return format!("could not parse config: {}", message);
+    };
+
+    let snippet = Snippet::source(input)
+        .path(path.to_string_lossy())
+        .annotation(AnnotationKind::Primary.span(span.start..span.end).label(message));
+
+    let report = Level::ERROR.primary_title("could not parse config").element(snippet);
+
+    let renderer = Renderer::styled();
+    format!("{}", renderer.render(&[report]))
 }
 
 #[cfg(test)]
