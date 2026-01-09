@@ -19,7 +19,7 @@ use glide_wm::actor::status::Status;
 use glide_wm::actor::window_server::WindowServer;
 use glide_wm::actor::wm_controller::{self, WmController};
 use glide_wm::actor::{channel, server};
-use glide_wm::config::{Config, config_file, restore_file};
+use glide_wm::config::{Config, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
 use objc2::MainThreadMarker;
