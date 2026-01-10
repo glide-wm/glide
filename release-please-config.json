@@ -13,5 +13,7 @@
   "draft": true,
   "prerelease": false,
 
+  "changelog-type": "github",
+
   "bootstrap-sha": "92ff815f6f2eb4cb9b490b51b96a6dc5a74bdd78"
 }
