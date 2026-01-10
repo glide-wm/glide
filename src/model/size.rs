@@ -397,7 +397,8 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 let total = self.size.info[node].total;
                 let local_selection = self.selection.local_selection(self.map, node);
                 let inner_gap = self.config.settings.inner_gap;
-                let width = rect.size.width - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+                let width =
+                    rect.size.width - inner_gap * (node.children(self.map).count() as f64 - 1.0);
 
                 for child in node.children(self.map) {
                     let ratio = f64::from(self.size.info[child].size) / f64::from(total);
@@ -424,7 +425,8 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 let total = self.size.info[node].total;
                 let local_selection = self.selection.local_selection(self.map, node);
                 let inner_gap = self.config.settings.inner_gap;
-                let height = rect.size.height - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+                let height =
+                    rect.size.height - inner_gap * (node.children(self.map).count() as f64 - 1.0);
 
                 for child in node.children(self.map) {
                     let ratio = f64::from(self.size.info[child].size) / f64::from(total);
