@@ -54,6 +54,8 @@ pub struct Settings {
     pub mouse_follows_focus: bool,
     pub mouse_hides_on_focus: bool,
     pub focus_follows_mouse: bool,
+    pub outer_gap: f64,
+    pub inner_gap: f64,
     #[derive_args(GroupBarsPartial)]
     pub group_bars: GroupBars,
     #[derive_args(ExperimentalPartial)]
