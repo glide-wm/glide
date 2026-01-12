@@ -3,6 +3,7 @@
 
 //! This tool is used to exercise glide and system APIs during development.
 
+use std::env::VarError;
 use std::future::Future;
 use std::path::PathBuf;
 use std::ptr;
@@ -10,7 +11,7 @@ use std::time::Instant;
 
 use accessibility::{AXUIElement, AXUIElementAttributes};
 use accessibility_sys::{AXUIElementCopyElementAtPosition, AXUIElementRef, pid_t};
-use anyhow::Context;
+use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use core_foundation::array::CFArray;
 use core_foundation::base::{FromMutVoid, TCFType};
@@ -19,16 +20,17 @@ use core_graphics::display::{CGDisplayBounds, CGMainDisplayID};
 use core_graphics::window::{
     CGWindowID, CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListOptionOnScreenOnly,
 };
-use glide_wm::actor::reactor;
-use glide_wm::sys::app::WindowInfo;
+use glide_wm::actor::{self, reactor};
+use glide_wm::sys::app::{AppInfo, NSRunningApplicationExt, WindowInfo};
 use glide_wm::sys::event::{self, get_mouse_pos};
 use glide_wm::sys::executor::Executor;
 use glide_wm::sys::screen::{self, ScreenCache};
 use glide_wm::sys::window_server::{self, WindowServerId, get_window};
 use glide_wm::sys::{self};
 use livesplit_hotkey::{ConsumePreference, Modifiers};
-use objc2_app_kit::{NSScreen, NSWindow, NSWindowNumberListOptions};
-use objc2_foundation::MainThreadMarker;
+use objc2_app_kit::{NSRunningApplication, NSScreen, NSWindow, NSWindowNumberListOptions};
+use objc2_foundation::{MainThreadMarker, NSString};
+use tokio::select;
 use tokio::sync::mpsc::{self, UnboundedReceiver, unbounded_channel};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -86,6 +88,8 @@ enum App {
         #[arg(long)]
         wait: bool,
     },
+    #[command()]
+    Run { pid_or_bundle: String },
 }
 
 #[derive(Subcommand, Clone)]
@@ -117,6 +121,13 @@ enum Mouse {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
+    // Set default log level to info.
+    if let Err(VarError::NotPresent) = std::env::var("RUST_LOG") {
+        // SAFETY: No other threads running.
+        unsafe {
+            std::env::set_var("RUST_LOG", "info");
+        }
+    }
     tracing_subscriber::registry()
         .with(glide_wm::log::tree_layer())
         .with(EnvFilter::from_default_env())
@@ -201,6 +212,9 @@ async fn main() -> anyhow::Result<()> {
             }
             dbg!(main_window.main()?);
         }
+        Command::App(App::Run { pid_or_bundle }) => {
+            run_app_actor(pid_or_bundle).await?;
+        }
         Command::WindowServer(WindowServer::List { all, raw }) => {
             if raw {
                 for window in window_server::get_visible_windows_raw().iter() {
@@ -261,6 +275,41 @@ async fn main() -> anyhow::Result<()> {
             std::io::stdin().read_line(&mut String::new())?;
         }
         Command::Inspect => inspect(MainThreadMarker::new().unwrap()),
+    }
+    Ok(())
+}
+
+async fn run_app_actor(pid_or_bundle: String) -> anyhow::Result<()> {
+    let pid = match pid_or_bundle.parse() {
+        Ok(pid) => pid,
+        Err(_) => {
+            let apps = NSRunningApplication::runningApplicationsWithBundleIdentifier(
+                &NSString::from_str(&pid_or_bundle),
+            );
+            match apps.len() {
+                0 => bail!("Could not find any applications with bundle id {pid_or_bundle}"),
+                1 => apps.firstObject().unwrap().pid(),
+                _ => bail!("Found multiple applications with bundle id {pid_or_bundle}"),
+            }
+        }
+    };
+    let info = AppInfo::from(
+        &*NSRunningApplication::with_process_id(pid).expect("Could not get running application"),
+    );
+    let (events_tx, mut events_rx) = actor::channel();
+    let (ws_tx, mut ws_rx) = actor::channel();
+    actor::app::spawn_app_thread(pid, info, events_tx, ws_tx);
+    while !events_rx.is_closed() {
+        select! {
+            Some((span, event)) = events_rx.recv() => {
+                let _sp = span.enter();
+                info!("{event:?}");
+            }
+            Some((span, event)) = ws_rx.recv() => {
+                let _sp = span.enter();
+                info!("{event:?}");
+            }
+        }
     }
     Ok(())
 }
