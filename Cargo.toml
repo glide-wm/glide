@@ -45,7 +45,7 @@ accessibility-sys = { version = "0.2.0", git = "https://github.com/eiz/accessibi
 anyhow = "1.0.83"
 ascii_tree = "0.1.1"
 bitflags = "2.4.1"
-clap = { version = "4.5.4", features = ["derive"] }
+clap = { version = "4.5.4", features = ["cargo", "derive"] }
 core-foundation = "0.10.1"
 core-graphics = "0.25.0"
 core-graphics-types = "0.2.0"

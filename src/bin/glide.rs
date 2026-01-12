@@ -20,6 +20,7 @@ const TIMEOUT: Duration = Duration::from_millis(1000);
 
 /// Client to control a running Glide server.
 #[derive(Parser)]
+#[command(version, name = "glide")]
 struct Opt {
     #[command(subcommand)]
     command: Command,
