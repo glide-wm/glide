@@ -33,8 +33,8 @@ release.codegen-units = 1
 # WARNING: exec_cmd causes Glide to run any arbitrary command with full access
 # to accessibility APIs, which can read anything on your screen and monitor
 # input. Paired with the glide CLI it allows anyone who can modify your config
-# and run the CLI command, or who can connect to Glide's server port, including
-# other users on the same machine, to escalate to these privileges.
+# and run the CLI command, or who can run code as the current user to escalate
+# to these privileges.
 #
 # Make sure you understand these risks before enabling the feature.
 exec_cmd = []
