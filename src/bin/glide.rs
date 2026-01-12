@@ -8,7 +8,10 @@ use clap::{Parser, Subcommand};
 use glide_wm::{
     actor::server::{self, AsciiEscaped, Request, Response},
     config::{self, Config},
-    sys::message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
+    sys::{
+        bundle::{self, BundleError},
+        message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
+    },
 };
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
@@ -24,6 +27,8 @@ struct Opt {
 
 #[derive(Subcommand, Clone)]
 enum Command {
+    /// Launch Glide.
+    Launch,
     #[command()]
     Ping(CmdPing),
     #[command(subcommand)]
@@ -56,9 +61,44 @@ struct CmdUpdate {
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
+    if let Command::Launch = opt.command {
+        match bundle::glide_bundle() {
+            Err(BundleError::NotInBundle) => bail!(
+                "Not running in a bundle.
+                \n\
+                To run glide from the command line, use `cargo run` or start glide_server directly."
+            ),
+            Err(BundleError::BundleNotGlide { identifier }) => {
+                bail!("Don't recognize bundle identifier {identifier}")
+            }
+            Ok(bundle) => {
+                if let Err(e) = Config::load() {
+                    bail!("Config is invalid; refusing to launch Glide:\n{e}");
+                }
+                if Client::new().is_ok() {
+                    bail!(
+                        "Glide appears to be running already.
+                        \n\
+                        Tip: The default key binding to exit Glide is Alt+Shift+E."
+                    );
+                }
+                bundle::launch(&bundle)?;
+                eprintln!(
+                    "Glide is starting.
+                    \n\
+                    Tip: Use Alt+Z to start managing the current space.\n\
+                    Tip: Use Alt+Shift+E to exit Glide."
+                );
+                return Ok(());
+            }
+        }
+    }
+
+    // Remaining commands all depend on the server running.
     let mut client = Client::new().context("Could not find server")?;
 
     match opt.command {
+        Command::Launch => unreachable!(), // handled above
         Command::Ping(send) => {
             let response = client.send(Request::Ping(send.msg.unwrap_or_default()))?;
             match response {

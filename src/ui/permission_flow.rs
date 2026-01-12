@@ -3,7 +3,6 @@
 
 //! Post-install/update flow for obtaining accessibility permissions.
 
-use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -18,9 +17,10 @@ use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn, NSApplicationActivationOptions,
     NSButton, NSRunningApplication,
 };
-use objc2_foundation::{NSBundle, NSObject, NSString, ns_string};
+use objc2_foundation::{NSObject, NSString, ns_string};
 use tracing::{error, info, warn};
 
+use crate::sys::bundle::{MustExit, relaunch_current_bundle};
 use crate::sys::event::HotkeyManager;
 
 pub struct PermissionNotGranted;
@@ -85,7 +85,13 @@ fn obtain_ax_permissions(mtm: MainThreadMarker) -> Result<(), PermissionNotGrant
         // manually activates the app. This is impossible since the app is an
         // accessory, but even if not it's a bad experience, so we attempt to
         // relaunch instead.
-        attempt_relaunch();
+        match relaunch_current_bundle() {
+            Ok(MustExit) => {
+                info!("Relaunch succeeded; exiting");
+                std::process::exit(0);
+            }
+            Err(e) => warn!("{e}"),
+        }
         Ok(())
     } else {
         error!("Not trusted; trying again");
@@ -187,28 +193,4 @@ fn check_input_permissions(mtm: MainThreadMarker) -> Result<(), PermissionNotGra
         _ => error!("Unexpected button press"),
     }
     Err(PermissionNotGranted)
-}
-
-fn attempt_relaunch() {
-    match NSBundle::mainBundle().bundleIdentifier() {
-        Some(id) if id.containsString(ns_string!("glidewm")) => (),
-        _ => {
-            warn!("Skipping relaunch because the current application is not Glide");
-            return;
-        }
-    }
-    let path = NSBundle::mainBundle().bundlePath().to_string();
-    match Command::new("/usr/bin/open").arg("-n").arg(path).output() {
-        Ok(out) if out.status.success() => {
-            info!("Relaunch succeeded; exiting");
-            std::process::exit(0);
-        }
-        Ok(out) => warn!(
-            "Relaunch failed with code {status}. stderr:\n{stderr}\n\nstdout:\n{stdout}",
-            status = out.status,
-            stderr = String::from_utf8_lossy(&out.stderr),
-            stdout = String::from_utf8_lossy(&out.stdout)
-        ),
-        Err(err) => warn!("Relaunch failed with error: {err}"),
-    }
 }
