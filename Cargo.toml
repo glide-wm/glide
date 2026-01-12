@@ -26,6 +26,7 @@ test = false
 # with a panic hook that aborts so we can reuse dependency builds.
 [profile]
 release.panic = "abort"
+release.codegen-units = 1
 
 [features]
 
