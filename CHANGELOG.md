@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 (2026-01-12)
+
+## What's Changed
+* feat(cli): Add `glide launch` command by @tmandry in https://github.com/glide-wm/glide/pull/69
+
+
+**Full Changelog**: https://github.com/glide-wm/glide/compare/v0.2.2...v0.2.3
+
 ## 0.2.2 (2026-01-10)
 
 ## What's Changed
