@@ -32,8 +32,14 @@ recommend installing the glide CLI; you can do this by running in a terminal:
 sudo ln -s /Applications/Glide.app/Contents/MacOS/glide /usr/local/bin
 ```
 
-Launch the app. The first time you do this, you will have to follow instructions
-to enable Accessibility permissions.
+Launch the app using the CLI or with Finder.
+
+```
+glide launch
+```
+
+The first time you do this, you will have to follow instructions to enable
+Accessibility permissions.
 
 Once Glide is running, press Alt+Z to start managing the current space. Note:
 This will resize all your windows! To stop managing the space, press Alt+Z again.
