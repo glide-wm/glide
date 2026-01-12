@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.4](https://github.com/glide-wm/glide/compare/v0.2.3...v0.2.4) (2026-01-12)
+
+
+### Bug Fixes
+
+* **cli:** Ensure `glide launch` works behind a symlink ([7cd9d3e](https://github.com/glide-wm/glide/commit/7cd9d3e1b325c6335c129649e7c72b6e0287ff7b))
+
+
+### Improvements
+
+* **cli:** Add --version flag ([f56a946](https://github.com/glide-wm/glide/commit/f56a946ba8a88eb79655ff0aca7525faa129a456))
+
 ## 0.2.3 (2026-01-12)
 
 ### What's Changed
