@@ -21,6 +21,8 @@
     { "type": "revert", "section": "Reverts" },
     { "type": "improve", "section": "Improvements" },
     { "type": "docs", "section": "Documentation" },
+    { "type": "dev", "section": "Developer Tools" },
+    { "type": "devtool", "section": "Developer Tools" },
     { "type": "style", "section": "Styles", "hidden": true },
     { "type": "chore", "section": "Miscellaneous Chores", "hidden": true },
     { "type": "refactor", "section": "Code Refactoring", "hidden": true },
