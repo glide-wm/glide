@@ -6,7 +6,7 @@ use std::{borrow::Borrow, sync::mpsc, time::Duration};
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use glide_wm::{
-    actor::server::{self, AsciiEscaped, Request, Response},
+    actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest},
     config::{self, Config},
     sys::{
         bundle::{self, BundleError},
@@ -30,10 +30,21 @@ struct Opt {
 enum Command {
     /// Launch Glide.
     Launch,
+    #[command(subcommand)]
+    Service(CmdService),
     #[command()]
     Ping(CmdPing),
     #[command(subcommand)]
     Config(CmdConfig),
+}
+
+/// Manage Glide as a system service.
+#[derive(Subcommand, Clone)]
+enum CmdService {
+    /// Add Glide to login items.
+    Install,
+    /// Remove Glide from login items.
+    Uninstall,
 }
 
 /// Checks if the server is running.
@@ -42,7 +53,7 @@ struct CmdPing {
     msg: Option<String>,
 }
 
-/// Commands to manage server config.
+/// Manage server config.
 #[derive(Subcommand, Clone)]
 enum CmdConfig {
     Update(CmdUpdate),
@@ -100,6 +111,18 @@ fn main() -> Result<(), anyhow::Error> {
 
     match opt.command {
         Command::Launch => unreachable!(), // handled above
+        Command::Service(req) => {
+            let (req, verb) = match req {
+                CmdService::Install => (ServiceRequest::Install, "registered"),
+                CmdService::Uninstall => (ServiceRequest::Uninstall, "unregistered"),
+            };
+            let response = client.send(Request::Service(req))?;
+            match response {
+                Response::Success => println!("Glide was {verb} as a service"),
+                Response::Error(e) => bail!("{e}"),
+                _ => bail!("Unexpected response"),
+            }
+        }
         Command::Ping(send) => {
             let response = client.send(Request::Ping(send.msg.unwrap_or_default()))?;
             match response {

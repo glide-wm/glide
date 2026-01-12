@@ -11,6 +11,7 @@ use std::{
     sync::Arc,
 };
 
+use objc2_service_management::SMAppService;
 use serde::{Deserialize, Serialize};
 use tracing::{Span, error, info, instrument, warn};
 
@@ -26,12 +27,20 @@ pub const PORT_NAME: &str = "org.glidewm.server";
 pub enum Request {
     Ping(String),
     UpdateConfig(Config),
+    Service(ServiceRequest),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ServiceRequest {
+    Install,
+    Uninstall,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     Pong(String),
     Success,
+    Error(String),
 }
 
 pub struct MessageServer {
@@ -96,6 +105,22 @@ impl State {
                     wm_controller::WmEvent::ConfigUpdated(Arc::new(config)),
                 ));
                 Response::Success
+            }
+            Request::Service(ServiceRequest::Install) => {
+                // SAFETY: ? Requirements unclear.
+                let result = unsafe { SMAppService::mainAppService().registerAndReturnError() };
+                match result {
+                    Ok(()) => Response::Success,
+                    Err(e) => Response::Error(e.to_string()),
+                }
+            }
+            Request::Service(ServiceRequest::Uninstall) => {
+                // SAFETY: ? Requirements unclear.
+                let result = unsafe { SMAppService::mainAppService().unregisterAndReturnError() };
+                match result {
+                    Ok(()) => Response::Success,
+                    Err(e) => Response::Error(e.to_string()),
+                }
             }
         }
     }
