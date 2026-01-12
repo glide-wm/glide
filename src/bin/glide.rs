@@ -56,7 +56,9 @@ struct CmdPing {
 /// Manage server config.
 #[derive(Subcommand, Clone)]
 enum CmdConfig {
+    /// Read the config file and update the config on the running server.
     Update(CmdUpdate),
+    /// Check the config file for errors.
     Verify,
 }
 
