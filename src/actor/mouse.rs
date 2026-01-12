@@ -13,7 +13,7 @@ use core_graphics::event::{
 };
 use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{MainThreadMarker, NSInteger};
-use tracing::{Span, debug, error, warn};
+use tracing::{debug, error, warn};
 
 use super::reactor::{self, Event};
 use crate::config::Config;
@@ -166,14 +166,14 @@ impl Mouse {
         }
         match event_type {
             CGEventType::LeftMouseUp => {
-                _ = self.events_tx.send((Span::current().clone(), Event::MouseUp));
+                self.events_tx.send(Event::MouseUp);
             }
             CGEventType::MouseMoved if self.config.borrow().settings.focus_follows_mouse => {
                 let loc = event.location();
                 #[cfg(false)]
                 tracing::trace!("Mouse moved {loc:?}");
                 if let Some(wsid) = state.track_mouse_move(loc.to_icrate(), mtm) {
-                    _ = self.events_tx.send((Span::current(), Event::MouseMovedOverWindow(wsid)));
+                    self.events_tx.send(Event::MouseMovedOverWindow(wsid));
                 }
             }
             _ => (),

@@ -307,18 +307,15 @@ impl State {
         // Send the ApplicationLaunched event.
         if self
             .events_tx
-            .send((
-                Span::current(),
-                Event::ApplicationLaunched {
-                    pid: self.pid,
-                    handle,
-                    info,
-                    is_frontmost: self.is_frontmost,
-                    main_window: self.main_window,
-                    visible_windows: windows,
-                    window_server_info,
-                },
-            ))
+            .try_send(Event::ApplicationLaunched {
+                pid: self.pid,
+                handle,
+                info,
+                is_frontmost: self.is_frontmost,
+                main_window: self.main_window,
+                visible_windows: windows,
+                window_server_info,
+            })
             .is_err()
         {
             debug!(pid = ?self.pid, "Failed to send ApplicationLaunched event, exiting thread");
@@ -869,7 +866,7 @@ impl State {
     }
 
     fn send_event(&self, event: Event) {
-        self.events_tx.send((Span::current(), event)).unwrap();
+        self.events_tx.send(event);
     }
 
     fn window(&self, wid: WindowId) -> Result<&WindowState, accessibility::Error> {

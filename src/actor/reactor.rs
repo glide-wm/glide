@@ -26,7 +26,6 @@ pub use replay::{Record, replay};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::unbounded_channel;
 use tracing::{Span, debug, error, info, instrument, trace, warn};
 
 use super::mouse;
@@ -43,8 +42,8 @@ use crate::sys::geometry::{CGRectDef, CGRectExt, Round, SameAs};
 use crate::sys::screen::{CoordinateConverter, SpaceId};
 use crate::sys::window_server::{WindowServerId, WindowServerInfo};
 
-pub type Sender = tokio::sync::mpsc::UnboundedSender<(Span, Event)>;
-type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, Event)>;
+pub type Sender = crate::actor::Sender<Event>;
+type Receiver = crate::actor::Receiver<Event>;
 
 #[serde_as]
 #[derive(Serialize, Deserialize, Debug)]
@@ -249,7 +248,7 @@ impl Reactor {
         status_tx: status::Sender,
         group_indicators_tx: group_indicators::Sender,
     ) -> Sender {
-        let (events_tx, events) = unbounded_channel();
+        let (events_tx, events) = crate::actor::channel();
         let events_tx_clone = events_tx.clone();
         thread::Builder::new()
             .name("reactor".to_string())

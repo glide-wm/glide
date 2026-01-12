@@ -274,7 +274,7 @@ impl WmController {
 
     fn send_event(&mut self, event: reactor::Event) {
         trace!(?event, "Sending event");
-        _ = self.events_tx.send((Span::current().clone(), event));
+        self.events_tx.send(event);
     }
 
     fn ensure_hotkey_registration(&mut self) {

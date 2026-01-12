@@ -115,10 +115,9 @@ impl RaiseManager {
                             // relayed back to us. We send these events through
                             // the reactor so that we can record/replay them.
                             sequence.timed_out = true;
-                            let _ = events_tx.send((
-                                tracing::Span::current(),
+                            events_tx.send(
                                 reactor::Event::RaiseTimeout { sequence_id: sequence.sequence_id }
-                            ));
+                            );
                         }
                     }
                 }
