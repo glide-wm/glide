@@ -13,14 +13,31 @@ pub enum BundleError {
 }
 
 pub fn glide_bundle() -> Result<Retained<NSBundle>, BundleError> {
-    let bundle = NSBundle::mainBundle();
-    match bundle.bundleIdentifier() {
+    let mut bundle = NSBundle::mainBundle();
+    if bundle.bundleIdentifier().is_none()
+        && let Some(fallback) = bundle_fallback()
+    {
+        bundle = fallback;
+    }
+    match bundle.bundleIdentifier().or_else(|| bundle_fallback()?.bundleIdentifier()) {
         None => Err(BundleError::NotInBundle),
         Some(identifier) if !identifier.containsString(ns_string!("glidewm")) => {
             Err(BundleError::BundleNotGlide { identifier })
         }
         Some(_) => Ok(bundle),
     }
+}
+
+fn bundle_fallback() -> Option<Retained<NSBundle>> {
+    let exe = std::env::current_exe().ok()?.canonicalize().ok()?;
+    let mut bundle = exe;
+    bundle.pop();
+    if !bundle.ends_with("Contents/MacOS") {
+        return None;
+    }
+    bundle.pop();
+    bundle.pop();
+    NSBundle::bundleWithPath(&NSString::from_str(bundle.to_str()?))
 }
 
 pub fn launch(bundle: &NSBundle) -> anyhow::Result<()> {
