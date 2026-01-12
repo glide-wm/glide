@@ -29,6 +29,7 @@ use tokio::join;
 use tracing::warn;
 
 #[derive(Parser)]
+#[command(version, name = "glide_server")]
 struct Cli {
     /// Only run the window manager on the current space.
     #[arg(long)]
