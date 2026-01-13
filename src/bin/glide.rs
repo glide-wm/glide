@@ -34,7 +34,7 @@ enum Command {
     Service(CmdService),
     #[command()]
     Ping(CmdPing),
-    #[command(subcommand)]
+    #[command()]
     Config(CmdConfig),
 }
 
@@ -62,8 +62,17 @@ struct CmdLaunch {
 }
 
 /// Manage server config.
+#[derive(Parser, Clone)]
+struct CmdConfig {
+    /// Path to a custom config file.
+    #[arg(long, short, global = true)]
+    config: Option<PathBuf>,
+    #[command(subcommand)]
+    action: ConfigSubcommand,
+}
+
 #[derive(Subcommand, Clone)]
-enum CmdConfig {
+enum ConfigSubcommand {
     /// Read the config file and update the config on the running server.
     Update(CmdUpdate),
     /// Check the config file for errors.
@@ -147,13 +156,16 @@ fn main() -> Result<(), anyhow::Error> {
                 _ => bail!("Unexpected response"),
             }
         }
-        Command::Config(CmdConfig::Update(CmdUpdate { watch })) => {
+        Command::Config(CmdConfig {
+            config,
+            action: ConfigSubcommand::Update(CmdUpdate { watch }),
+        }) => {
+            let path = config.unwrap_or(config_path_default());
             let mut update_config = || {
-                if !config_path_default().exists() {
+                if !path.exists() {
                     eprintln!("Warning: Config file missing; will load defaults");
                 }
-                // TODO
-                let config = match Config::load(&config_path_default()) {
+                let config = match Config::load(&path) {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("{e}\n");
@@ -188,12 +200,15 @@ fn main() -> Result<(), anyhow::Error> {
                 update_config();
             }
         }
-        Command::Config(CmdConfig::Verify) => {
-            if !config_path_default().exists() {
+        Command::Config(CmdConfig {
+            config,
+            action: ConfigSubcommand::Verify,
+        }) => {
+            let path = config.unwrap_or(config_path_default());
+            if !path.exists() {
                 bail!("Config file missing");
             }
-            // TODO
-            if let Err(e) = Config::load(&config_path_default()) {
+            if let Err(e) = Config::load(&path) {
                 eprintln!("{e}");
                 std::process::exit(1);
             }
