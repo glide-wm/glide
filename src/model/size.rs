@@ -12,7 +12,7 @@ use super::selection::Selection;
 use super::tree::{NodeId, NodeMap};
 use crate::actor::app::WindowId;
 use crate::config::Config;
-use crate::sys::geometry::Round;
+use crate::sys::geometry::{CGRectExt, Round};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Size {
@@ -330,7 +330,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
     ) {
         let info = &self.size.info[node];
         let rect = if info.is_fullscreen {
-            self.screen
+            self.screen.inset(self.config.settings.outer_gap)
         } else {
             rect
         };
