@@ -7,7 +7,7 @@ use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use glide_wm::{
     actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest},
-    config::{self, Config},
+    config::{Config, config_path_default},
     sys::{
         bundle::{self, BundleError},
         message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
@@ -95,9 +95,7 @@ fn main() -> Result<(), anyhow::Error> {
             }
             Ok(bundle) => {
                 let config_path = cmd.config.as_ref();
-                let config_result = config_path
-                    .map(|p| Config::load_with_path(p))
-                    .unwrap_or_else(|| Config::load());
+                let config_result = Config::load(config_path.unwrap_or(&config_path_default()));
                 if let Err(e) = config_result {
                     bail!("Config is invalid; refusing to launch Glide:\n{e}");
                 }
@@ -151,10 +149,11 @@ fn main() -> Result<(), anyhow::Error> {
         }
         Command::Config(CmdConfig::Update(CmdUpdate { watch })) => {
             let mut update_config = || {
-                if !config::config_file().exists() {
+                if !config_path_default().exists() {
                     eprintln!("Warning: Config file missing; will load defaults");
                 }
-                let config = match Config::load() {
+                // TODO
+                let config = match Config::load(&config_path_default()) {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("{e}\n");
@@ -179,7 +178,7 @@ fn main() -> Result<(), anyhow::Error> {
             if watch {
                 let (tx, rx) = mpsc::channel();
                 let mut debouncer = new_debouncer(Duration::from_millis(50), tx)?;
-                debouncer.watcher().watch(&config::config_file(), RecursiveMode::NonRecursive)?;
+                debouncer.watcher().watch(&config_path_default(), RecursiveMode::NonRecursive)?;
                 update_config();
                 for event in rx {
                     event?;
@@ -190,10 +189,11 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
         Command::Config(CmdConfig::Verify) => {
-            if !config::config_file().exists() {
+            if !config_path_default().exists() {
                 bail!("Config file missing");
             }
-            if let Err(e) = Config::load() {
+            // TODO
+            if let Err(e) = Config::load(&config_path_default()) {
                 eprintln!("{e}");
                 std::process::exit(1);
             }

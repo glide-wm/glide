@@ -26,7 +26,7 @@ pub fn restore_file() -> PathBuf {
     data_dir().join("layout.ron")
 }
 
-pub fn config_file() -> PathBuf {
+pub fn config_path_default() -> PathBuf {
     dirs::home_dir().unwrap().join(".glide.toml")
 }
 
@@ -139,11 +139,7 @@ impl ConfigPartial {
 }
 
 impl Config {
-    pub fn load() -> anyhow::Result<Config> {
-        Self::read_or_default(&config_file())
-    }
-
-    pub fn load_with_path(path: &Path) -> anyhow::Result<Config> {
+    pub fn load(path: &Path) -> anyhow::Result<Config> {
         Self::read_or_default(path)
     }
 
