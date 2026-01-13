@@ -76,6 +76,21 @@ run it with the `--restore` flag:
 cargo run --release -- --restore
 ```
 
+### Building an app bundle
+
+To build an app bundle locally, you have to comment out the line in Cargo.toml
+that begins with `macos.signingIdentity`. Then you can run:
+
+```
+cargo build && cargo packager -f app
+```
+
+This depends on cargo-packager, which you can install with `cargo install
+cargo-packager@<VERSION>`. Check the current version used in
+.github/workflows/package.yml.
+
+This workflow is obviously not ideal. I haven't worked out a better way yet.
+
 ### devtool
 
 Glide includes a developer tool called `devtool` that can be used to explore macOS APIs. To see the available commands, run it with no arguments like so:
