@@ -143,6 +143,10 @@ impl Config {
         Self::read_or_default(&config_file())
     }
 
+    pub fn load_with_path(path: &Path) -> anyhow::Result<Config> {
+        Self::read_or_default(path)
+    }
+
     fn read_or_default(path: &Path) -> anyhow::Result<Config> {
         let mut buf = String::new();
         let Ok(mut file) = File::open(path) else {

@@ -1,7 +1,7 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{borrow::Borrow, sync::mpsc, time::Duration};
+use std::{borrow::Borrow, path::PathBuf, sync::mpsc, time::Duration};
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
@@ -29,7 +29,7 @@ struct Opt {
 #[derive(Subcommand, Clone)]
 enum Command {
     /// Launch Glide.
-    Launch,
+    Launch(CmdLaunch),
     #[command(subcommand)]
     Service(CmdService),
     #[command()]
@@ -51,6 +51,14 @@ enum CmdService {
 #[derive(Parser, Clone)]
 struct CmdPing {
     msg: Option<String>,
+}
+
+/// Launch Glide with optional configuration.
+#[derive(Parser, Clone)]
+struct CmdLaunch {
+    /// Path to a custom config file.
+    #[arg(long, short)]
+    config: Option<PathBuf>,
 }
 
 /// Manage server config.
@@ -75,7 +83,7 @@ struct CmdUpdate {
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
-    if let Command::Launch = opt.command {
+    if let Command::Launch(cmd) = opt.command {
         match bundle::glide_bundle() {
             Err(BundleError::NotInBundle) => bail!(
                 "Not running in a bundle.
@@ -86,7 +94,11 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("Don't recognize bundle identifier {identifier}")
             }
             Ok(bundle) => {
-                if let Err(e) = Config::load() {
+                let config_path = cmd.config.as_ref();
+                let config_result = config_path
+                    .map(|p| Config::load_with_path(p))
+                    .unwrap_or_else(|| Config::load());
+                if let Err(e) = config_result {
                     bail!("Config is invalid; refusing to launch Glide:\n{e}");
                 }
                 if Client::new().is_ok() {
@@ -96,7 +108,12 @@ fn main() -> Result<(), anyhow::Error> {
                         Tip: The default key binding to exit Glide is Alt+Shift+E."
                     );
                 }
-                bundle::launch(&bundle)?;
+                let mut args: Vec<String> = Vec::new();
+                if let Some(path) = &cmd.config {
+                    args.push("--config".to_string());
+                    args.push(path.to_string_lossy().into_owned());
+                }
+                bundle::launch(&bundle, &args)?;
                 eprintln!(
                     "Glide is starting.
                     \n\
@@ -112,7 +129,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut client = Client::new().context("Could not find server")?;
 
     match opt.command {
-        Command::Launch => unreachable!(), // handled above
+        Command::Launch(_) => unreachable!(), // handled above
         Command::Service(req) => {
             let (req, verb) = match req {
                 CmdService::Install => (ServiceRequest::Install, "registered"),

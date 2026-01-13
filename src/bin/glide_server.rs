@@ -59,6 +59,10 @@ struct Cli {
     /// exists.
     #[arg(long)]
     record: Option<PathBuf>,
+
+    /// Path to a custom config file.
+    #[arg(long, short)]
+    config: Option<PathBuf>,
 }
 
 fn main() {
@@ -82,7 +86,13 @@ fn main() {
         std::process::exit(2)
     }
 
-    let Ok(mut config) = Config::load() else {
+    let config_result = if let Some(ref path) = opt.config {
+        Config::load_with_path(path)
+    } else {
+        Config::load()
+    };
+
+    let Ok(mut config) = config_result else {
         let alert = NSAlert::new(mtm);
         alert.setMessageText(ns_string!(
             "Failed to load config.

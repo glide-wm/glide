@@ -40,15 +40,15 @@ fn bundle_fallback() -> Option<Retained<NSBundle>> {
     NSBundle::bundleWithPath(&NSString::from_str(bundle.to_str()?))
 }
 
-pub fn launch(bundle: &NSBundle) -> anyhow::Result<()> {
-    launch_inner(bundle, false)
+pub fn launch(bundle: &NSBundle, args: &[String]) -> anyhow::Result<()> {
+    launch_inner(bundle, false, args)
 }
 
 pub fn relaunch_current_bundle() -> anyhow::Result<MustExit> {
     let Ok(bundle) = glide_bundle() else {
         bail!("Skipping relaunch because the current application is not Glide");
     };
-    launch_inner(&bundle, true).map(|()| MustExit)
+    launch_inner(&bundle, true, &[]).map(|()| MustExit)
 }
 
 #[must_use = "Callers must immediately exit the process after reporting success"]
@@ -59,13 +59,17 @@ impl Drop for MustExit {
     }
 }
 
-fn launch_inner(bundle: &NSBundle, relaunch: bool) -> anyhow::Result<()> {
+fn launch_inner(bundle: &NSBundle, relaunch: bool, args: &[String]) -> anyhow::Result<()> {
     let path = bundle.bundlePath().to_string();
     let mut cmd = Command::new("/usr/bin/open");
     if relaunch {
         cmd.arg("-n");
     }
-    match cmd.arg(path).output() {
+    cmd.arg(path).arg("--args");
+    for arg in args {
+        cmd.arg(arg);
+    }
+    match cmd.output() {
         Ok(out) if out.status.success() => Ok(()),
         Ok(out) => bail!(
             "Launch failed with code {status}. stderr:\n{stderr}\n\nstdout:\n{stdout}",
