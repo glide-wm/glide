@@ -797,4 +797,54 @@ mod tests {
         assert_eq!(window_frame_disabled, rect(0, 0, 1000, 1000));
         assert_eq!(window_frame_enabled, rect(0, 20, 1000, 980));
     }
+
+    #[test]
+    fn it_respects_outer_gap_for_fullscreen_windows() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+        let _a1 = tree.add_window_under(layout, root, WindowId::new(1, 1));
+        let _a2 = tree.add_window_under(layout, root, WindowId::new(1, 2));
+
+        let screen = rect(0, 0, 1000, 1000);
+        let outer_gap = 10.0;
+
+        // Test with non-fullscreen layout
+        let mut config = Config::default();
+        config.settings.outer_gap = outer_gap;
+        let (frames, _) = tree.calculate_layout_and_groups(layout, screen, &config);
+
+        // Without fullscreen, windows should be split with outer_gap applied at root
+        // Screen (0,0,1000,1000) with outer_gap=10 becomes (10,10,980,980)
+        // Then split horizontally: each window gets half of 980 = 490
+        let window1_frame = frames.iter().find(|(wid, _)| *wid == WindowId::new(1, 1)).unwrap().1;
+        let window2_frame = frames.iter().find(|(wid, _)| *wid == WindowId::new(1, 2)).unwrap().1;
+        assert_eq!(
+            window1_frame,
+            rect(10, 10, 490, 980),
+            "window1 before fullscreen"
+        );
+        assert_eq!(
+            window2_frame,
+            rect(500, 10, 490, 980),
+            "window2 before fullscreen"
+        );
+
+        // Mark first window as fullscreen
+        let node1 = tree.window_node(layout, WindowId::new(1, 1)).unwrap();
+        tree.set_fullscreen(node1, true);
+
+        let (frames_fullscreen, _) = tree.calculate_layout_and_groups(layout, screen, &config);
+
+        // Fullscreen window should respect outer_gap (inset on all sides from 0,0,1000,1000)
+        let window1_fullscreen_frame =
+            frames_fullscreen.iter().find(|(wid, _)| *wid == WindowId::new(1, 1)).unwrap().1;
+
+        // Expected: (10, 10, 980, 980) - fullscreen with outer_gap
+        assert_eq!(
+            window1_fullscreen_frame,
+            rect(10, 10, 980, 980),
+            "window1 fullscreen with outer_gap"
+        );
+    }
 }
