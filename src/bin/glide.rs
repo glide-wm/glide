@@ -1,13 +1,13 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{borrow::Borrow, sync::mpsc, time::Duration};
+use std::{borrow::Borrow, path::PathBuf, sync::mpsc, time::Duration};
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use glide_wm::{
     actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest},
-    config::{self, Config},
+    config::{Config, config_path_default},
     sys::{
         bundle::{self, BundleError},
         message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
@@ -29,12 +29,12 @@ struct Opt {
 #[derive(Subcommand, Clone)]
 enum Command {
     /// Launch Glide.
-    Launch,
+    Launch(CmdLaunch),
     #[command(subcommand)]
     Service(CmdService),
     #[command()]
     Ping(CmdPing),
-    #[command(subcommand)]
+    #[command()]
     Config(CmdConfig),
 }
 
@@ -53,9 +53,26 @@ struct CmdPing {
     msg: Option<String>,
 }
 
+/// Launch Glide with optional configuration.
+#[derive(Parser, Clone)]
+struct CmdLaunch {
+    /// Path to a custom config file.
+    #[arg(long, short)]
+    config: Option<PathBuf>,
+}
+
 /// Manage server config.
+#[derive(Parser, Clone)]
+struct CmdConfig {
+    /// Path to a custom config file.
+    #[arg(long, short, global = true)]
+    config: Option<PathBuf>,
+    #[command(subcommand)]
+    action: ConfigSubcommand,
+}
+
 #[derive(Subcommand, Clone)]
-enum CmdConfig {
+enum ConfigSubcommand {
     /// Read the config file and update the config on the running server.
     Update(CmdUpdate),
     /// Check the config file for errors.
@@ -75,7 +92,7 @@ struct CmdUpdate {
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
-    if let Command::Launch = opt.command {
+    if let Command::Launch(cmd) = opt.command {
         match bundle::glide_bundle() {
             Err(BundleError::NotInBundle) => bail!(
                 "Not running in a bundle.
@@ -86,8 +103,9 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("Don't recognize bundle identifier {identifier}")
             }
             Ok(bundle) => {
-                if let Err(e) = Config::load() {
-                    bail!("Config is invalid; refusing to launch Glide:\n{e}");
+                let config_result = Config::load(cmd.config.as_deref());
+                if let Err(e) = config_result {
+                    bail!("Config is invalid; refusing to launch:\n{e}");
                 }
                 if Client::new().is_ok() {
                     bail!(
@@ -96,7 +114,12 @@ fn main() -> Result<(), anyhow::Error> {
                         Tip: The default key binding to exit Glide is Alt+Shift+E."
                     );
                 }
-                bundle::launch(&bundle)?;
+                let mut args = Vec::new();
+                if let Some(path) = &cmd.config {
+                    args.push("--config".into());
+                    args.push(path.canonicalize()?.into_os_string());
+                }
+                bundle::launch(&bundle, &args)?;
                 eprintln!(
                     "Glide is starting.
                     \n\
@@ -112,7 +135,7 @@ fn main() -> Result<(), anyhow::Error> {
     let mut client = Client::new().context("Could not find server")?;
 
     match opt.command {
-        Command::Launch => unreachable!(), // handled above
+        Command::Launch(_) => unreachable!(), // handled above
         Command::Service(req) => {
             let (req, verb) = match req {
                 CmdService::Install => (ServiceRequest::Install, "registered"),
@@ -132,12 +155,15 @@ fn main() -> Result<(), anyhow::Error> {
                 _ => bail!("Unexpected response"),
             }
         }
-        Command::Config(CmdConfig::Update(CmdUpdate { watch })) => {
+        Command::Config(CmdConfig {
+            config,
+            action: ConfigSubcommand::Update(CmdUpdate { watch }),
+        }) => {
             let mut update_config = || {
-                if !config::config_file().exists() {
+                if !config.as_deref().unwrap_or(&config_path_default()).exists() {
                     eprintln!("Warning: Config file missing; will load defaults");
                 }
-                let config = match Config::load() {
+                let config = match Config::load(config.as_deref()) {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("{e}\n");
@@ -162,7 +188,7 @@ fn main() -> Result<(), anyhow::Error> {
             if watch {
                 let (tx, rx) = mpsc::channel();
                 let mut debouncer = new_debouncer(Duration::from_millis(50), tx)?;
-                debouncer.watcher().watch(&config::config_file(), RecursiveMode::NonRecursive)?;
+                debouncer.watcher().watch(&config_path_default(), RecursiveMode::NonRecursive)?;
                 update_config();
                 for event in rx {
                     event?;
@@ -172,11 +198,14 @@ fn main() -> Result<(), anyhow::Error> {
                 update_config();
             }
         }
-        Command::Config(CmdConfig::Verify) => {
-            if !config::config_file().exists() {
+        Command::Config(CmdConfig {
+            config,
+            action: ConfigSubcommand::Verify,
+        }) => {
+            if !config.as_deref().unwrap_or(&config_path_default()).exists() {
                 bail!("Config file missing");
             }
-            if let Err(e) = Config::load() {
+            if let Err(e) = Config::load(config.as_deref()) {
                 eprintln!("{e}");
                 std::process::exit(1);
             }

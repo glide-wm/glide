@@ -26,7 +26,7 @@ pub fn restore_file() -> PathBuf {
     data_dir().join("layout.ron")
 }
 
-pub fn config_file() -> PathBuf {
+pub fn config_path_default() -> PathBuf {
     dirs::home_dir().unwrap().join(".glide.toml")
 }
 
@@ -139,14 +139,16 @@ impl ConfigPartial {
 }
 
 impl Config {
-    pub fn load() -> anyhow::Result<Config> {
-        Self::read_or_default(&config_file())
-    }
-
-    fn read_or_default(path: &Path) -> anyhow::Result<Config> {
+    pub fn load(custom_path: Option<&Path>) -> anyhow::Result<Config> {
         let mut buf = String::new();
-        let Ok(mut file) = File::open(path) else {
-            return Ok(Config::default());
+        let default = config_path_default();
+        let (mut file, path) = match custom_path {
+            Some(path) => (File::open(path)?, path),
+            None => match File::open(&default) {
+                Ok(file) => (file, &*default),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Config::default()),
+                Err(e) => return Err(e.into()),
+            },
         };
         file.read_to_string(&mut buf)?;
         Self::parse(&buf).map_err(|e| anyhow::anyhow!("{}", format_toml_error(&e, &buf, path)))
