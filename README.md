@@ -23,20 +23,12 @@ Supports animations, too!
 
 ## Quick start
 
-[Download the latest release][latest] from the releases page.
-
-Open the disk image and install Glide by dragging it into Applications. I
-recommend installing the glide CLI; you can do this by running in a terminal:
-
 ```
-sudo ln -s /Applications/Glide.app/Contents/MacOS/glide /usr/local/bin
-```
-
-Launch the app using the CLI or with Finder.
-
-```
+brew install glide
 glide launch
 ```
+
+_Note:_ If you don't have Homebrew, see the "manual installation" section below.
 
 The first time you do this, you will have to follow instructions to enable
 Accessibility permissions.
@@ -56,7 +48,6 @@ glide config update
 
 To exit Glide, type Alt+Shift+E.
 
-[latest]: https://github.com/glide-wm/glide/releases/latest
 [glide.default.toml]: ./glide.default.toml
 
 ### Save and restore
@@ -78,6 +69,21 @@ To install Glide as a service to run at login, use:
 ```
 glide service install
 ```
+
+## Manual installation
+
+[Download the latest release][latest] from the releases page.
+
+Open the disk image and install Glide by dragging it into Applications. I
+recommend installing the glide CLI; you can do this by running in a terminal:
+
+```
+sudo ln -s /Applications/Glide.app/Contents/MacOS/glide /usr/local/bin
+```
+
+Launch the app using the CLI or with Finder.
+
+[latest]: https://github.com/glide-wm/glide/releases/latest
 
 ## Building from source
 
