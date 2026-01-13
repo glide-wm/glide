@@ -1,7 +1,7 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::process::Command;
+use std::{ffi::OsString, process::Command};
 
 use anyhow::bail;
 use objc2::rc::Retained;
@@ -40,7 +40,7 @@ fn bundle_fallback() -> Option<Retained<NSBundle>> {
     NSBundle::bundleWithPath(&NSString::from_str(bundle.to_str()?))
 }
 
-pub fn launch(bundle: &NSBundle, args: &[String]) -> anyhow::Result<()> {
+pub fn launch(bundle: &NSBundle, args: &[OsString]) -> anyhow::Result<()> {
     launch_inner(bundle, false, args)
 }
 
@@ -59,7 +59,7 @@ impl Drop for MustExit {
     }
 }
 
-fn launch_inner(bundle: &NSBundle, relaunch: bool, args: &[String]) -> anyhow::Result<()> {
+fn launch_inner(bundle: &NSBundle, relaunch: bool, args: &[OsString]) -> anyhow::Result<()> {
     let path = bundle.bundlePath().to_string();
     let mut cmd = Command::new("/usr/bin/open");
     if relaunch {

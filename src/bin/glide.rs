@@ -114,10 +114,10 @@ fn main() -> Result<(), anyhow::Error> {
                         Tip: The default key binding to exit Glide is Alt+Shift+E."
                     );
                 }
-                let mut args: Vec<String> = Vec::new();
+                let mut args = Vec::new();
                 if let Some(path) = &cmd.config {
-                    args.push("--config".to_string());
-                    args.push(path.canonicalize()?.to_string_lossy().into_owned());
+                    args.push("--config".into());
+                    args.push(path.canonicalize()?.into_os_string());
                 }
                 bundle::launch(&bundle, &args)?;
                 eprintln!(
