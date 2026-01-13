@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.2.5](https://github.com/glide-wm/glide/compare/v0.2.4...v0.2.5) (2026-01-13)
+
+
+### Features
+
+* **cli:** Add --restore option to `glide launch` ([b5cb685](https://github.com/glide-wm/glide/commit/b5cb685aea0d0a95ad074e74055a99a8eb8807c8))
+* **cli:** Add service install/uninstall commands ([1663481](https://github.com/glide-wm/glide/commit/16634819dc5d50a4a5a84df36423f5c19c3f46be))
+* **cli:** Add `--config` flag for custom config path support ([#79](https://github.com/glide-wm/glide/issues/79)) ([24f132b](https://github.com/glide-wm/glide/commit/24f132b22ad58cb964054e248f987c220532a7c3))
+
+### Bug Fixes
+
+* **layout:** Ensure fullscreen windows respect `outer_gap` configuration ([#80](https://github.com/glide-wm/glide/issues/80)) ([54af546](https://github.com/glide-wm/glide/commit/54af546128a1bd6819618bc90a07b5ec6665b856))
+
+### Improvements
+
+* **cli:** Add help text for config subcommands ([bb3a1a4](https://github.com/glide-wm/glide/commit/bb3a1a4edb4525821608b19ec9be60a14f4b99da))
+
+### Developer Tools
+
+* Add `app run` devtool command to run the app actor ([f6d4f14](https://github.com/glide-wm/glide/commit/f6d4f1453846ce6802e7693154b5edc148c5cc62))
+* Make exec_cmd warning more precise ([e57a86b](https://github.com/glide-wm/glide/commit/e57a86b734ec13facc7c40addf71bbedb78e26c1))
+
+### New Contributors
+
+* @y3owk1n made their first contribution in https://github.com/glide-wm/glide/pull/79
+
+
 ## [0.2.4](https://github.com/glide-wm/glide/compare/v0.2.3...v0.2.4) (2026-01-12)
 
 
