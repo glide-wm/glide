@@ -59,6 +59,26 @@ To exit Glide, type Alt+Shift+E.
 [latest]: https://github.com/glide-wm/glide/releases/latest
 [glide.default.toml]: ./glide.default.toml
 
+### Save and restore
+
+If you need to update Glide or restart it for any reason, exit with the
+`save_and_exit` key binding (default Alt+Shift+E). Then, when starting again,
+run it with the `--restore` flag:
+
+```
+glide launch --restore
+```
+
+Note that this does not work across machine restarts.
+
+### Running Glide at login
+
+To install Glide as a service to run at login, use:
+
+```
+glide service install
+```
+
 ## Building from source
 
 First, [install Rust](https://rustup.rs) and make sure you have the latest Xcode command line tools installed.
@@ -74,19 +94,6 @@ cargo run --release
 The first time you do this, you may have to follow instructions to enable
 Accessibility permissions. Instead of enabling them for Glide, enable them for
 whatever application your terminal is running in.
-
-### Save and restore
-
-If you need to update Glide or restart it for any reason, exit with the
-`save_and_exit` key binding (default Alt+Shift+E). Then, when starting again,
-run it with the `--restore` flag:
-
-```
-cargo run --release -- --restore
-```
-
-Note that this does not work across machine restarts. Currently it only works
-when running Glide from the command line.
 
 <!-- GUIDE_EXCLUDE_START -->
 ## Acknowledgements
