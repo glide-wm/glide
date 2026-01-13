@@ -19,7 +19,7 @@ use glide_wm::actor::status::Status;
 use glide_wm::actor::window_server::WindowServer;
 use glide_wm::actor::wm_controller::{self, WmController};
 use glide_wm::actor::{channel, server};
-use glide_wm::config::{Config, config_path_default, restore_file};
+use glide_wm::config::{Config, restore_file};
 use glide_wm::log;
 use glide_wm::sys::executor::Executor;
 use objc2::MainThreadMarker;
@@ -86,7 +86,7 @@ fn main() {
         std::process::exit(2)
     }
 
-    let config_result = Config::load(&opt.config.unwrap_or(config_path_default()));
+    let config_result = Config::load(opt.config.as_deref());
     let Ok(mut config) = config_result else {
         let alert = NSAlert::new(mtm);
         alert.setMessageText(ns_string!(

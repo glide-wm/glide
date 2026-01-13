@@ -103,8 +103,7 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("Don't recognize bundle identifier {identifier}")
             }
             Ok(bundle) => {
-                let config_path = cmd.config.as_ref();
-                let config_result = Config::load(config_path.unwrap_or(&config_path_default()));
+                let config_result = Config::load(cmd.config.as_deref());
                 if let Err(e) = config_result {
                     bail!("Config is invalid; refusing to launch Glide:\n{e}");
                 }
@@ -160,12 +159,11 @@ fn main() -> Result<(), anyhow::Error> {
             config,
             action: ConfigSubcommand::Update(CmdUpdate { watch }),
         }) => {
-            let path = config.unwrap_or(config_path_default());
             let mut update_config = || {
-                if !path.exists() {
+                if !config.as_deref().unwrap_or(&config_path_default()).exists() {
                     eprintln!("Warning: Config file missing; will load defaults");
                 }
-                let config = match Config::load(&path) {
+                let config = match Config::load(config.as_deref()) {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("{e}\n");
@@ -204,11 +202,10 @@ fn main() -> Result<(), anyhow::Error> {
             config,
             action: ConfigSubcommand::Verify,
         }) => {
-            let path = config.unwrap_or(config_path_default());
-            if !path.exists() {
+            if !config.as_deref().unwrap_or(&config_path_default()).exists() {
                 bail!("Config file missing");
             }
-            if let Err(e) = Config::load(&path) {
+            if let Err(e) = Config::load(config.as_deref()) {
                 eprintln!("{e}");
                 std::process::exit(1);
             }
