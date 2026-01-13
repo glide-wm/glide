@@ -151,6 +151,7 @@ pub trait CGRectExt {
     fn intersection(&self, other: &Self) -> Self;
     fn contains(&self, point: ic::CGPoint) -> bool;
     fn area(&self) -> f64;
+    fn inset(&self, amount: f64) -> Self;
 }
 
 impl CGRectExt for ic::CGRect {
@@ -172,6 +173,19 @@ impl CGRectExt for ic::CGRect {
 
     fn area(&self) -> f64 {
         self.size.width * self.size.height
+    }
+
+    fn inset(&self, amount: f64) -> Self {
+        ic::CGRect {
+            origin: ic::CGPoint {
+                x: self.origin.x + amount,
+                y: self.origin.y + amount,
+            },
+            size: ic::CGSize {
+                width: self.size.width - amount * 2.0,
+                height: self.size.height - amount * 2.0,
+            },
+        }
     }
 }
 

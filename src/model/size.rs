@@ -12,7 +12,7 @@ use super::selection::Selection;
 use super::tree::{NodeId, NodeMap};
 use crate::actor::app::WindowId;
 use crate::config::Config;
-use crate::sys::geometry::Round;
+use crate::sys::geometry::{CGRectExt, Round};
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct Size {
@@ -306,17 +306,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
         // Usually this should be false, except in the uncommon case where root
         // is fullscreen.
         let parent_visible = self.fullscreen_nodes.contains(&root);
-        let outer_gap = self.config.settings.outer_gap;
-        let rect = CGRect {
-            origin: CGPoint {
-                x: rect.origin.x + outer_gap,
-                y: rect.origin.y + outer_gap,
-            },
-            size: CGSize {
-                width: rect.size.width - outer_gap * 2.0,
-                height: rect.size.height - outer_gap * 2.0,
-            },
-        };
+        let rect = rect.inset(self.config.settings.outer_gap);
         self.visit_node(root, rect, true, parent_visible, true);
     }
 
@@ -330,7 +320,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
     ) {
         let info = &self.size.info[node];
         let rect = if info.is_fullscreen {
-            self.screen
+            self.screen.inset(self.config.settings.outer_gap)
         } else {
             rect
         };
@@ -806,5 +796,55 @@ mod tests {
 
         assert_eq!(window_frame_disabled, rect(0, 0, 1000, 1000));
         assert_eq!(window_frame_enabled, rect(0, 20, 1000, 980));
+    }
+
+    #[test]
+    fn it_respects_outer_gap() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+        let _a1 = tree.add_window_under(layout, root, WindowId::new(1, 1));
+        let _a2 = tree.add_window_under(layout, root, WindowId::new(1, 2));
+
+        let screen = rect(0, 0, 1000, 1000);
+        let outer_gap = 10.0;
+
+        // Test with non-fullscreen layout
+        let mut config = Config::default();
+        config.settings.outer_gap = outer_gap;
+        let (frames, _) = tree.calculate_layout_and_groups(layout, screen, &config);
+
+        // Without fullscreen, windows should be split with outer_gap applied at root
+        // Screen (0,0,1000,1000) with outer_gap=10 becomes (10,10,980,980)
+        // Then split horizontally: each window gets half of 980 = 490
+        let window1_frame = frames.iter().find(|(wid, _)| *wid == WindowId::new(1, 1)).unwrap().1;
+        let window2_frame = frames.iter().find(|(wid, _)| *wid == WindowId::new(1, 2)).unwrap().1;
+        assert_eq!(
+            window1_frame,
+            rect(10, 10, 490, 980),
+            "window1 before fullscreen"
+        );
+        assert_eq!(
+            window2_frame,
+            rect(500, 10, 490, 980),
+            "window2 before fullscreen"
+        );
+
+        // Mark first window as fullscreen
+        let node1 = tree.window_node(layout, WindowId::new(1, 1)).unwrap();
+        tree.set_fullscreen(node1, true);
+
+        let (frames_fullscreen, _) = tree.calculate_layout_and_groups(layout, screen, &config);
+
+        // Fullscreen window should respect outer_gap (inset on all sides from 0,0,1000,1000)
+        let window1_fullscreen_frame =
+            frames_fullscreen.iter().find(|(wid, _)| *wid == WindowId::new(1, 1)).unwrap().1;
+
+        // Expected: (10, 10, 980, 980) - fullscreen with outer_gap
+        assert_eq!(
+            window1_fullscreen_frame,
+            rect(10, 10, 980, 980),
+            "window1 fullscreen with outer_gap"
+        );
     }
 }
