@@ -59,6 +59,11 @@ struct CmdLaunch {
     /// Path to a custom config file.
     #[arg(long, short)]
     config: Option<PathBuf>,
+
+    /// Restore the layout saved with the save_and_exit command. This is only
+    /// useful within the same login session.
+    #[arg(long)]
+    restore: bool,
 }
 
 /// Manage server config.
@@ -92,7 +97,7 @@ struct CmdUpdate {
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
-    if let Command::Launch(cmd) = opt.command {
+    if let Command::Launch(CmdLaunch { config, restore }) = opt.command {
         match bundle::glide_bundle() {
             Err(BundleError::NotInBundle) => bail!(
                 "Not running in a bundle.
@@ -103,7 +108,7 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("Don't recognize bundle identifier {identifier}")
             }
             Ok(bundle) => {
-                let config_result = Config::load(cmd.config.as_deref());
+                let config_result = Config::load(config.as_deref());
                 if let Err(e) = config_result {
                     bail!("Config is invalid; refusing to launch:\n{e}");
                 }
@@ -115,9 +120,12 @@ fn main() -> Result<(), anyhow::Error> {
                     );
                 }
                 let mut args = Vec::new();
-                if let Some(path) = &cmd.config {
+                if let Some(path) = &config {
                     args.push("--config".into());
                     args.push(path.canonicalize()?.into_os_string());
+                }
+                if restore {
+                    args.push("--restore".into());
                 }
                 bundle::launch(&bundle, &args)?;
                 eprintln!(

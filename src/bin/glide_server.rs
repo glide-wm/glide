@@ -50,8 +50,8 @@ struct Cli {
     #[arg(long)]
     validate: bool,
 
-    /// Restore the configuration saved with the save_and_exit command. This is
-    /// only useful within the same session.
+    /// Restore the layout saved with the save_and_exit command. This is only
+    /// useful within the same login session.
     #[arg(long)]
     restore: bool,
 
