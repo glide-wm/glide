@@ -799,7 +799,7 @@ mod tests {
     }
 
     #[test]
-    fn it_respects_outer_gap_for_fullscreen_windows() {
+    fn it_respects_outer_gap() {
         let mut tree = LayoutTree::new();
         let layout = tree.create_layout();
         let root = tree.root(layout);
