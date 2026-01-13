@@ -105,7 +105,7 @@ fn main() -> Result<(), anyhow::Error> {
             Ok(bundle) => {
                 let config_result = Config::load(cmd.config.as_deref());
                 if let Err(e) = config_result {
-                    bail!("Config is invalid; refusing to launch Glide:\n{e}");
+                    bail!("Config is invalid; refusing to launch:\n{e}");
                 }
                 if Client::new().is_ok() {
                     bail!(
@@ -117,7 +117,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let mut args: Vec<String> = Vec::new();
                 if let Some(path) = &cmd.config {
                     args.push("--config".to_string());
-                    args.push(path.to_string_lossy().into_owned());
+                    args.push(path.canonicalize()?.to_string_lossy().into_owned());
                 }
                 bundle::launch(&bundle, &args)?;
                 eprintln!(
