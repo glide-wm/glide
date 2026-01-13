@@ -5,22 +5,35 @@
 
 use std::ffi::c_void;
 
-use objc2::AnyThread;
 use objc2::rc::Retained;
-use objc2_app_kit::{NSImage, NSStatusBar, NSStatusItem, NSVariableStatusItemLength};
+use objc2::{
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel,
+};
+use objc2_app_kit::{
+    NSImage, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem, NSVariableStatusItemLength,
+};
 use objc2_core_foundation::CGSize;
-use objc2_foundation::{MainThreadMarker, NSData, NSString};
+use objc2_foundation::{NSData, NSObject, NSString, ns_string};
 use tracing::{debug, warn};
 
+use crate::actor::reactor;
+
 /// Manages a menu bar icon that displays the current space ID.
+use crate::actor::reactor::{
+    Command, Event as ReactorEvent, ReactorCommand, Sender as ReactorSender,
+};
+
+const SAVE_AND_QUIT_TAG: i64 = 1;
+
 pub struct StatusIcon {
     status_item: Retained<NSStatusItem>,
     mtm: MainThreadMarker,
+    _menu_handler: Retained<MenuHandler>,
 }
 
 impl StatusIcon {
     /// Creates a new menu bar manager.
-    pub fn new(mtm: MainThreadMarker) -> Self {
+    pub fn new(mtm: MainThreadMarker, reactor_tx: ReactorSender) -> Self {
         let status_bar = NSStatusBar::systemStatusBar();
         let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
 
@@ -31,12 +44,33 @@ impl StatusIcon {
             button.setImage(Some(&parachute_image));
         }
 
-        Self { status_item, mtm }
+        let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), ns_string!("Glide"));
+        let menu_handler = MenuHandler::new(mtm, reactor_tx);
+
+        let save_quit_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                ns_string!("Quit"),
+                Some(sel!(handleAction:)),
+                ns_string!(""),
+            )
+        };
+        unsafe { save_quit_item.setTarget(Some(&*menu_handler)) };
+        save_quit_item.setTag(SAVE_AND_QUIT_TAG as isize);
+        menu.addItem(&save_quit_item);
+
+        status_item.setMenu(Some(&menu));
+
+        Self {
+            status_item,
+            mtm,
+            _menu_handler: menu_handler,
+        }
     }
 
     /// Sets the text next to the icon.
     pub fn set_text(&mut self, text: &str) {
-        let ns_title = NSString::from_str(&text);
+        let ns_title = NSString::from_str(text);
         if let Some(button) = self.status_item.button(self.mtm) {
             button.setTitle(&ns_title);
         } else {
@@ -53,7 +87,49 @@ impl Drop for StatusIcon {
     }
 }
 
-/// Creates the parachute icon from the SVG file
+struct MenuHandlerIvars {
+    tx: reactor::Sender,
+}
+
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[ivars = MenuHandlerIvars]
+    struct MenuHandler;
+
+    impl MenuHandler {
+        #[unsafe(method(handleAction:))]
+        fn handle_action(&self, sender: &NSObject) {
+            let tag = unsafe {
+                let tag: i64 = msg_send![sender, tag];
+                tag
+            };
+            debug!("Menu action received with tag: {}", tag);
+            let tx = &self.ivars().tx;
+            match tag {
+                SAVE_AND_QUIT_TAG => {
+                    debug!("Sending SaveAndExit command");
+                    tx.send(ReactorEvent::Command(Command::Reactor(
+                        ReactorCommand::SaveAndExit,
+                    )));
+                }
+                _ => {
+                    warn!("Unknown tag: {}", tag);
+                }
+            }
+        }
+    }
+);
+
+impl MenuHandler {
+    /// Creates the parachute icon from the SVG file
+    pub fn new(mtm: MainThreadMarker, tx: reactor::Sender) -> Retained<Self> {
+        let this = Self::alloc(mtm);
+        let this = this.set_ivars(MenuHandlerIvars { tx });
+        unsafe { msg_send![super(this), init] }
+    }
+}
+
 fn create_parachute_icon() -> Option<Retained<NSImage>> {
     // Load the SVG file
     let svg_data = include_str!("../../site/src/assets/parachute-small.svg");
