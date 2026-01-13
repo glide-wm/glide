@@ -306,17 +306,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
         // Usually this should be false, except in the uncommon case where root
         // is fullscreen.
         let parent_visible = self.fullscreen_nodes.contains(&root);
-        let outer_gap = self.config.settings.outer_gap;
-        let rect = CGRect {
-            origin: CGPoint {
-                x: rect.origin.x + outer_gap,
-                y: rect.origin.y + outer_gap,
-            },
-            size: CGSize {
-                width: rect.size.width - outer_gap * 2.0,
-                height: rect.size.height - outer_gap * 2.0,
-            },
-        };
+        let rect = rect.inset(self.config.settings.outer_gap);
         self.visit_node(root, rect, true, parent_visible, true);
     }
 
