@@ -24,6 +24,17 @@ We believe *perfection is a process* and do not strive to get everything perfect
 
 We prefer code changes that are tested, and may ask for tests before merging. Tests should be manually verified to fail before the behavior change and succeed after. At some layers of the stack (e.g. the system level, app actor, and UI) this is not currently feasible, and we substitute with manual verification and sharing logs or screen captures instead.
 
+## Product values and architecture
+
+* **Reliability.** This is the most important. The entire architecture is built around creating order from chaos. We don't introduce new sources of determinism, like timers, whenever possible.
+* **Performance.** We the people demand a slick experience.
+
+This combination leads to some architectural principles:
+
+* **Incrementalism.** This is especially apparent in the reactor. Don't try to force a global view when that doesn't mesh with how the OS environment works. Adapt to new information as it becomes available. Generally this looks like avoiding big initialization and discovery steps before doing anything.
+
+This list is a work in progress, and we don't always live up to these values today. But understanding the philosophy can help you understand architectural decisions and how the codebase is meant to evolve.
+
 ## Development process
 
 Glide is very easy to build, run, and test with cargo. Running tests is as simple as
