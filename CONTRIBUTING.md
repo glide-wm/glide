@@ -80,7 +80,7 @@ See the [tracing_subscriber EnvFilter docs](https://docs.rs/tracing-subscriber/0
 ### Save and restore
 
 If you need to update Glide or restart it for any reason, exit with the
-`save_and_exit` key binding (default Alt+Shift+E). Then, when starting again,
+`save_and_exit` key binding (default Option+Shift+E). Then, when starting again,
 run it with the `--restore` flag:
 
 ```
