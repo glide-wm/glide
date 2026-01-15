@@ -5,10 +5,10 @@
 mod partial;
 use std::fs::File;
 use std::io::Read;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use anyhow::bail;
 use livesplit_hotkey::Hotkey;
 use macro_rules_attribute::derive;
 
@@ -116,11 +116,14 @@ impl ConfigPartial {
         toml::from_str(include_str!("../glide.default.toml")).unwrap()
     }
 
-    fn validate(self) -> Result<Config, anyhow::Error> {
+    fn validate(self) -> Result<Config, SpannedError> {
         let mut keys = Vec::new();
         for (key, cmd) in self.keys.unwrap_or_default() {
             let Ok(key) = Hotkey::from_str(&key) else {
-                bail!("Could not parse hotkey: {key}");
+                return Err(SpannedError {
+                    message: format!("Could not parse hotkey: {key}"),
+                    span: None,
+                });
             };
             keys.push((key, cmd));
         }
@@ -151,27 +154,25 @@ impl Config {
             },
         };
         file.read_to_string(&mut buf)?;
-        Self::parse(&buf).map_err(|e| anyhow::anyhow!("{}", format_toml_error(&e, &buf, path)))
+        Self::parse(&buf).map_err(|e| anyhow::anyhow!("{}", format_toml_error(e, &buf, path)))
     }
 
     pub fn default() -> Config {
         ConfigPartial::default().validate().unwrap()
     }
 
-    fn parse(buf: &str) -> Result<Self, toml::de::Error> {
+    fn parse(buf: &str) -> Result<Self, SpannedError> {
         let c: ConfigPartial = toml::from_str(buf)?;
         let defaults = ConfigPartial::default();
-        Ok(ConfigPartial::merge(defaults, c)
-            .validate()
-            .expect("merging into default config should never fail"))
+        ConfigPartial::merge(defaults, c).validate()
     }
 }
 
-fn format_toml_error(error: &toml::de::Error, input: &str, path: &Path) -> String {
+fn format_toml_error(error: SpannedError, input: &str, path: &Path) -> String {
     use annotate_snippets::{AnnotationKind, Level, Renderer, Snippet};
 
-    let message = error.message();
-    let Some(span) = error.span() else {
+    let message = error.message;
+    let Some(span) = error.span else {
         return format!("could not parse config: {}", message);
     };
 
@@ -183,6 +184,30 @@ fn format_toml_error(error: &toml::de::Error, input: &str, path: &Path) -> Strin
 
     let renderer = Renderer::styled();
     format!("{}", renderer.render(&[report]))
+}
+
+#[derive(Debug)]
+struct SpannedError {
+    message: String,
+    span: Option<Range<usize>>,
+}
+
+impl From<toml::de::Error> for SpannedError {
+    fn from(e: toml::de::Error) -> Self {
+        Self {
+            message: e.message().to_owned(),
+            span: e.span(),
+        }
+    }
+}
+
+impl From<ValidationError> for SpannedError {
+    fn from(e: ValidationError) -> Self {
+        Self {
+            message: format!("{e}"),
+            span: None, // TODO
+        }
+    }
 }
 
 #[cfg(test)]
