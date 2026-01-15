@@ -144,8 +144,8 @@ fn main() {
         group_indicators_tx,
     );
     let notification_center = NotificationCenter::new(wm_controller_tx.clone());
-    let mouse = Mouse::new(config.clone(), events_tx, mouse_rx);
-    let status = Status::new(config.clone(), status_rx, mtm);
+    let mouse = Mouse::new(config.clone(), events_tx.clone(), mouse_rx);
+    let status = Status::new(config.clone(), status_rx, mtm, events_tx.clone());
     let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
     let window_server = WindowServer::new(mtm);
 

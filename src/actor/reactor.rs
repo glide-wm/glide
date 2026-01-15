@@ -532,6 +532,7 @@ impl Reactor {
                 println!("{}", self.layout.serialize_to_string());
             }
             Event::Command(Command::Reactor(ReactorCommand::SaveAndExit)) => {
+                info!("SaveAndExit command received");
                 match self.layout.save(crate::config::restore_file()) {
                     Ok(()) => std::process::exit(0),
                     Err(e) => {
