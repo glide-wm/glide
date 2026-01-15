@@ -5,6 +5,7 @@
 
 pub mod group_indicator;
 pub mod permission_flow;
+pub mod status_bar;
 
 pub use group_indicator::{
     Color, GroupDisplayData, GroupIndicatorNSView, GroupKind, IndicatorConfig,

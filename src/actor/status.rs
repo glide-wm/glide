@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use crate::config::Config;
 use crate::sys::screen::{SpaceId, get_active_space_number};
-use crate::sys::status_bar::StatusIcon;
+use crate::ui::status_bar::StatusIcon;
 use crate::{actor, trace_call};
 
 #[derive(Debug)]

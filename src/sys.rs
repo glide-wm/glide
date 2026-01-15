@@ -12,6 +12,5 @@ pub mod message_port;
 pub mod observer;
 pub mod run_loop;
 pub mod screen;
-pub mod status_bar;
 pub mod timer;
 pub mod window_server;
