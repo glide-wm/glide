@@ -97,21 +97,17 @@ struct CmdUpdate {
 fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
-    if let Command::Launch(CmdLaunch { config, restore }) = opt.command {
-        return launch(config, restore);
-    }
-
-    // Remaining commands all depend on the server running.
-    let mut client = Client::new().context("Could not find server")?;
+    // Not all commands require a client, so defer it.
+    let make_client = || Client::new().context("Could not find server");
 
     match opt.command {
-        Command::Launch(_) => unreachable!(), // handled above
+        Command::Launch(CmdLaunch { config, restore }) => launch(config, restore)?,
         Command::Service(req) => {
             let (req, verb) = match req {
                 CmdService::Install => (ServiceRequest::Install, "registered"),
                 CmdService::Uninstall => (ServiceRequest::Uninstall, "unregistered"),
             };
-            let response = client.send(Request::Service(req))?;
+            let response = make_client()?.send(Request::Service(req))?;
             match response {
                 Response::Success => println!("Glide was {verb} as a service"),
                 Response::Error(e) => bail!("{e}"),
@@ -119,7 +115,7 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
         Command::Ping(send) => {
-            let response = client.send(Request::Ping(send.msg.unwrap_or_default()))?;
+            let response = make_client()?.send(Request::Ping(send.msg.unwrap_or_default()))?;
             match response {
                 Response::Pong(data) => eprintln!("Got response {data}"),
                 _ => bail!("Unexpected response"),
@@ -129,6 +125,7 @@ fn main() -> Result<(), anyhow::Error> {
             config,
             action: ConfigSubcommand::Update(CmdUpdate { watch }),
         }) => {
+            let mut client = make_client()?;
             let mut update_config = || {
                 if !config.as_deref().unwrap_or(&config_path_default()).exists() {
                     eprintln!("Warning: Config file missing; will load defaults");
@@ -147,7 +144,7 @@ fn main() -> Result<(), anyhow::Error> {
                         Ok(resp) => eprintln!("Unexpected response: {resp:?}"),
                         Err(ClientError::SendError(SendError::InvalidPort)) => {
                             eprintln!("Could not send to server; will attempt reconnect");
-                            client = Client::new().expect("Could not find server");
+                            client = make_client().unwrap();
                             continue;
                         }
                         Err(e) => eprintln!("Error: {e}"),
