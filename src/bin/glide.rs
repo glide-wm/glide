@@ -98,45 +98,7 @@ fn main() -> Result<(), anyhow::Error> {
     let opt: Opt = Parser::parse();
 
     if let Command::Launch(CmdLaunch { config, restore }) = opt.command {
-        match bundle::glide_bundle() {
-            Err(BundleError::NotInBundle) => bail!(
-                "Not running in a bundle.
-                \n\
-                To run glide from the command line, use `cargo run` or start glide_server directly."
-            ),
-            Err(BundleError::BundleNotGlide { identifier }) => {
-                bail!("Don't recognize bundle identifier {identifier}")
-            }
-            Ok(bundle) => {
-                let config_result = Config::load(config.as_deref());
-                if let Err(e) = config_result {
-                    bail!("Config is invalid; refusing to launch:\n{e}");
-                }
-                if Client::new().is_ok() {
-                    bail!(
-                        "Glide appears to be running already.
-                        \n\
-                        Tip: The default key binding to exit Glide is Alt+Shift+E."
-                    );
-                }
-                let mut args = Vec::new();
-                if let Some(path) = &config {
-                    args.push("--config".into());
-                    args.push(path.canonicalize()?.into_os_string());
-                }
-                if restore {
-                    args.push("--restore".into());
-                }
-                bundle::launch(&bundle, &args)?;
-                eprintln!(
-                    "Glide is starting.
-                    \n\
-                    Tip: Use Alt+Z to start managing the current space.\n\
-                    Tip: Use Alt+Shift+E to exit Glide."
-                );
-                return Ok(());
-            }
-        }
+        return launch(config, restore);
     }
 
     // Remaining commands all depend on the server running.
@@ -222,6 +184,48 @@ fn main() -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+}
+
+fn launch(config: Option<PathBuf>, restore: bool) -> Result<(), anyhow::Error> {
+    match bundle::glide_bundle() {
+        Err(BundleError::NotInBundle) => bail!(
+            "Not running in a bundle.
+                \n\
+                To run glide from the command line, use `cargo run` or start glide_server directly."
+        ),
+        Err(BundleError::BundleNotGlide { identifier }) => {
+            bail!("Don't recognize bundle identifier {identifier}")
+        }
+        Ok(bundle) => {
+            let config_result = Config::load(config.as_deref());
+            if let Err(e) = config_result {
+                bail!("Config is invalid; refusing to launch:\n{e}");
+            }
+            if Client::new().is_ok() {
+                bail!(
+                    "Glide appears to be running already.
+                        \n\
+                        Tip: The default key binding to exit Glide is Alt+Shift+E."
+                );
+            }
+            let mut args = Vec::new();
+            if let Some(path) = &config {
+                args.push("--config".into());
+                args.push(path.canonicalize()?.into_os_string());
+            }
+            if restore {
+                args.push("--restore".into());
+            }
+            bundle::launch(&bundle, &args)?;
+            eprintln!(
+                "Glide is starting.
+                    \n\
+                    Tip: Use Alt+Z to start managing the current space.\n\
+                    Tip: Use Alt+Shift+E to exit Glide."
+            );
+            Ok(())
+        }
+    }
 }
 
 struct Client {
