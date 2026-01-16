@@ -109,8 +109,11 @@ group_bars.vertical_placement = "right"
 
 # WARNING:
 # This section contains experimental features that might break or be removed in
-# the future. Use at your own risk.
+# the future. Use at your own risk!
 [settings.experimental]
 
-# Enables the experimental status icon, which shows the current space.
+# Enables the experimental status icon.
 status_icon.enable = false
+
+# Show the current space index on the status icon.
+status_icon.space_index = false

@@ -57,6 +57,7 @@ impl Status {
         if self.config.settings.experimental.status_icon.enable {
             self.icon = icon.or_else(|| Some(StatusIcon::new(self.mtm, self.reactor_tx.clone())));
         }
+        self.update_space();
     }
 
     pub async fn run(mut self) {
@@ -72,18 +73,24 @@ impl Status {
     #[instrument(skip(self))]
     fn handle_event(&mut self, event: Event) {
         match event {
-            Event::SpaceChanged(_) | Event::FocusedScreenChanged => {
-                // TODO: Move this off the main thread.
-                let Some(icon) = &mut self.icon else { return };
-                let label = trace_call!(get_active_space_number())
-                    .map(|n| n.to_string())
-                    .unwrap_or_default();
-                icon.set_text(&label);
-            }
+            Event::SpaceChanged(_) | Event::FocusedScreenChanged => self.update_space(),
             Event::ConfigUpdated(config) => {
                 self.config = config;
                 self.apply_config();
             }
+        }
+    }
+
+    fn update_space(&mut self) {
+        let Some(icon) = &mut self.icon else { return };
+        if self.config.settings.experimental.status_icon.space_index {
+            // TODO: Move this off the main thread.
+            let label = trace_call!(get_active_space_number())
+                .map(|n| n.to_string())
+                .unwrap_or_default();
+            icon.set_text(&label);
+        } else {
+            icon.set_text("");
         }
     }
 }
