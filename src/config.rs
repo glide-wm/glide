@@ -78,6 +78,7 @@ pub struct Experimental {
 pub struct StatusIcon {
     pub enable: bool,
     pub space_index: bool,
+    pub color: bool,
 }
 
 #[derive(PartialConfig!)]

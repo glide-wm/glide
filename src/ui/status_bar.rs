@@ -22,6 +22,7 @@ use crate::actor::reactor;
 use crate::actor::reactor::{
     Command, Event as ReactorEvent, ReactorCommand, Sender as ReactorSender,
 };
+use crate::config;
 
 const SAVE_AND_QUIT_TAG: i64 = 1;
 
@@ -33,13 +34,17 @@ pub struct StatusIcon {
 
 impl StatusIcon {
     /// Creates a new menu bar manager.
-    pub fn new(mtm: MainThreadMarker, reactor_tx: ReactorSender) -> Self {
+    pub fn new(
+        config: &config::StatusIcon,
+        mtm: MainThreadMarker,
+        reactor_tx: ReactorSender,
+    ) -> Self {
         let status_bar = NSStatusBar::systemStatusBar();
         let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
 
         // Create parachute icon
         if let Some(button) = status_item.button(mtm)
-            && let Some(parachute_image) = create_parachute_icon()
+            && let Some(parachute_image) = create_parachute_icon(config)
         {
             button.setImage(Some(&parachute_image));
         }
@@ -130,9 +135,13 @@ impl MenuHandler {
     }
 }
 
-fn create_parachute_icon() -> Option<Retained<NSImage>> {
+fn create_parachute_icon(config: &config::StatusIcon) -> Option<Retained<NSImage>> {
     // Load the SVG file
-    let svg_data = include_str!("../../site/src/assets/parachute-small.svg");
+    let svg_data = if config.color {
+        include_str!("../../site/src/assets/parachute-small.svg")
+    } else {
+        include_str!("../../site/src/assets/parachute-nocolor.svg")
+    };
     let ns_data =
         unsafe { NSData::dataWithBytes_length(svg_data.as_ptr() as *const c_void, svg_data.len()) };
 
@@ -142,8 +151,11 @@ fn create_parachute_icon() -> Option<Retained<NSImage>> {
 
     // Set the image size to be appropriate for menu bar (16x16 points)
     image.setSize(CGSize { width: 16.0, height: 16.0 });
-    // Set as template image so it follows system appearance
-    // image.setTemplate(true);
+
+    if !config.color {
+        // Set as template image so it follows system appearance
+        image.setTemplate(true);
+    }
 
     Some(image)
 }
