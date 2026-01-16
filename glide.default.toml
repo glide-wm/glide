@@ -117,3 +117,6 @@ status_icon.enable = false
 
 # Show the current space index on the status icon.
 status_icon.space_index = false
+
+# Use color in the icon.
+status_icon.color = false

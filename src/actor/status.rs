@@ -55,7 +55,13 @@ impl Status {
     fn apply_config(&mut self) {
         let icon = self.icon.take();
         if self.config.settings.experimental.status_icon.enable {
-            self.icon = icon.or_else(|| Some(StatusIcon::new(self.mtm, self.reactor_tx.clone())));
+            self.icon = icon.or_else(|| {
+                Some(StatusIcon::new(
+                    &self.config.settings.experimental.status_icon,
+                    self.mtm,
+                    self.reactor_tx.clone(),
+                ))
+            });
         }
         self.update_space();
     }
@@ -75,6 +81,12 @@ impl Status {
         match event {
             Event::SpaceChanged(_) | Event::FocusedScreenChanged => self.update_space(),
             Event::ConfigUpdated(config) => {
+                if self.config.settings.experimental.status_icon
+                    != config.settings.experimental.status_icon
+                {
+                    // Remove icon so it gets recreated.
+                    self.icon.take();
+                }
                 self.config = config;
                 self.apply_config();
             }
