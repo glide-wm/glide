@@ -75,7 +75,9 @@ pub fn handle_command(command: MetricsCommand) {
 
 pub fn show_timing() {
     tracing::dispatcher::get_default(|d| {
-        let timing_layer = d.downcast_ref::<TimingLayer>().unwrap();
+        let Some(timing_layer) = d.downcast_ref::<TimingLayer>() else {
+            return;
+        };
         print_histograms(timing_layer);
     })
 }
