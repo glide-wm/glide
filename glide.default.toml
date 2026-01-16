@@ -111,6 +111,3 @@ status_icon.enable = false
 
 # Print the current layout in the logs.
 "Alt + Shift + D" = "debug"
-
-"Alt + M" = "show_timing"
-"Alt + Shift + S" = "serialize"
