@@ -38,7 +38,13 @@ group_bars.vertical_placement = "right"
 status_icon.enable = false
 
 [keys]
-# Modifier and key names must be capitalized.
+# Note: Modifier and key names must be capitalized.
+
+# Save the current state to the restore file and exit.
+# Restore this with the --restore option when starting glide.
+# Note that the restore file is only useful when upgrading or restarting
+# glide itself; it is not valid after the user logs out or restarts.
+"Alt + Shift + E" = "save_and_exit"
 
 # Toggle whether the current space is managed by Glide.
 "Alt + Z" = "toggle_space_activated"
@@ -102,12 +108,6 @@ status_icon.enable = false
 #
 # Developer commands
 #
-
-# Save the current state to the restore file and exit.
-# Restore this with the --restore option when starting glide.
-# Note that the restore file is only useful when upgrading or restarting
-# glide itself; it is not valid after the user logs out or restarts.
-"Alt + Shift + E" = "save_and_exit"
 
 # Print the current layout in the logs.
 "Alt + Shift + D" = "debug"
