@@ -3,27 +3,21 @@
 ## [0.2.6](https://github.com/glide-wm/glide/compare/v0.2.5...v0.2.6) (2026-01-16)
 
 
-### Features
-
-* add menubar menu with initial `quit` ([#88](https://github.com/glide-wm/glide/issues/88)) ([d6b1874](https://github.com/glide-wm/glide/commit/d6b1874a5a56d2a1bd66204d79f3af1143cd688b))
-
-
 ### Bug Fixes
 
 * **cli:** Don't require server for `glide config verify` ([96c80cc](https://github.com/glide-wm/glide/commit/96c80cc6df8b723d65c5813a5823a715d1ac03de))
 * **cli:** Report key parsing errors without panicking ([0f7c809](https://github.com/glide-wm/glide/commit/0f7c809a6dbf3b17ca1bfb9f1a8439752e457b51))
 * Don't panic on show_timing command ([999dcdf](https://github.com/glide-wm/glide/commit/999dcdf38fd7aa6044b368504be0f925a5b7d0ce))
 
-
 ### Improvements
 
 * **config:** Remove useless developer commands from default config ([dcb9053](https://github.com/glide-wm/glide/commit/dcb90533f3723c5949f71b601118a30739b1ca19))
-
 
 ### Experimental Features
 
 * **status_icon:** Disable color by default ([266f74e](https://github.com/glide-wm/glide/commit/266f74e953ec35c35250b5ca2fecfab29cdea367))
 * **status_icon:** space_index config now enables the space number ([3c01d93](https://github.com/glide-wm/glide/commit/3c01d934ffa0d939b59738d7dd34e4754e4d9e96))
+* **status_icon:** Add menubar menu with initial `quit` ([#88](https://github.com/glide-wm/glide/issues/88)) ([d6b1874](https://github.com/glide-wm/glide/commit/d6b1874a5a56d2a1bd66204d79f3af1143cd688b))
 
 ## [0.2.5](https://github.com/glide-wm/glide/compare/v0.2.4...v0.2.5) (2026-01-13)
 
