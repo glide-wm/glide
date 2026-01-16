@@ -77,6 +77,7 @@ pub struct Experimental {
 #[serde(deny_unknown_fields)]
 pub struct StatusIcon {
     pub enable: bool,
+    pub space_index: bool,
 }
 
 #[derive(PartialConfig!)]
