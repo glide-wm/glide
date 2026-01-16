@@ -32,11 +32,6 @@ group_bars.thickness = 6
 group_bars.horizontal_placement = "top"
 group_bars.vertical_placement = "right"
 
-[settings.experimental]
-
-# Enables the experimental status icon, which shows the current space.
-status_icon.enable = false
-
 [keys]
 # Note: Modifier and key names must be capitalized.
 
@@ -111,3 +106,11 @@ status_icon.enable = false
 
 # Print the current layout in the logs.
 "Alt + Shift + D" = "debug"
+
+# WARNING:
+# This section contains experimental features that might break or be removed in
+# the future. Use at your own risk.
+[settings.experimental]
+
+# Enables the experimental status icon, which shows the current space.
+status_icon.enable = false
