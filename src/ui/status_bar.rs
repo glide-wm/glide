@@ -14,7 +14,7 @@ use objc2_app_kit::{
 };
 use objc2_core_foundation::CGSize;
 use objc2_foundation::{NSData, NSObject, NSString, ns_string};
-use tracing::{Span, debug, warn};
+use tracing::{Span, debug, error, warn};
 
 use crate::actor::reactor;
 
@@ -210,10 +210,12 @@ define_class!(
                 }
                 SHOW_DOCS_TAG => {
                     debug!("Opening docs in browser");
-                    std::process::Command::new("/usr/bin/open")
+                    if let Err(e) = std::process::Command::new("/usr/bin/open")
                         .arg("https://glidewm.org/reference/config")
                         .spawn()
-                        .ok();
+                    {
+                        error!("Failed to open documentation: {e}");
+                    }
                 }
                 _ => {
                     warn!("Unknown tag: {}", tag);
