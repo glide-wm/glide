@@ -284,17 +284,10 @@ impl WmController {
         let Some(space) = self.get_focused_space() else {
             return false;
         };
-        if self.login_window_active {
-            return false;
-        }
-        if self.config.one_space && Some(space) != self.starting_space {
-            return false;
-        }
-        let enabled = match space {
+        match space {
             sp if self.config.config.settings.default_disable => self.enabled_spaces.contains(&sp),
             sp => !self.disabled_spaces.contains(&sp),
-        };
-        enabled
+        }
     }
 
     fn active_spaces(&self) -> Vec<Option<SpaceId>> {
