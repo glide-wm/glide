@@ -44,6 +44,7 @@ pub enum WmEvent {
     ),
     Command(WmCommand),
     ConfigUpdated(Arc<crate::config::Config>),
+    QuerySpaceEnabled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +57,7 @@ pub enum WmCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WmCmd {
+    ToggleGlobalEnabled,
     ToggleSpaceActivated,
     Exec(ExecCmd),
 }
@@ -92,6 +94,7 @@ pub struct WmController {
     enabled_spaces: HashSet<SpaceId>,
     login_window_pid: Option<pid_t>,
     login_window_active: bool,
+    is_globally_enabled: bool,
     hotkeys: Option<HotkeyManager>,
     mtm: MainThreadMarker,
 }
@@ -122,6 +125,7 @@ impl WmController {
             enabled_spaces: HashSet::default(),
             login_window_pid: None,
             login_window_active: false,
+            is_globally_enabled: true,
             hotkeys: None,
             mtm: MainThreadMarker::new().unwrap(),
         };
@@ -187,12 +191,23 @@ impl WmController {
                     converter,
                 ));
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
+                self.status_tx.send(status::Event::SpaceEnabledChanged(
+                    self.is_current_space_enabled(),
+                ));
                 self.mouse_tx.send(mouse::Request::ScreenParametersChanged(frames, converter));
             }
             SpaceChanged(spaces) => {
                 self.handle_space_changed(spaces.clone());
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
+                self.status_tx.send(status::Event::SpaceEnabledChanged(
+                    self.is_current_space_enabled(),
+                ));
+            }
+            QuerySpaceEnabled => {
+                self.status_tx.send(status::Event::SpaceEnabledChanged(
+                    self.is_current_space_enabled(),
+                ));
             }
             Command(Wm(ToggleSpaceActivated)) => {
                 let Some(space) = self.get_focused_space() else { return };
@@ -204,6 +219,18 @@ impl WmController {
                 if !toggle_set.remove(&space) {
                     toggle_set.insert(space);
                 }
+                self.status_tx.send(status::Event::SpaceEnabledChanged(
+                    self.is_current_space_enabled(),
+                ));
+                self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
+            }
+            Command(Wm(ToggleGlobalEnabled)) => {
+                self.is_globally_enabled = !self.is_globally_enabled;
+                self.status_tx
+                    .send(status::Event::GlobalEnabledChanged(self.is_globally_enabled));
+                self.status_tx.send(status::Event::SpaceEnabledChanged(
+                    self.is_current_space_enabled(),
+                ));
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
             }
             Command(Wm(Exec(cmd))) => {
@@ -217,6 +244,9 @@ impl WmController {
                     .send(group_indicators::Event::ConfigChanged(config.clone()));
                 self.mouse_tx.send(mouse::Request::ConfigUpdated(config.clone()));
                 self.status_tx.send(status::Event::ConfigUpdated(config.clone()));
+                self.status_tx.send(status::Event::SpaceEnabledChanged(
+                    self.is_current_space_enabled(),
+                ));
                 self.send_event(reactor::Event::ConfigChanged(config.clone()));
                 self.config.config = config;
                 self.unregister_hotkeys();
@@ -254,7 +284,30 @@ impl WmController {
         self.cur_space.first().copied().flatten()
     }
 
+    fn is_current_space_enabled(&self) -> bool {
+        if !self.is_globally_enabled {
+            return false;
+        }
+        let Some(space) = self.get_focused_space() else {
+            return false;
+        };
+        if self.login_window_active {
+            return false;
+        }
+        if self.config.one_space && Some(space) != self.starting_space {
+            return false;
+        }
+        let enabled = match space {
+            sp if self.config.config.settings.default_disable => self.enabled_spaces.contains(&sp),
+            sp => !self.disabled_spaces.contains(&sp),
+        };
+        enabled
+    }
+
     fn active_spaces(&self) -> Vec<Option<SpaceId>> {
+        if !self.is_globally_enabled {
+            return vec![None; self.cur_space.len()];
+        }
         let mut spaces = self.cur_space.clone();
         for space in &mut spaces {
             let enabled = match space {

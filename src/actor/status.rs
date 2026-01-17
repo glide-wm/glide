@@ -9,6 +9,7 @@ use objc2::MainThreadMarker;
 use tracing::instrument;
 
 use crate::actor::reactor;
+use crate::actor::wm_controller;
 use crate::config::Config;
 use crate::sys::screen::{SpaceId, get_active_space_number};
 use crate::ui::status_bar::StatusIcon;
@@ -20,6 +21,8 @@ pub enum Event {
     // so we can always show the user the current space id.
     SpaceChanged(Vec<Option<SpaceId>>),
     FocusedScreenChanged,
+    GlobalEnabledChanged(bool),
+    SpaceEnabledChanged(bool),
     ConfigUpdated(Arc<Config>),
 }
 
@@ -29,6 +32,7 @@ pub struct Status {
     icon: Option<StatusIcon>,
     mtm: MainThreadMarker,
     reactor_tx: reactor::Sender,
+    wm_tx: wm_controller::Sender,
 }
 
 pub type Sender = actor::Sender<Event>;
@@ -40,6 +44,7 @@ impl Status {
         rx: Receiver,
         mtm: MainThreadMarker,
         reactor_tx: reactor::Sender,
+        wm_tx: wm_controller::Sender,
     ) -> Self {
         let mut this = Self {
             icon: None,
@@ -47,8 +52,11 @@ impl Status {
             rx,
             mtm,
             reactor_tx,
+            wm_tx,
         };
         this.apply_config();
+        this.update_toggle_title(true);
+        this.query_space_enabled();
         this
     }
 
@@ -60,10 +68,20 @@ impl Status {
                     &self.config.settings.experimental.status_icon,
                     self.mtm,
                     self.reactor_tx.clone(),
+                    self.wm_tx.clone(),
+                    true,
                 ))
             });
         }
         self.update_space();
+        self.query_space_enabled();
+    }
+
+    fn query_space_enabled(&mut self) {
+        let _ = self.wm_tx.send((
+            tracing::Span::current(),
+            wm_controller::WmEvent::QuerySpaceEnabled,
+        ));
     }
 
     pub async fn run(mut self) {
@@ -80,6 +98,8 @@ impl Status {
     fn handle_event(&mut self, event: Event) {
         match event {
             Event::SpaceChanged(_) | Event::FocusedScreenChanged => self.update_space(),
+            Event::GlobalEnabledChanged(enabled) => self.update_toggle_title(enabled),
+            Event::SpaceEnabledChanged(enabled) => self.update_space_toggle_title(enabled),
             Event::ConfigUpdated(config) => {
                 if self.config.settings.experimental.status_icon
                     != config.settings.experimental.status_icon
@@ -104,5 +124,24 @@ impl Status {
         } else {
             icon.set_text("");
         }
+    }
+
+    fn update_toggle_title(&mut self, enabled: bool) {
+        let Some(icon) = &mut self.icon else { return };
+        icon.set_toggle_title(if enabled {
+            "Disable Glide"
+        } else {
+            "Enable Glide"
+        });
+        icon.set_space_toggle_enabled(enabled);
+    }
+
+    fn update_space_toggle_title(&mut self, enabled: bool) {
+        let Some(icon) = &mut self.icon else { return };
+        icon.set_space_toggle_title(if enabled {
+            "Disable Space"
+        } else {
+            "Enable Space"
+        });
     }
 }
