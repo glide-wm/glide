@@ -281,9 +281,6 @@ impl WmController {
     }
 
     fn is_current_space_enabled(&self) -> bool {
-        if !self.is_globally_enabled {
-            return false;
-        }
         let Some(space) = self.get_focused_space() else {
             return false;
         };
