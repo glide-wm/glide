@@ -44,7 +44,6 @@ pub enum WmEvent {
     ),
     Command(WmCommand),
     ConfigUpdated(Arc<crate::config::Config>),
-    QuerySpaceEnabled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,11 +108,12 @@ impl WmController {
         group_indicators_tx: group_indicators::Sender,
     ) -> (Self, Sender) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let is_globally_enabled = true;
         let this = Self {
             config,
             events_tx,
             mouse_tx,
-            status_tx,
+            status_tx: status_tx.clone(),
             ws_tx,
             group_indicators_tx,
             receiver,
@@ -125,10 +125,11 @@ impl WmController {
             enabled_spaces: HashSet::default(),
             login_window_pid: None,
             login_window_active: false,
-            is_globally_enabled: true,
+            is_globally_enabled,
             hotkeys: None,
             mtm: MainThreadMarker::new().unwrap(),
         };
+        status_tx.send(status::Event::GlobalEnabledChanged(is_globally_enabled));
         (this, sender)
     }
 
@@ -200,11 +201,6 @@ impl WmController {
                 self.handle_space_changed(spaces.clone());
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
-                self.status_tx.send(status::Event::SpaceEnabledChanged(
-                    self.is_current_space_enabled(),
-                ));
-            }
-            QuerySpaceEnabled => {
                 self.status_tx.send(status::Event::SpaceEnabledChanged(
                     self.is_current_space_enabled(),
                 ));

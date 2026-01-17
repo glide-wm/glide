@@ -56,7 +56,6 @@ impl Status {
         };
         this.apply_config();
         this.update_toggle_title(true);
-        this.query_space_enabled();
         this
     }
 
@@ -74,14 +73,6 @@ impl Status {
             });
         }
         self.update_space();
-        self.query_space_enabled();
-    }
-
-    fn query_space_enabled(&mut self) {
-        let _ = self.wm_tx.send((
-            tracing::Span::current(),
-            wm_controller::WmEvent::QuerySpaceEnabled,
-        ));
     }
 
     pub async fn run(mut self) {
