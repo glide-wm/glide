@@ -68,7 +68,6 @@ impl Status {
                     self.mtm,
                     self.reactor_tx.clone(),
                     self.wm_tx.clone(),
-                    true,
                 ))
             });
         }

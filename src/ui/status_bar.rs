@@ -45,7 +45,6 @@ impl StatusIcon {
         mtm: MainThreadMarker,
         reactor_tx: ReactorSender,
         wm_tx: wm_controller::Sender,
-        initial_global_enabled: bool,
     ) -> Self {
         let status_bar = NSStatusBar::systemStatusBar();
         let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
@@ -80,12 +79,7 @@ impl StatusIcon {
         let separator1 = NSMenuItem::separatorItem(mtm);
         menu.addItem(&separator1);
 
-        let toggle_title = if initial_global_enabled {
-            "Disable Glide"
-        } else {
-            "Enable Glide"
-        };
-        let toggle_ns_title = NSString::from_str(toggle_title);
+        let toggle_ns_title = NSString::from_str("Enable Glide");
         let toggle_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
                 NSMenuItem::alloc(mtm),
