@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/glide-wm/glide/compare/v0.2.6...v0.2.7) (2026-01-18)
+
+
+### Features
+
+* **statusbar:** Add enable/disable and docs items  ([#96](https://github.com/glide-wm/glide/issues/96)) ([6823bda](https://github.com/glide-wm/glide/commit/6823bda9576c8f2c7fc4dcdb4d2772c002f9352d))
+
 ## [0.2.6](https://github.com/glide-wm/glide/compare/v0.2.5...v0.2.6) (2026-01-16)
 
 
