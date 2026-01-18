@@ -14,7 +14,7 @@ use objc2_app_kit::{
 };
 use objc2_core_foundation::CGSize;
 use objc2_foundation::{NSData, NSObject, NSString, ns_string};
-use tracing::{debug, warn};
+use tracing::{Span, debug, error, warn};
 
 use crate::actor::reactor;
 
@@ -22,14 +22,20 @@ use crate::actor::reactor;
 use crate::actor::reactor::{
     Command, Event as ReactorEvent, ReactorCommand, Sender as ReactorSender,
 };
+use crate::actor::wm_controller::{self, WmCmd};
 use crate::config;
 
 const SAVE_AND_QUIT_TAG: i64 = 1;
+const TOGGLE_GLOBAL_TAG: i64 = 2;
+const TOGGLE_SPACE_TAG: i64 = 3;
+const SHOW_DOCS_TAG: i64 = 4;
 
 pub struct StatusIcon {
     status_item: Retained<NSStatusItem>,
     mtm: MainThreadMarker,
     _menu_handler: Retained<MenuHandler>,
+    toggle_item: Retained<NSMenuItem>,
+    space_toggle_item: Retained<NSMenuItem>,
 }
 
 impl StatusIcon {
@@ -38,6 +44,7 @@ impl StatusIcon {
         config: &config::StatusIcon,
         mtm: MainThreadMarker,
         reactor_tx: ReactorSender,
+        wm_tx: wm_controller::Sender,
     ) -> Self {
         let status_bar = NSStatusBar::systemStatusBar();
         let status_item = status_bar.statusItemWithLength(NSVariableStatusItemLength);
@@ -50,7 +57,55 @@ impl StatusIcon {
         }
 
         let menu = NSMenu::initWithTitle(NSMenu::alloc(mtm), ns_string!("Glide"));
-        let menu_handler = MenuHandler::new(mtm, reactor_tx);
+
+        // This is needed to be able to manually set the menu item state
+        menu.setAutoenablesItems(false);
+
+        let menu_handler = MenuHandler::new(mtm, reactor_tx, wm_tx);
+
+        let space_toggle_ns_title = NSString::from_str("Enable Space");
+        let space_toggle_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &space_toggle_ns_title,
+                Some(sel!(handleAction:)),
+                ns_string!(""),
+            )
+        };
+        unsafe { space_toggle_item.setTarget(Some(&*menu_handler)) };
+        space_toggle_item.setTag(TOGGLE_SPACE_TAG as isize);
+        menu.addItem(&space_toggle_item);
+
+        let separator1 = NSMenuItem::separatorItem(mtm);
+        menu.addItem(&separator1);
+
+        let toggle_ns_title = NSString::from_str("Enable Glide");
+        let toggle_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &toggle_ns_title,
+                Some(sel!(handleAction:)),
+                ns_string!(""),
+            )
+        };
+        unsafe { toggle_item.setTarget(Some(&*menu_handler)) };
+        toggle_item.setTag(TOGGLE_GLOBAL_TAG as isize);
+        menu.addItem(&toggle_item);
+
+        let docs_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                ns_string!("Documentation"),
+                Some(sel!(handleAction:)),
+                ns_string!(""),
+            )
+        };
+        unsafe { docs_item.setTarget(Some(&*menu_handler)) };
+        docs_item.setTag(SHOW_DOCS_TAG as isize);
+        menu.addItem(&docs_item);
+
+        let separator2 = NSMenuItem::separatorItem(mtm);
+        menu.addItem(&separator2);
 
         let save_quit_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
@@ -70,6 +125,8 @@ impl StatusIcon {
             status_item,
             mtm,
             _menu_handler: menu_handler,
+            toggle_item,
+            space_toggle_item,
         }
     }
 
@@ -82,6 +139,23 @@ impl StatusIcon {
             warn!("Could not get button from status item");
         }
     }
+
+    /// Sets the toggle menu item title.
+    pub fn set_toggle_title(&mut self, title: &str) {
+        let ns_title = NSString::from_str(title);
+        self.toggle_item.setTitle(&ns_title);
+    }
+
+    /// Sets the space toggle menu item title.
+    pub fn set_space_toggle_title(&mut self, title: &str) {
+        let ns_title = NSString::from_str(title);
+        self.space_toggle_item.setTitle(&ns_title);
+    }
+
+    /// Sets whether the space toggle menu item is enabled.
+    pub fn set_space_toggle_enabled(&mut self, enabled: bool) {
+        self.space_toggle_item.setEnabled(enabled);
+    }
 }
 
 impl Drop for StatusIcon {
@@ -93,7 +167,8 @@ impl Drop for StatusIcon {
 }
 
 struct MenuHandlerIvars {
-    tx: reactor::Sender,
+    reactor_tx: reactor::Sender,
+    wm_tx: wm_controller::Sender,
 }
 
 define_class!(
@@ -110,13 +185,37 @@ define_class!(
                 tag
             };
             debug!("Menu action received with tag: {}", tag);
-            let tx = &self.ivars().tx;
+            let reactor_tx = &self.ivars().reactor_tx;
+            let wm_tx = &self.ivars().wm_tx;
             match tag {
                 SAVE_AND_QUIT_TAG => {
                     debug!("Sending SaveAndExit command");
-                    tx.send(ReactorEvent::Command(Command::Reactor(
+                    reactor_tx.send(ReactorEvent::Command(Command::Reactor(
                         ReactorCommand::SaveAndExit,
                     )));
+                }
+                TOGGLE_GLOBAL_TAG => {
+                    debug!("Sending ToggleGlobalEnabled command");
+                    let _ = wm_tx.send((
+                        Span::current(),
+                        wm_controller::WmEvent::Command(wm_controller::WmCommand::Wm(WmCmd::ToggleGlobalEnabled)),
+                    ));
+                }
+                TOGGLE_SPACE_TAG => {
+                    debug!("Sending ToggleSpaceActivated command");
+                    let _ = wm_tx.send((
+                        Span::current(),
+                        wm_controller::WmEvent::Command(wm_controller::WmCommand::Wm(WmCmd::ToggleSpaceActivated)),
+                    ));
+                }
+                SHOW_DOCS_TAG => {
+                    debug!("Opening docs in browser");
+                    if let Err(e) = std::process::Command::new("/usr/bin/open")
+                        .arg("https://glidewm.org/reference/config")
+                        .spawn()
+                    {
+                        error!("Failed to open documentation: {e}");
+                    }
                 }
                 _ => {
                     warn!("Unknown tag: {}", tag);
@@ -128,9 +227,13 @@ define_class!(
 
 impl MenuHandler {
     /// Creates the parachute icon from the SVG file
-    pub fn new(mtm: MainThreadMarker, tx: reactor::Sender) -> Retained<Self> {
+    pub fn new(
+        mtm: MainThreadMarker,
+        reactor_tx: reactor::Sender,
+        wm_tx: wm_controller::Sender,
+    ) -> Retained<Self> {
         let this = Self::alloc(mtm);
-        let this = this.set_ivars(MenuHandlerIvars { tx });
+        let this = this.set_ivars(MenuHandlerIvars { reactor_tx, wm_tx });
         unsafe { msg_send![super(this), init] }
     }
 }
