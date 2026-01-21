@@ -56,6 +56,12 @@ group_bars.vertical_placement = "right"
 "Alt + Shift + K" = { move_node = "up" }
 "Alt + Shift + L" = { move_node = "right" }
 
+# Resize the focused window in the specified direction by percentage.
+"Alt + Ctrl + H" = { resize = { direction = "left", amount = 5 } }
+"Alt + Ctrl + J" = { resize = { direction = "down", amount = 5 } }
+"Alt + Ctrl + K" = { resize = { direction = "up", amount = 5 } }
+"Alt + Ctrl + L" = { resize = { direction = "right", amount = 5 } }
+
 # Move up or down the tree hieararchy, selecting a parent or child node
 # respectively.
 "Alt + A" = "ascend"

@@ -36,6 +36,12 @@ pub enum LayoutCommand {
     ToggleFocusFloating,
     ToggleWindowFloating,
     ToggleFullscreen,
+    Resize {
+        #[serde(rename = "direction")]
+        direction: Direction,
+        #[serde(default)]
+        amount: f64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +87,7 @@ impl LayoutCommand {
     fn modifies_layout(&self) -> bool {
         use LayoutCommand::*;
         match self {
-            MoveNode(_) | Group(_) | Ungroup => true,
+            MoveNode(_) | Group(_) | Ungroup | Resize { .. } => true,
 
             NextLayout | PrevLayout | MoveFocus(_) | Ascend | Descend | Split(_)
             | ToggleFocusFloating | ToggleWindowFloating | ToggleFullscreen => false,
@@ -546,6 +552,11 @@ impl LayoutManager {
                 } else {
                     EventResponse::default()
                 }
+            }
+            LayoutCommand::Resize { direction, amount } => {
+                let node = self.tree.selection(layout);
+                self.tree.resize(node, amount / 100.0, direction);
+                EventResponse::default()
             }
         }
     }
@@ -1295,6 +1306,62 @@ mod tests {
             mgr.handle_command(Some(space2), &[space1, space2], MoveFocus(Direction::Right))
                 .focus_window,
             Some(WindowId::new(pid, 4))
+        );
+    }
+
+    #[test]
+    fn it_resizes_windows_with_resize_command() {
+        use LayoutCommand::*;
+        use LayoutEvent::*;
+        let mut mgr = LayoutManager::new();
+        let space = SpaceId::new(1);
+        let pid = 1;
+        let windows = make_windows(pid, 2);
+
+        let screen = rect(0, 0, 100, 100);
+        _ = mgr.handle_event(SpaceExposed(space, screen.size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, windows));
+        _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 1)));
+
+        assert_eq!(
+            vec![
+                (WindowId::new(pid, 1), rect(0, 0, 50, 100)),
+                (WindowId::new(pid, 2), rect(50, 0, 50, 100)),
+            ],
+            mgr.layout_sorted(space, screen),
+        );
+
+        _ = mgr.handle_command(
+            Some(space),
+            &[space],
+            Resize {
+                direction: Direction::Right,
+                amount: 10.0,
+            },
+        );
+        assert_eq!(
+            vec![
+                (WindowId::new(pid, 1), rect(0, 0, 60, 100)),
+                (WindowId::new(pid, 2), rect(60, 0, 40, 100)),
+            ],
+            mgr.layout_sorted(space, screen),
+        );
+
+        _ = mgr.handle_command(Some(space), &[space], MoveFocus(Direction::Right));
+        _ = mgr.handle_command(
+            Some(space),
+            &[space],
+            Resize {
+                direction: Direction::Left,
+                amount: 10.0,
+            },
+        );
+        assert_eq!(
+            vec![
+                (WindowId::new(pid, 1), rect(0, 0, 50, 100)),
+                (WindowId::new(pid, 2), rect(50, 0, 50, 100)),
+            ],
+            mgr.layout_sorted(space, screen),
         );
     }
 }
