@@ -39,9 +39,13 @@ pub enum LayoutCommand {
     Resize {
         #[serde(rename = "direction")]
         direction: Direction,
-        #[serde(default)]
+        #[serde(default = "default_resize_amount")]
         amount: f64,
     },
+}
+
+fn default_resize_amount() -> f64 {
+    5.0
 }
 
 #[derive(Debug, Clone, PartialEq)]
