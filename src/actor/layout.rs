@@ -39,12 +39,12 @@ pub enum LayoutCommand {
     Resize {
         #[serde(rename = "direction")]
         direction: Direction,
-        #[serde(default = "default_resize_amount")]
-        amount: f64,
+        #[serde(default = "default_resize_percent")]
+        percent: f64,
     },
 }
 
-fn default_resize_amount() -> f64 {
+fn default_resize_percent() -> f64 {
     5.0
 }
 
@@ -557,9 +557,9 @@ impl LayoutManager {
                     EventResponse::default()
                 }
             }
-            LayoutCommand::Resize { direction, amount } => {
+            LayoutCommand::Resize { direction, percent } => {
                 let node = self.tree.selection(layout);
-                self.tree.resize(node, amount / 100.0, direction);
+                self.tree.resize(node, percent / 100.0, direction);
                 EventResponse::default()
             }
         }
@@ -1340,7 +1340,7 @@ mod tests {
             &[space],
             Resize {
                 direction: Direction::Right,
-                amount: 10.0,
+                percent: 10.0,
             },
         );
         assert_eq!(
@@ -1357,7 +1357,7 @@ mod tests {
             &[space],
             Resize {
                 direction: Direction::Left,
-                amount: 10.0,
+                percent: 10.0,
             },
         );
         assert_eq!(
