@@ -558,6 +558,7 @@ impl LayoutManager {
                 }
             }
             LayoutCommand::Resize { direction, percent } => {
+                let percent = percent.clamp(-100.0, 100.0);
                 let node = self.tree.selection(layout);
                 self.tree.resize(node, percent / 100.0, direction);
                 EventResponse::default()
