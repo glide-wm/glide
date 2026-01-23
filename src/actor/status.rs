@@ -119,9 +119,9 @@ impl Status {
     fn update_toggle_title(&mut self, enabled: bool) {
         let Some(icon) = &mut self.icon else { return };
         icon.set_toggle_title(if enabled {
-            "Disable Glide"
+            "Pause Glide"
         } else {
-            "Enable Glide"
+            "Resume Glide"
         });
         icon.set_space_toggle_enabled(enabled);
     }
@@ -129,9 +129,9 @@ impl Status {
     fn update_space_toggle_title(&mut self, enabled: bool) {
         let Some(icon) = &mut self.icon else { return };
         icon.set_space_toggle_title(if enabled {
-            "Disable Space"
+            "Stop Managing Space"
         } else {
-            "Enable Space"
+            "Start Managing Space"
         });
     }
 }
