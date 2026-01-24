@@ -215,13 +215,18 @@ impl WmController {
                 if !toggle_set.remove(&space) {
                     toggle_set.insert(space);
                 }
-                self.status_tx.send(status::Event::SpaceEnabledChanged(
-                    self.is_current_space_enabled(),
-                ));
+                if !self.is_space_enabled(space) {
+                    self.group_indicators_tx.send(group_indicators::Event::SpaceDisabled(space));
+                }
+                self.status_tx
+                    .send(status::Event::SpaceEnabledChanged(self.is_space_enabled(space)));
                 self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
             }
             Command(Wm(ToggleGlobalEnabled)) => {
                 self.is_globally_enabled = !self.is_globally_enabled;
+                if !self.is_globally_enabled {
+                    self.group_indicators_tx.send(group_indicators::Event::GlobalDisabled);
+                }
                 self.status_tx
                     .send(status::Event::GlobalEnabledChanged(self.is_globally_enabled));
                 self.status_tx.send(status::Event::SpaceEnabledChanged(
@@ -284,6 +289,10 @@ impl WmController {
         let Some(space) = self.get_focused_space() else {
             return false;
         };
+        self.is_space_enabled(space)
+    }
+
+    fn is_space_enabled(&self, space: SpaceId) -> bool {
         match space {
             sp if self.config.config.settings.default_disable => self.enabled_spaces.contains(&sp),
             sp => !self.disabled_spaces.contains(&sp),
