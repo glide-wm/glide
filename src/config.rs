@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::actor::wm_controller::WmCommand;
 
 pub fn data_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".glide")
+    dirs::config_local_dir().unwrap().join("glide")
 }
 
 pub fn restore_file() -> PathBuf {
@@ -27,7 +27,7 @@ pub fn restore_file() -> PathBuf {
 }
 
 pub fn config_path_default() -> PathBuf {
-    dirs::home_dir().unwrap().join(".glide.toml")
+    dirs::config_local_dir().unwrap().join("glide.toml")
 }
 
 #[derive(Serialize, Deserialize, Debug)]
