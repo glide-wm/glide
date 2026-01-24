@@ -61,7 +61,7 @@ impl Status {
 
     fn apply_config(&mut self) {
         let icon = self.icon.take();
-        if self.config.settings.experimental.status_icon.enable {
+        if self.config.settings.status_icon.enable {
             self.icon = icon.or_else(|| {
                 Some(StatusIcon::new(
                     &self.config.settings.experimental.status_icon,

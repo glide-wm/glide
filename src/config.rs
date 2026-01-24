@@ -58,6 +58,8 @@ pub struct Settings {
     pub inner_gap: f64,
     #[derive_args(GroupBarsPartial)]
     pub group_bars: GroupBars,
+    #[derive_args(StatusIconPartial)]
+    pub status_icon: StatusIcon,
     #[derive_args(ExperimentalPartial)]
     pub experimental: Experimental,
 }
@@ -67,8 +69,8 @@ pub struct Settings {
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Experimental {
-    #[derive_args(StatusIconPartial)]
-    pub status_icon: StatusIcon,
+    #[derive_args(StatusIconExperimentalPartial)]
+    pub status_icon: StatusIconExperimental,
 }
 
 #[derive(PartialConfig!)]
@@ -77,8 +79,18 @@ pub struct Experimental {
 #[serde(deny_unknown_fields)]
 pub struct StatusIcon {
     pub enable: bool,
+}
+
+#[derive(PartialConfig!)]
+#[derive_args(StatusIconExperimentalPartial)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StatusIconExperimental {
     pub space_index: bool,
     pub color: bool,
+
+    #[deprecated = "Ignored; kept for compatibility."]
+    pub enable: bool,
 }
 
 #[derive(PartialConfig!)]
