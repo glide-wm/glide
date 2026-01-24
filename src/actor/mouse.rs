@@ -43,7 +43,7 @@ pub struct Mouse {
 
 #[derive(Default)]
 struct State {
-    hidden: bool,
+    hide_count: u32,
     above_window: Option<WindowServerId>,
     above_window_level: NSWindowLevel,
     converter: CoordinateConverter,
@@ -132,20 +132,15 @@ impl Mouse {
                 }
                 if config.settings.mouse_follows_focus
                     && config.settings.mouse_hides_on_focus
-                    && !state.hidden
+                    && state.hide_count == 0
                 {
                     debug!("Hiding mouse");
-                    if let Err(e) = event::hide_mouse() {
-                        warn!("Failed to hide mouse: {e:?}");
-                    }
-                    state.hidden = true;
+                    state.hide_mouse();
                 }
             }
             Request::EnforceHidden => {
-                if state.hidden {
-                    if let Err(e) = event::hide_mouse() {
-                        warn!("Failed to hide mouse: {e:?}");
-                    }
+                if state.hide_count > 0 {
+                    state.hide_mouse();
                 }
             }
             Request::ScreenParametersChanged(frames, converter) => {
@@ -161,12 +156,9 @@ impl Mouse {
 
     fn on_event(self: &Rc<Self>, event_type: CGEventType, event: &CGEvent, mtm: MainThreadMarker) {
         let mut state = self.state.borrow_mut();
-        if state.hidden {
+        if state.hide_count > 0 {
             debug!("Showing mouse");
-            if let Err(e) = event::show_mouse() {
-                warn!("Failed to show mouse: {e:?}");
-            }
-            state.hidden = false;
+            state.show_mouse();
         }
         match event_type {
             CGEventType::LeftMouseUp => {
@@ -186,6 +178,22 @@ impl Mouse {
 }
 
 impl State {
+    fn hide_mouse(&mut self) {
+        if let Err(e) = event::hide_mouse() {
+            warn!("Failed to hide mouse: {e:?}");
+        }
+        self.hide_count += 1;
+    }
+
+    fn show_mouse(&mut self) {
+        while self.hide_count > 0 {
+            if let Err(e) = event::show_mouse() {
+                warn!("Failed to show mouse: {e:?}");
+            }
+            self.hide_count -= 1;
+        }
+    }
+
     fn track_mouse_move(&mut self, loc: CGPoint, mtm: MainThreadMarker) -> Option<WindowServerId> {
         // This takes on the order of 200µs, which can be a while for something
         // that may run many times a second on the main thread. For now this
