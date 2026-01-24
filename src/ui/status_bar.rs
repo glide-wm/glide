@@ -79,19 +79,6 @@ impl StatusIcon {
         let separator1 = NSMenuItem::separatorItem(mtm);
         menu.addItem(&separator1);
 
-        let toggle_ns_title = NSString::from_str("Enable Glide");
-        let toggle_item = unsafe {
-            NSMenuItem::initWithTitle_action_keyEquivalent(
-                NSMenuItem::alloc(mtm),
-                &toggle_ns_title,
-                Some(sel!(handleAction:)),
-                ns_string!(""),
-            )
-        };
-        unsafe { toggle_item.setTarget(Some(&*menu_handler)) };
-        toggle_item.setTag(TOGGLE_GLOBAL_TAG as isize);
-        menu.addItem(&toggle_item);
-
         let docs_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
                 NSMenuItem::alloc(mtm),
@@ -106,6 +93,19 @@ impl StatusIcon {
 
         let separator2 = NSMenuItem::separatorItem(mtm);
         menu.addItem(&separator2);
+
+        let toggle_ns_title = NSString::from_str("Enable Glide");
+        let toggle_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &toggle_ns_title,
+                Some(sel!(handleAction:)),
+                ns_string!(""),
+            )
+        };
+        unsafe { toggle_item.setTarget(Some(&*menu_handler)) };
+        toggle_item.setTag(TOGGLE_GLOBAL_TAG as isize);
+        menu.addItem(&toggle_item);
 
         let save_quit_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
