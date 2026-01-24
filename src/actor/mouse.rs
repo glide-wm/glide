@@ -124,12 +124,16 @@ impl Mouse {
 
     fn on_request(self: &Rc<Self>, request: Request) {
         let mut state = self.state.borrow_mut();
+        let config = self.config.borrow();
         match request {
             Request::Warp(point) => {
                 if let Err(e) = event::warp_mouse(point) {
                     warn!("Failed to warp mouse: {e:?}");
                 }
-                if self.config.borrow().settings.mouse_hides_on_focus && !state.hidden {
+                if config.settings.mouse_follows_focus
+                    && config.settings.mouse_hides_on_focus
+                    && !state.hidden
+                {
                     debug!("Hiding mouse");
                     if let Err(e) = event::hide_mouse() {
                         warn!("Failed to hide mouse: {e:?}");
