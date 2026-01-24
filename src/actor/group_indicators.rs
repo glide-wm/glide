@@ -41,6 +41,8 @@ pub enum Event {
     },
     ScreenParametersChanged(Vec<Option<SpaceId>>, CoordinateConverter),
     SpaceChanged(Vec<Option<SpaceId>>),
+    SpaceDisabled(SpaceId),
+    GlobalDisabled,
     ConfigChanged(Arc<Config>),
 }
 
@@ -48,9 +50,21 @@ pub struct GroupIndicators {
     config: Arc<Config>,
     rx: Receiver,
     mtm: MainThreadMarker,
-    indicators: HashMap<SpaceId, HashMap<NodeId, (GroupIndicatorNSView, Retained<NSWindow>)>>,
+    indicators: HashMap<SpaceId, HashMap<NodeId, Indicator>>,
     coordinate_converter: CoordinateConverter,
     active_spaces: Vec<Option<SpaceId>>,
+}
+
+struct Indicator {
+    view: GroupIndicatorNSView,
+    window: Retained<NSWindow>,
+}
+
+impl Drop for Indicator {
+    fn drop(&mut self) {
+        self.view.clear();
+        self.window.close();
+    }
 }
 
 pub type Sender = actor::Sender<Event>;
@@ -104,6 +118,12 @@ impl GroupIndicators {
                 // For now we keep the config for when it will be used to
                 // customize indicator appearance.
             }
+            Event::SpaceDisabled(space) => {
+                self.indicators.remove(&space);
+            }
+            Event::GlobalDisabled => {
+                self.indicators.clear();
+            }
         }
     }
 
@@ -116,15 +136,7 @@ impl GroupIndicators {
             .map(|g| g.node_id)
             .collect();
         let space_indicators = self.indicators.entry(space_id).or_default();
-        space_indicators.retain(|&node_id, (indicator, window)| {
-            if group_nodes.contains(&node_id) {
-                true
-            } else {
-                indicator.clear();
-                window.close();
-                false
-            }
-        });
+        space_indicators.retain(|&node_id, _| group_nodes.contains(&node_id));
 
         for group in groups {
             self.update_or_create_indicator(space_id, group);
@@ -138,9 +150,9 @@ impl GroupIndicators {
         selected_index: usize,
     ) {
         if let Some(indicator) = self.indicators.entry(space_id).or_default().get_mut(&node_id) {
-            if let Some(mut group_data) = indicator.0.group_data() {
+            if let Some(mut group_data) = indicator.view.group_data() {
                 group_data.selected_index = selected_index;
-                indicator.0.update(group_data);
+                indicator.view.update(group_data);
             }
         }
     }
@@ -160,31 +172,31 @@ impl GroupIndicators {
         };
 
         let space_indicators = self.indicators.entry(space_id).or_default();
-        let (indicator, window) = space_indicators.entry(group.node_id).or_insert_with(|| {
-            let mut indicator = GroupIndicatorNSView::new(CGRect::ZERO, self.mtm);
-            indicator.set_click_callback(Rc::new(move |segment_index| {
+        let indicator = space_indicators.entry(group.node_id).or_insert_with(|| {
+            let mut view = GroupIndicatorNSView::new(CGRect::ZERO, self.mtm);
+            view.set_click_callback(Rc::new(move |segment_index| {
                 Self::handle_indicator_clicked(group.node_id, segment_index);
             }));
             let window = make_indicator_window(self.mtm);
-            window.setContentView(Some(indicator.view()));
-            (indicator, window)
+            window.setContentView(Some(view.view()));
+            Indicator { view, window }
         });
         if let Some(frame) = self.coordinate_converter.convert_rect(group.indicator_frame) {
-            window.setFrame_display(frame, false);
+            indicator.window.setFrame_display(frame, false);
         }
-        indicator.update(GroupDisplayData {
+        indicator.view.update(GroupDisplayData {
             group_kind,
             total_count: group.total_count,
             selected_index: group.selected_index,
             frame: group.indicator_frame,
             is_selected: group.is_selected,
         });
-        window.setIsVisible(group.is_visible);
+        indicator.window.setIsVisible(group.is_visible);
         if group.is_visible && self.active_spaces.contains(&Some(space_id)) {
             // TODO: There's a risk that we're no longer on the space we think
             // we're on and this will cause the indicator to be assigned to the
             // wrong space (potentially multiple spaces because it is floating).
-            window.makeKeyAndOrderFront(None);
+            indicator.window.makeKeyAndOrderFront(None);
         }
     }
 }
