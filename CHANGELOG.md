@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.7](https://github.com/glide-wm/glide/compare/v0.2.6...v0.2.7) (2026-01-24)
+
+
+### Features
+
+* Enable status icon by default ([0e7eb7d](https://github.com/glide-wm/glide/commit/0e7eb7db4d3261d1c9107915a144d02fd47bf3ab))
+* **layout:** add resize window command ([#102](https://github.com/glide-wm/glide/issues/102)) ([e7f0492](https://github.com/glide-wm/glide/commit/e7f04927b94518e54301236fd74cd93fce47e4f6))
+* **statusbar:** Add enable/disable and docs items  ([#96](https://github.com/glide-wm/glide/issues/96)) ([6823bda](https://github.com/glide-wm/glide/commit/6823bda9576c8f2c7fc4dcdb4d2772c002f9352d))
+
+
+### Bug Fixes
+
+* **group_bars:** Hide bars when Glide stops managing the space ([#111](https://github.com/glide-wm/glide/issues/111)) ([3fe9c32](https://github.com/glide-wm/glide/commit/3fe9c32b2929c17c93cfb796b6680d88b49834ef))
+* **mouse:** Disable mouse_hides_on_focus if mouse_follows_focus is disabled ([7150ba5](https://github.com/glide-wm/glide/commit/7150ba5855436cf096b24148effaa59214fca34d))
+* **mouse:** Hopefully fix a bug where the mouse cursor became invisible ([b21c5a0](https://github.com/glide-wm/glide/commit/b21c5a0ef4439b774a5add9714d6839d63ffd1dc))
+
 ## [0.2.6](https://github.com/glide-wm/glide/compare/v0.2.5...v0.2.6) (2026-01-16)
 
 
