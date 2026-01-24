@@ -32,6 +32,9 @@ group_bars.thickness = 6
 group_bars.horizontal_placement = "top"
 group_bars.vertical_placement = "right"
 
+# Enables the status icon.
+status_icon.enable = true
+
 [keys]
 # Note: Modifier and key names must be capitalized.
 
@@ -118,11 +121,11 @@ group_bars.vertical_placement = "right"
 # the future. Use at your own risk!
 [settings.experimental]
 
-# Enables the experimental status icon.
-status_icon.enable = false
-
 # Show the current space index on the status icon.
 status_icon.space_index = false
 
 # Use color in the icon.
 status_icon.color = false
+
+# Ignored; kept for compatibility.
+status_icon.enable = true

@@ -41,7 +41,7 @@ pub struct StatusIcon {
 impl StatusIcon {
     /// Creates a new menu bar manager.
     pub fn new(
-        config: &config::StatusIcon,
+        config: &config::StatusIconExperimental,
         mtm: MainThreadMarker,
         reactor_tx: ReactorSender,
         wm_tx: wm_controller::Sender,
@@ -238,7 +238,7 @@ impl MenuHandler {
     }
 }
 
-fn create_parachute_icon(config: &config::StatusIcon) -> Option<Retained<NSImage>> {
+fn create_parachute_icon(config: &config::StatusIconExperimental) -> Option<Retained<NSImage>> {
     // Load the SVG file
     let svg_data = if config.color {
         include_str!("../../site/src/assets/parachute-small.svg")

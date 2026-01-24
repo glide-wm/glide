@@ -168,15 +168,17 @@ macro_rules! PartialConfig {
                 [
                     $($fields)*
 
-                    $(#[$field_meta])*
+                    $(#[$($field_meta)*])*
                     $field_name: Option<$field_ty>,
                 ];
                 [
                     $($merge)*
+                    #[allow(deprecated)]
                     $field_name: $high.$field_name.or($low.$field_name),
                 ];
                 [
                     $($check)*
+                    #[allow(deprecated)]
                     if $self.$field_name.is_none() {
                         $err.fields.push(stringify!($field_name));
                     }
@@ -185,6 +187,7 @@ macro_rules! PartialConfig {
                     $($validate)*
                     // We can unwrap because we will have returned if any fields
                     // were None already.
+                    #[allow(deprecated)]
                     $field_name: $self.$field_name.unwrap(),
                 ]
             ]
