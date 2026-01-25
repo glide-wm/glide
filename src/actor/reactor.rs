@@ -92,6 +92,8 @@ pub enum Event {
         visible_windows: Vec<(WindowId, WindowInfo)>,
         window_server_info: Vec<WindowServerInfo>,
     },
+    /// All running apps at launch have been registered.
+    StartupComplete,
     ApplicationTerminated(pid_t),
     ApplicationThreadTerminated(pid_t),
     ApplicationActivated(pid_t, Quiet),
@@ -336,6 +338,11 @@ impl Reactor {
                 self.apps.insert(pid, AppState { info, handle });
                 self.update_partial_window_server_info(window_server_info);
                 self.on_windows_discovered(pid, visible_windows, vec![]);
+            }
+            Event::StartupComplete => {
+                self.send_layout_event(LayoutEvent::AppsRunningUpdated(
+                    self.apps.keys().copied().collect(),
+                ));
             }
             Event::ApplicationTerminated(pid) => {
                 if let Some(app) = self.apps.get_mut(&pid) {

@@ -135,6 +135,14 @@ impl LayoutTree {
         }
     }
 
+    pub fn retain_apps(&mut self, filter: impl Fn(pid_t) -> bool) {
+        let remove_pids =
+            self.tree.data.window.pids().filter(|&pid| !filter(pid)).collect::<Vec<pid_t>>();
+        for pid in remove_pids {
+            self.remove_windows_for_app(pid);
+        }
+    }
+
     /// Adds and removes windows so that the set of windows in a space is exactly `wids`.
     ///
     /// For now, new windows are added directly to the root node.

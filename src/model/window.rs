@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use accessibility_sys::pid_t;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::LayoutId;
@@ -51,6 +52,14 @@ impl Window {
     pub fn set_capacity(&mut self, capacity: usize) {
         self.windows.set_capacity(capacity);
         // There's not currently a stable way to do this for BTreeMap.
+    }
+
+    pub(super) fn window_ids(&self) -> impl Iterator<Item = WindowId> {
+        self.window_nodes.keys().copied()
+    }
+
+    pub(super) fn pids(&self) -> impl Iterator<Item = pid_t> {
+        self.window_ids().map(|wid| wid.pid).dedup()
     }
 
     pub(super) fn take_nodes_for(
