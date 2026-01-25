@@ -50,8 +50,12 @@ fn default_resize_percent() -> f64 {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LayoutEvent {
-    WindowsOnScreenUpdated(SpaceId, pid_t, Vec<(WindowId, LayoutWindowInfo)>),
+    /// Used during restoration to make sure we don't retain windows for
+    /// terminated apps.
+    AppsRunningUpdated(HashSet<pid_t>),
     AppClosed(pid_t),
+    /// Updates the set of windows for a given app and space.
+    WindowsOnScreenUpdated(SpaceId, pid_t, Vec<(WindowId, LayoutWindowInfo)>),
     WindowAdded(SpaceId, WindowId, LayoutWindowInfo),
     WindowRemoved(WindowId),
     WindowFocused(Vec<SpaceId>, WindowId),
@@ -255,6 +259,9 @@ impl LayoutManager {
                 for wid in add_floating {
                     self.add_floating_window(wid, Some(space));
                 }
+            }
+            LayoutEvent::AppsRunningUpdated(hash_set) => {
+                self.tree.retain_apps(|pid| hash_set.contains(&pid));
             }
             LayoutEvent::AppClosed(pid) => {
                 self.tree.remove_windows_for_app(pid);

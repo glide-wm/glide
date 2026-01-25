@@ -133,6 +133,7 @@ notify = "8.2.0"
 notify-debouncer-mini = "0.7.0"
 annotate-snippets = "0.12.10"
 thiserror = "2.0.17"
+itertools = "0.14.0"
 
 [dev-dependencies]
 pretty_assertions = "1.4.0"

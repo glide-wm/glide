@@ -77,6 +77,7 @@ impl MainWindowTracker {
                 (pid, quiet)
             }
             Event::ApplicationTerminated(..)
+            | Event::StartupComplete
             | Event::WindowsDiscovered { .. }
             | Event::WindowCreated(..)
             | Event::WindowDestroyed(..)

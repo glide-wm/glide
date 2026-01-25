@@ -37,8 +37,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span, debug, error, info, instrument, trace, warn};
 
-use crate::actor;
 use crate::actor::reactor::{self, Event, Requested, TransactionId};
+use crate::actor::{self, wm_controller};
 use crate::collections::HashMap;
 pub use crate::sys::app::{AppInfo, WindowInfo, pid_t};
 use crate::sys::app::{NSRunningApplicationExt, ProcessInfo};
@@ -132,10 +132,11 @@ pub fn spawn_app_thread(
     info: AppInfo,
     events_tx: reactor::Sender,
     ws_tx: actor::window_server::Sender,
+    startup: Option<wm_controller::StartupToken>,
 ) {
     thread::Builder::new()
         .name(format!("{}({pid})", info.bundle_id.as_deref().unwrap_or("")))
-        .spawn(move || app_thread_main(pid, info, events_tx, ws_tx))
+        .spawn(move || app_thread_main(pid, info, events_tx, ws_tx, startup))
         .unwrap();
 }
 
@@ -189,9 +190,10 @@ impl State {
         requests_rx: Receiver<(Span, Request)>,
         notifications_rx: Receiver<(AXUIElement, String)>,
         raises_rx: Receiver<(Span, RaiseRequest)>,
+        startup: Option<wm_controller::StartupToken>,
     ) {
         let handle = AppThreadHandle { requests_tx };
-        if !self.init(handle, info) {
+        if !self.init(handle, info, startup) {
             return;
         }
 
@@ -268,7 +270,12 @@ impl State {
 
     #[instrument(skip_all, fields(?info))]
     #[must_use]
-    fn init(&mut self, handle: AppThreadHandle, info: AppInfo) -> bool {
+    fn init(
+        &mut self,
+        handle: AppThreadHandle,
+        info: AppInfo,
+        _startup: Option<wm_controller::StartupToken>,
+    ) -> bool {
         // Register for notifications on the application element.
         for notif in APP_NOTIFICATIONS {
             let res = self.observer.add_notification(&self.app, notif);
@@ -920,6 +927,7 @@ fn app_thread_main(
     info: AppInfo,
     events_tx: reactor::Sender,
     ws_tx: actor::window_server::Sender,
+    startup: Option<wm_controller::StartupToken>,
 ) {
     let app = AXUIElement::application(pid);
     let Some(running_app) = NSRunningApplication::with_process_id(pid) else {
@@ -970,7 +978,14 @@ fn app_thread_main(
         raises_tx,
     };
 
-    Executor::run(state.run(info, requests_tx, requests_rx, notifications_rx, raises_rx));
+    Executor::run(state.run(
+        info,
+        requests_tx,
+        requests_rx,
+        notifications_rx,
+        raises_rx,
+        startup,
+    ));
 }
 
 fn trace<T>(

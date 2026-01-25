@@ -298,7 +298,7 @@ async fn run_app_actor(pid_or_bundle: String) -> anyhow::Result<()> {
     );
     let (events_tx, mut events_rx) = actor::channel();
     let (ws_tx, mut ws_rx) = actor::channel();
-    actor::app::spawn_app_thread(pid, info, events_tx, ws_tx);
+    actor::app::spawn_app_thread(pid, info, events_tx, ws_tx, None);
     while !events_rx.is_closed() {
         select! {
             Some((span, event)) = events_rx.recv() => {

@@ -14,11 +14,16 @@ use objc2_app_kit::NSScreen;
 use objc2_core_foundation::CGRect;
 use objc2_foundation::MainThreadMarker;
 use serde::{Deserialize, Serialize};
-use tracing::{Span, debug, error, info, instrument, trace, warn};
+use tokio::join;
+use tokio::sync::mpsc;
+use tracing::{Span, debug, error, info, info_span, instrument, trace, warn};
 
-pub type Sender = tokio::sync::mpsc::UnboundedSender<(Span, WmEvent)>;
-type WeakSender = tokio::sync::mpsc::WeakUnboundedSender<(Span, WmEvent)>;
-type Receiver = tokio::sync::mpsc::UnboundedReceiver<(Span, WmEvent)>;
+pub type Sender = mpsc::UnboundedSender<(Span, WmEvent)>;
+type WeakSender = mpsc::WeakUnboundedSender<(Span, WmEvent)>;
+type Receiver = mpsc::UnboundedReceiver<(Span, WmEvent)>;
+
+pub type StartupToken = mpsc::UnboundedSender<()>;
+type StartupReceiver = mpsc::UnboundedReceiver<()>;
 
 use crate::actor::app::AppInfo;
 use crate::actor::{self, group_indicators, mouse, reactor, status, window_server};
@@ -30,6 +35,7 @@ use crate::sys::window_server::WindowServerInfo;
 
 #[derive(Debug)]
 pub enum WmEvent {
+    /// Sent by the NotificationCenter actor during startup.
     AppEventsRegistered,
     AppLaunch(pid_t, AppInfo),
     AppGloballyActivated(pid_t),
@@ -84,8 +90,9 @@ pub struct WmController {
     status_tx: status::Sender,
     ws_tx: window_server::Sender,
     group_indicators_tx: group_indicators::Sender,
-    receiver: Receiver,
-    sender: WeakSender,
+    receiver: self::Receiver,
+    sender: self::WeakSender,
+    startup_channel_tx: Option<self::StartupToken>,
     starting_space: Option<SpaceId>,
     cur_space: Vec<Option<SpaceId>>,
     cur_screen_id: Vec<ScreenId>,
@@ -107,7 +114,7 @@ impl WmController {
         ws_tx: window_server::Sender,
         group_indicators_tx: group_indicators::Sender,
     ) -> (Self, Sender) {
-        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let (sender, receiver) = mpsc::unbounded_channel();
         let is_globally_enabled = true;
         let this = Self {
             config,
@@ -118,6 +125,7 @@ impl WmController {
             group_indicators_tx,
             receiver,
             sender: sender.downgrade(),
+            startup_channel_tx: None,
             starting_space: None,
             cur_space: Vec::new(),
             cur_screen_id: Vec::new(),
@@ -134,10 +142,24 @@ impl WmController {
     }
 
     pub async fn run(mut self) {
+        let (startup_channel_tx, startup_channel_rx) = mpsc::unbounded_channel();
+        self.startup_channel_tx.replace(startup_channel_tx);
+        let events_tx = self.events_tx.clone();
+        join!(self.watch_events(), Self::startup(startup_channel_rx, events_tx));
+    }
+
+    async fn watch_events(&mut self) {
         while let Some((span, event)) = self.receiver.recv().await {
             let _guard = span.enter();
             self.handle_event(event);
         }
+    }
+
+    async fn startup(mut receiver: StartupReceiver, events_tx: reactor::Sender) {
+        let _span = info_span!("Startup");
+        while let Some(()) = receiver.recv().await {}
+        debug!("Startup channel closed; sending startup event");
+        events_tx.send(reactor::Event::StartupComplete);
     }
 
     #[instrument(skip(self))]
@@ -150,12 +172,16 @@ impl WmController {
         use self::WmEvent::*;
         match event {
             AppEventsRegistered => {
+                let startup_tx = self
+                    .startup_channel_tx
+                    .take()
+                    .expect("AppEventsRegistered should only be sent once");
                 for (pid, info) in sys::app::running_apps(None) {
-                    self.new_app(pid, info);
+                    self.new_app(pid, info, Some(startup_tx.clone()));
                 }
             }
             AppLaunch(pid, info) => {
-                self.new_app(pid, info);
+                self.new_app(pid, info, None);
             }
             AppGloballyActivated(pid) => {
                 // Make sure the mouse cursor stays hidden after app switch.
@@ -256,14 +282,20 @@ impl WmController {
         }
     }
 
-    fn new_app(&mut self, pid: pid_t, info: AppInfo) {
+    fn new_app(&mut self, pid: pid_t, info: AppInfo, startup: Option<StartupToken>) {
         if info.bundle_id.as_deref() == Some("com.apple.loginwindow") {
             if let Some(prev) = self.login_window_pid {
                 warn!("Multiple loginwindow instances found: {prev:?} and {pid:?}");
             }
             self.login_window_pid = Some(pid);
         }
-        actor::app::spawn_app_thread(pid, info, self.events_tx.clone(), self.ws_tx.clone());
+        actor::app::spawn_app_thread(
+            pid,
+            info,
+            self.events_tx.clone(),
+            self.ws_tx.clone(),
+            startup.clone(),
+        );
     }
 
     fn get_focused_space(&self) -> Option<SpaceId> {
