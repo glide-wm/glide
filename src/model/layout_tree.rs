@@ -790,6 +790,52 @@ mod tests {
     }
 
     #[test]
+    fn retain_apps() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+
+        // Create a layout with windows from three different apps
+        let a1 = tree.add_window_under(layout, root, w(1, 1));
+        let a2 = tree.add_window_under(layout, root, w(1, 2));
+        let b1 = tree.add_window_under(layout, root, w(2, 1));
+        let b2 = tree.add_window_under(layout, root, w(2, 2));
+        let c1 = tree.add_window_under(layout, root, w(3, 1));
+
+        let get_windows = |tree: &LayoutTree| {
+            root.traverse_postorder(tree.map())
+                .filter_map(|node| tree.window_at(node))
+                .collect::<Vec<_>>()
+        };
+
+        // Verify all windows are present
+        assert_eq!(
+            [w(1, 1), w(1, 2), w(2, 1), w(2, 2), w(3, 1)],
+            *get_windows(&tree)
+        );
+
+        // Simulate app 2 being terminated - retain only apps 1 and 3
+        tree.retain_apps(|pid| pid == 1 || pid == 3);
+
+        // Verify windows from app 2 are gone, but apps 1 and 3 remain
+        assert_eq!([w(1, 1), w(1, 2), w(3, 1)], *get_windows(&tree));
+        assert_eq!(Some(w(1, 1)), tree.window_at(a1));
+        assert_eq!(Some(w(1, 2)), tree.window_at(a2));
+        assert_eq!(None, tree.window_at(b1));
+        assert_eq!(None, tree.window_at(b2));
+        assert_eq!(Some(w(3, 1)), tree.window_at(c1));
+
+        // Simulate all apps being terminated
+        tree.retain_apps(|_| false);
+
+        // Verify all windows are gone
+        assert!(get_windows(&tree).is_empty());
+        assert_eq!(None, tree.window_at(a1));
+        assert_eq!(None, tree.window_at(a2));
+        assert_eq!(None, tree.window_at(c1));
+    }
+
+    #[test]
     fn traverse() {
         let mut tree = LayoutTree::new();
         let layout = tree.create_layout();

@@ -813,6 +813,7 @@ impl Reactor {
 
 #[cfg(test)]
 pub mod tests {
+    use itertools::Itertools;
     use objc2_core_foundation::{CGPoint, CGSize};
     use test_log::test;
 
@@ -835,6 +836,7 @@ pub mod tests {
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
+        reactor.handle_event(Event::StartupComplete);
         let requests = apps.requests();
         assert!(!requests.is_empty());
         let events_1 = apps.simulate_events_for_requests(requests);
@@ -864,6 +866,7 @@ pub mod tests {
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
+        reactor.handle_event(Event::StartupComplete);
         let events_1 = apps.simulate_events();
         let state_1 = apps.windows.clone();
         assert!(!state_1.is_empty());
@@ -901,6 +904,7 @@ pub mod tests {
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
+        reactor.handle_event(Event::StartupComplete);
         let events_1 = apps.simulate_events();
         let state_1 = apps.windows.clone();
         assert!(!state_1.is_empty());
@@ -942,6 +946,7 @@ pub mod tests {
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(3)));
+        reactor.handle_event(Event::StartupComplete);
 
         let events = apps.simulate_events();
         let windows = apps.windows.clone();
@@ -990,6 +995,7 @@ pub mod tests {
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
+        reactor.handle_event(Event::StartupComplete);
 
         let _events = apps.simulate_events();
         assert_eq!(
@@ -1025,6 +1031,7 @@ pub mod tests {
             true,
             true,
         ));
+        reactor.handle_event(Event::StartupComplete);
         reactor.handle_event(Event::ApplicationGloballyActivated(1));
         reactor.handle_events(apps.simulate_events());
 
@@ -1230,6 +1237,7 @@ pub mod tests {
             true,
             true,
         ));
+        reactor.handle_event(Event::StartupComplete);
         reactor.handle_event(Event::ApplicationGloballyActivated(1));
         apps.simulate_until_quiet(&mut reactor);
         let default = reactor.layout.calculate_layout(space, full_screen, &reactor.config);
@@ -1303,6 +1311,7 @@ pub mod tests {
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
+        reactor.handle_event(Event::StartupComplete);
 
         let _events = apps.simulate_events();
         assert_eq!(
@@ -1364,5 +1373,77 @@ pub mod tests {
 
         reactor.handle_event(WindowDestroyed(WindowId::new(1, 1)));
         reactor.handle_event(Command(Layout(MoveFocus(Left))));
+    }
+
+    #[test]
+    fn it_removes_terminated_app_windows_on_startup_complete() {
+        use Event::*;
+
+        let mut apps = Apps::new();
+        let space = SpaceId::new(1);
+        let full_screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
+
+        // First reactor: simulate the state before shutdown with three apps running
+        let mut reactor1 = Reactor::new_for_test(LayoutManager::new());
+        reactor1.handle_event(ScreenParametersChanged(
+            vec![full_screen],
+            vec![Some(space)],
+            vec![],
+            CoordinateConverter::default(),
+        ));
+        reactor1.handle_events(apps.make_app(1, make_windows(2)));
+        reactor1.handle_events(apps.make_app(2, make_windows(2)));
+        reactor1.handle_events(apps.make_app(3, make_windows(1)));
+        apps.simulate_until_quiet(&mut reactor1);
+
+        // Verify all 5 windows are in the layout
+        let layout_before = reactor1.layout.calculate_layout(space, full_screen, &reactor1.config);
+        assert_eq!(layout_before.len(), 5, "Expected 5 windows before shutdown");
+
+        // Serialize the layout to simulate saving state before shutdown
+        let serialized_layout = ron::ser::to_string(&reactor1.layout).unwrap();
+
+        // Second reactor: simulate restore after reboot, where app 2 was terminated
+        // and doesn't launch again
+        let restored_layout: LayoutManager = ron::de::from_str(&serialized_layout).unwrap();
+        let mut apps2 = Apps::new();
+        let mut reactor2 = Reactor::new_for_test(restored_layout);
+        reactor2.handle_event(ScreenParametersChanged(
+            vec![full_screen],
+            vec![Some(space)],
+            vec![],
+            CoordinateConverter::default(),
+        ));
+        // Only apps 1 and 3 launch during restore (app 2 was terminated between save and restore)
+        reactor2.handle_events(apps2.make_app(1, make_windows(2)));
+        reactor2.handle_events(apps2.make_app(3, make_windows(1)));
+        apps2.simulate_until_quiet(&mut reactor2);
+
+        // Before StartupComplete, the layout still contains ghost nodes for app 2's windows
+        let layout_before_cleanup =
+            reactor2.layout.calculate_layout(space, full_screen, &reactor2.config);
+        assert_eq!(layout_before_cleanup.len(), 5);
+
+        // Send StartupComplete to trigger cleanup of terminated app windows
+        reactor2.handle_event(StartupComplete);
+
+        // After StartupComplete, verify that windows from terminated app 2 are removed
+        // but windows from running apps 1 and 3 remain
+        let windows_after = reactor2
+            .layout
+            .calculate_layout(space, full_screen, &reactor2.config)
+            .into_iter()
+            .map(|(wid, _)| wid)
+            .sorted()
+            .collect_vec();
+
+        assert_eq!(
+            windows_after,
+            &[
+                WindowId::new(1, 1),
+                WindowId::new(1, 2),
+                WindowId::new(3, 1),
+            ]
+        );
     }
 }
