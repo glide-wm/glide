@@ -74,6 +74,9 @@ pub enum Event {
     /// WindowsDiscovered are not ordered with respect to space events.
     SpaceChanged(Vec<Option<SpaceId>>, Vec<WindowServerInfo>),
 
+    /// All running apps at launch have been registered.
+    StartupComplete,
+
     /// An application was launched. This event is also sent for every running
     /// application on startup.
     ///
@@ -92,8 +95,6 @@ pub enum Event {
         visible_windows: Vec<(WindowId, WindowInfo)>,
         window_server_info: Vec<WindowServerInfo>,
     },
-    /// All running apps at launch have been registered.
-    StartupComplete,
     ApplicationTerminated(pid_t),
     ApplicationThreadTerminated(pid_t),
     ApplicationActivated(pid_t, Quiet),
@@ -486,7 +487,7 @@ impl Reactor {
                 }
                 self.update_complete_window_server_info(ws_info);
                 self.update_active_screen();
-                self.check_for_new_windows();
+                self.update_visible_windows();
             }
             Event::MouseUp => {
                 self.in_drag = false;
@@ -584,7 +585,7 @@ impl Reactor {
         self.window_server_info.extend(ws_info.into_iter().map(|info| (info.id, info)));
     }
 
-    fn check_for_new_windows(&mut self) {
+    fn update_visible_windows(&mut self) {
         // TODO: Do this correctly/more optimally using CGWindowListCopyWindowInfo
         // (see notes for on_windows_discovered below).
         for app in self.apps.values_mut() {
