@@ -3,15 +3,15 @@
 
 #[macro_use]
 mod partial;
+use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use livesplit_hotkey::Hotkey;
 use macro_rules_attribute::derive;
-
 use partial::{PartialConfig, ValidationError};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -175,11 +175,47 @@ impl Config {
         ConfigPartial::default().validate().unwrap()
     }
 
+    pub fn dump(&self, path: Option<String>) -> anyhow::Result<()> {
+        let mut file = match path {
+            Some(v) => File::create(Path::new(&v))?,
+            None => File::create(config_path_default())?,
+        };
+        let mut keys = BTreeMap::new();
+        for (key, cmd) in &self.keys {
+            keys.insert(format_hotkey(key), cmd.clone());
+        }
+        let dump = ConfigDump { settings: &self.settings, keys };
+        let config_as_string = toml::to_string_pretty(&dump)?;
+        Ok(file.write_all(config_as_string.as_bytes())?)
+    }
+
     fn parse(buf: &str) -> Result<Self, SpannedError> {
         let c: ConfigPartial = toml::from_str(buf)?;
         let defaults = ConfigPartial::default();
         ConfigPartial::merge(defaults, c).validate()
     }
+}
+
+#[derive(Serialize)]
+struct ConfigDump<'a> {
+    settings: &'a Settings,
+    keys: BTreeMap<String, WmCommand>,
+}
+
+fn format_hotkey(hotkey: &Hotkey) -> String {
+    let raw = hotkey.to_string();
+    raw.split(" + ")
+        .map(|part| {
+            let Some(letter) = part.strip_prefix("Key") else {
+                return part.to_string();
+            };
+            if letter.len() == 1 && letter.chars().all(|c| c.is_ascii_uppercase()) {
+                return letter.to_string();
+            }
+            part.to_string()
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
 }
 
 fn format_toml_error(error: SpannedError, input: &str, path: &Path) -> String {
@@ -226,6 +262,8 @@ impl From<ValidationError> for SpannedError {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
 
     #[test]
@@ -236,5 +274,21 @@ mod tests {
     #[test]
     fn default_settings_match_unspecified_setting_values() {
         assert_eq!(Config::default().settings, Config::parse("").unwrap().settings);
+    }
+
+    #[test]
+    fn config_is_dumped() {
+        let file_name = "./glide.test.toml";
+        let path = Path::new(file_name);
+
+        if path.exists() {
+            fs::remove_file(path).unwrap();
+        }
+
+        let config = Config::default();
+        config.dump(Some(file_name.to_string())).unwrap();
+        assert!(Path::new(path).exists(), "should dump config");
+
+        fs::remove_file(path).unwrap();
     }
 }
