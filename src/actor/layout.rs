@@ -621,7 +621,7 @@ impl LayoutManager {
         space: SpaceId,
         screen: CGRect,
         config: &Config,
-    ) -> (Vec<(WindowId, CGRect)>, Vec<crate::model::GroupInfo>) {
+    ) -> (Vec<(WindowId, CGRect)>, Vec<crate::model::GroupBarInfo>) {
         let layout = self.layout(space);
         let (sizes, mut groups) = self.tree.calculate_layout_and_groups(layout, screen, config);
         if self.is_floating() {
