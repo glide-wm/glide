@@ -63,7 +63,7 @@ impl StatusIcon {
 
         let menu_handler = MenuHandler::new(mtm, reactor_tx, wm_tx);
 
-        let space_toggle_ns_title = NSString::from_str("Enable Space");
+        let space_toggle_ns_title = ns_string!("Enable Space");
         let space_toggle_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
                 NSMenuItem::alloc(mtm),
@@ -94,7 +94,7 @@ impl StatusIcon {
         let separator2 = NSMenuItem::separatorItem(mtm);
         menu.addItem(&separator2);
 
-        let toggle_ns_title = NSString::from_str("Enable Glide");
+        let toggle_ns_title = ns_string!("Enable Glide");
         let toggle_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
                 NSMenuItem::alloc(mtm),
