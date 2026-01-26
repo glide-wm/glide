@@ -48,11 +48,11 @@ glide config update
 
 To exit Glide, type Alt+Shift+E.
 
-[glide.default.toml]: /reference/config
 <!-- GUIDE_EXCLUDE_START -->
-<!-- Use the local file on github (overrides the above) -->
+<!-- Use the local file on github (overrides the below) -->
 [glide.default.toml]: ./glide.default.toml
 <!-- GUIDE_EXCLUDE_END -->
+[glide.default.toml]: /reference/config
 
 ### Save and restore
 
