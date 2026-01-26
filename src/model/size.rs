@@ -94,7 +94,6 @@ impl Direction {
 pub struct GroupInfo {
     pub node_id: NodeId,
     pub container_kind: ContainerKind,
-    pub indicator_frame: CGRect,
     /// Total number of windows in the group
     pub total_count: usize,
     /// Index of the currently selected window
@@ -103,6 +102,13 @@ pub struct GroupInfo {
     pub is_visible: bool,
     /// Whether this group is in the selection path
     pub is_selected: bool,
+    /// Frame reserved for the indicator bar.
+    pub indicator_frame: CGRect,
+    /// Whether this bar is on top of other windows in the layout.
+    ///
+    /// Always set to true by us; higher layers set to false if there are
+    /// floating windows.
+    pub is_on_top: bool,
 }
 
 // TODO:
@@ -379,6 +385,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
                         selected_index,
                         is_visible,
                         is_selected,
+                        is_on_top: true,
                     });
                 }
             }
