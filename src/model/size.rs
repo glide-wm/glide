@@ -91,7 +91,7 @@ impl Direction {
 }
 
 #[derive(Debug, Clone)]
-pub struct GroupInfo {
+pub struct GroupBarInfo {
     pub node_id: NodeId,
     pub container_kind: ContainerKind,
     /// Total number of windows in the group
@@ -272,7 +272,7 @@ impl Size {
         config: &Config,
         root: NodeId,
         screen: CGRect,
-    ) -> (Vec<(WindowId, CGRect)>, Vec<GroupInfo>) {
+    ) -> (Vec<(WindowId, CGRect)>, Vec<GroupBarInfo>) {
         let mut sizes = vec![];
         let mut groups = vec![];
         let fullscreen_nodes = &root
@@ -304,7 +304,7 @@ struct Visitor<'a, 'out> {
     config: &'a Config,
     screen: CGRect,
     sizes: &'out mut Vec<(WindowId, CGRect)>,
-    groups: Option<&'out mut Vec<GroupInfo>>,
+    groups: Option<&'out mut Vec<GroupBarInfo>>,
 }
 
 impl<'a, 'out> Visitor<'a, 'out> {
@@ -377,7 +377,7 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 }
 
                 if let Some(groups) = self.groups.as_deref_mut() {
-                    groups.push(GroupInfo {
+                    groups.push(GroupBarInfo {
                         node_id: node,
                         container_kind: info.kind,
                         indicator_frame,

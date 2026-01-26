@@ -263,7 +263,7 @@ impl LayoutTree {
         layout: LayoutId,
         frame: CGRect,
         config: &Config,
-    ) -> (Vec<(WindowId, CGRect)>, Vec<super::GroupInfo>) {
+    ) -> (Vec<(WindowId, CGRect)>, Vec<super::GroupBarInfo>) {
         self.tree.data.size.get_sizes_and_groups(
             &self.tree.map,
             &self.tree.data.window,

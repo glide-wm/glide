@@ -23,7 +23,7 @@ use tracing::debug;
 use crate::actor;
 use crate::collections::HashMap;
 use crate::config::Config;
-use crate::model::{ContainerKind, GroupInfo, NodeId};
+use crate::model::{ContainerKind, GroupBarInfo, NodeId};
 use crate::sys::screen::{CoordinateConverter, SpaceId};
 use crate::ui::group_indicator::{GroupDisplayData, GroupIndicatorNSView, GroupKind};
 
@@ -32,7 +32,7 @@ pub enum Event {
     /// Groups have been updated for a space - full replacement
     GroupsUpdated {
         space_id: SpaceId,
-        groups: Vec<GroupInfo>,
+        groups: Vec<GroupBarInfo>,
     },
     /// Selection changed within a specific group
     GroupSelectionChanged {
@@ -128,7 +128,7 @@ impl GroupIndicators {
         }
     }
 
-    fn handle_groups_updated(&mut self, space_id: SpaceId, groups: Vec<GroupInfo>) {
+    fn handle_groups_updated(&mut self, space_id: SpaceId, groups: Vec<GroupBarInfo>) {
         let group_nodes: crate::collections::HashSet<NodeId> = groups
             .iter()
             // If indicators are disabled, we will get group info but the frames
@@ -162,7 +162,7 @@ impl GroupIndicators {
         tracing::debug!(?node_id, segment_index, "Group indicator clicked");
     }
 
-    fn update_or_create_indicator(&mut self, space_id: SpaceId, group: GroupInfo) {
+    fn update_or_create_indicator(&mut self, space_id: SpaceId, group: GroupBarInfo) {
         let group_kind = match group.container_kind {
             ContainerKind::Tabbed => GroupKind::Horizontal,
             ContainerKind::Stacked => GroupKind::Vertical,
