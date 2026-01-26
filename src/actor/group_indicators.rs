@@ -13,7 +13,8 @@ use std::sync::Arc;
 use objc2::rc::Retained;
 use objc2::{MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{
-    NSBackingStoreType, NSColor, NSFloatingWindowLevel, NSWindow, NSWindowStyleMask,
+    NSBackingStoreType, NSColor, NSFloatingWindowLevel, NSNormalWindowLevel, NSWindow,
+    NSWindowStyleMask,
 };
 use objc2_core_foundation::CGRect;
 use objc2_foundation::NSZeroRect;
@@ -192,6 +193,11 @@ impl GroupIndicators {
             is_selected: group.is_selected,
         });
         indicator.window.setIsVisible(group.is_visible);
+        indicator.window.setLevel(if group.is_on_top {
+            NSFloatingWindowLevel
+        } else {
+            NSNormalWindowLevel
+        });
         if group.is_visible && self.active_spaces.contains(&Some(space_id)) {
             // TODO: There's a risk that we're no longer on the space we think
             // we're on and this will cause the indicator to be assigned to the

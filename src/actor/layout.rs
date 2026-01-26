@@ -383,11 +383,7 @@ impl LayoutManager {
             debug!("Tree:\n{}", self.tree.draw_tree(layout).trim());
             debug!(selection = ?self.tree.selection(layout));
         }
-        let is_floating = if let Some(focus) = self.focused_window {
-            self.floating_windows.contains(&focus)
-        } else {
-            false
-        };
+        let is_floating = self.is_floating();
         debug!(?self.floating_windows);
         debug!(?self.focused_window, ?self.last_floating_focus, ?is_floating);
 
@@ -573,6 +569,14 @@ impl LayoutManager {
         }
     }
 
+    fn is_floating(&self) -> bool {
+        if let Some(focus) = self.focused_window {
+            self.floating_windows.contains(&focus)
+        } else {
+            false
+        }
+    }
+
     fn add_floating_window(&mut self, wid: WindowId, space: Option<SpaceId>) {
         if let Some(space) = space {
             self.active_floating_windows
@@ -619,7 +623,14 @@ impl LayoutManager {
         config: &Config,
     ) -> (Vec<(WindowId, CGRect)>, Vec<crate::model::GroupInfo>) {
         let layout = self.layout(space);
-        self.tree.calculate_layout_and_groups(layout, screen, config)
+        let (sizes, mut groups) = self.tree.calculate_layout_and_groups(layout, screen, config);
+        if self.is_floating() {
+            // Make sure group bars don't cover the floating windows.
+            for group in &mut groups {
+                group.is_on_top = false;
+            }
+        }
+        (sizes, groups)
     }
 
     fn try_layout(&self, space: SpaceId) -> Option<LayoutId> {
