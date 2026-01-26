@@ -5,7 +5,7 @@
 
 ### Features
 
-* **spaces:** Integrate with mission control ([23619b3](https://github.com/glide-wm/glide/commit/23619b312398e867c56e22a50ffb319d4c322270))
+* **spaces:** Integrate with mission control ([23619b3](https://github.com/glide-wm/glide/commit/23619b312398e867c56e22a50ffb319d4c322270)): Glide now updates its layouts correctly after using Mission Control to rearrange windows between spaces.
 
 
 ### Bug Fixes
@@ -20,6 +20,7 @@
 
 ## [0.2.7](https://github.com/glide-wm/glide/compare/v0.2.6...v0.2.7) (2026-01-24)
 
+This version introduces a status icon to control Glide and see if it is running.
 
 ### Features
 
