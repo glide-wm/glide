@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glide_wm::actor::dock::Dock;
-use glide_wm::actor::group_bars::GroupIndicators;
+use glide_wm::actor::group_bars::GroupBars;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;
@@ -153,7 +153,7 @@ fn main() {
         events_tx.clone(),
         wm_controller_tx.clone(),
     );
-    let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
+    let group_bars = GroupBars::new(config.clone(), group_indicators_rx, mtm);
     let window_server = WindowServer::new(mtm);
     let dock = Dock::new(wm_controller_tx.clone());
 
@@ -169,7 +169,7 @@ fn main() {
             status.run(),
             window_server.run(ws_rx),
             dock.run(),
-            group_indicators.run(),
+            group_bars.run(),
             message_server.run(),
         );
     });
