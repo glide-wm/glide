@@ -26,7 +26,7 @@ pub type StartupToken = mpsc::UnboundedSender<()>;
 type StartupReceiver = mpsc::UnboundedReceiver<()>;
 
 use crate::actor::app::AppInfo;
-use crate::actor::{self, group_indicators, mouse, reactor, status, window_server};
+use crate::actor::{self, group_bars, mouse, reactor, status, window_server};
 use crate::collections::HashSet;
 use crate::sys;
 use crate::sys::event::HotkeyManager;
@@ -91,7 +91,7 @@ pub struct WmController {
     mouse_tx: mouse::Sender,
     status_tx: status::Sender,
     ws_tx: window_server::Sender,
-    group_indicators_tx: group_indicators::Sender,
+    group_indicators_tx: group_bars::Sender,
     receiver: self::Receiver,
     sender: self::WeakSender,
     startup_channel_tx: Option<self::StartupToken>,
@@ -115,7 +115,7 @@ impl WmController {
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
         ws_tx: window_server::Sender,
-        group_indicators_tx: group_indicators::Sender,
+        group_indicators_tx: group_bars::Sender,
     ) -> (Self, Sender) {
         let (sender, receiver) = mpsc::unbounded_channel();
         let is_globally_enabled = true;
@@ -263,7 +263,7 @@ impl WmController {
                     toggle_set.insert(space);
                 }
                 if !self.is_space_enabled(space) {
-                    self.group_indicators_tx.send(group_indicators::Event::SpaceDisabled(space));
+                    self.group_indicators_tx.send(group_bars::Event::SpaceDisabled(space));
                 }
                 self.status_tx
                     .send(status::Event::SpaceEnabledChanged(self.is_space_enabled(space)));
@@ -272,7 +272,7 @@ impl WmController {
             Command(Wm(ToggleGlobalEnabled)) => {
                 self.is_globally_enabled = !self.is_globally_enabled;
                 if !self.is_globally_enabled {
-                    self.group_indicators_tx.send(group_indicators::Event::GlobalDisabled);
+                    self.group_indicators_tx.send(group_bars::Event::GlobalDisabled);
                 }
                 self.status_tx
                     .send(status::Event::GlobalEnabledChanged(self.is_globally_enabled));
@@ -288,8 +288,7 @@ impl WmController {
                 self.send_event(Event::Command(cmd));
             }
             ConfigUpdated(config) => {
-                self.group_indicators_tx
-                    .send(group_indicators::Event::ConfigChanged(config.clone()));
+                self.group_indicators_tx.send(group_bars::Event::ConfigChanged(config.clone()));
                 self.mouse_tx.send(mouse::Request::ConfigUpdated(config.clone()));
                 self.status_tx.send(status::Event::ConfigUpdated(config.clone()));
                 self.status_tx.send(status::Event::SpaceEnabledChanged(

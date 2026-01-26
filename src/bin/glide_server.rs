@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use glide_wm::actor::dock::Dock;
-use glide_wm::actor::group_indicators::GroupIndicators;
+use glide_wm::actor::group_bars::GroupIndicators;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
 use glide_wm::actor::notification_center::NotificationCenter;

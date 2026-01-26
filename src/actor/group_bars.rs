@@ -25,7 +25,7 @@ use crate::collections::HashMap;
 use crate::config::Config;
 use crate::model::{ContainerKind, GroupBarInfo, NodeId};
 use crate::sys::screen::{CoordinateConverter, SpaceId};
-use crate::ui::group_indicator::{GroupDisplayData, GroupIndicatorNSView, GroupKind};
+use crate::ui::group_bar::{GroupDisplayData, GroupIndicatorNSView, GroupKind};
 
 #[derive(Debug)]
 pub enum Event {

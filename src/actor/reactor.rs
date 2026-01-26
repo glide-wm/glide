@@ -32,7 +32,7 @@ use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager, LayoutWindowInfo};
 use crate::actor::raise::{self, RaiseRequest};
-use crate::actor::{group_indicators, status};
+use crate::actor::{group_bars, status};
 use crate::collections::{HashMap, HashSet};
 use crate::config::Config;
 use crate::log::{self, MetricsCommand};
@@ -185,7 +185,7 @@ pub struct Reactor {
     raise_manager_tx: raise::Sender,
     mouse_tx: Option<mouse::Sender>,
     status_tx: Option<status::Sender>,
-    group_indicators_tx: group_indicators::Sender,
+    group_indicators_tx: group_bars::Sender,
 }
 
 #[derive(Debug)]
@@ -249,7 +249,7 @@ impl Reactor {
         record: Record,
         mouse_tx: mouse::Sender,
         status_tx: status::Sender,
-        group_indicators_tx: group_indicators::Sender,
+        group_indicators_tx: group_bars::Sender,
     ) -> Sender {
         let (events_tx, events) = crate::actor::channel();
         let events_tx_clone = events_tx.clone();
@@ -269,7 +269,7 @@ impl Reactor {
         config: Arc<Config>,
         layout: LayoutManager,
         mut record: Record,
-        group_indicators_tx: group_indicators::Sender,
+        group_indicators_tx: group_bars::Sender,
     ) -> Reactor {
         // FIXME: Remove apps that are no longer running from restored state.
         record.start(&config, &layout);
@@ -457,9 +457,8 @@ impl Reactor {
                 // through the reactor instead of delivering directly from
                 // wm_controller in order to eliminate possible races with other
                 // events sent by the reactor.
-                self.group_indicators_tx.send(group_indicators::Event::ScreenParametersChanged(
-                    spaces, converter,
-                ));
+                self.group_indicators_tx
+                    .send(group_bars::Event::ScreenParametersChanged(spaces, converter));
             }
             Event::SpaceChanged(spaces, ws_info) => {
                 if spaces.len() != self.screens.len() {
@@ -782,7 +781,7 @@ impl Reactor {
             trace!(?layout, "Layout");
 
             self.group_indicators_tx
-                .send(group_indicators::Event::GroupsUpdated { space_id: space, groups });
+                .send(group_bars::Event::GroupsUpdated { space_id: space, groups });
 
             for &(wid, target_frame) in &layout {
                 let Some(window) = self.windows.get_mut(&wid) else {
