@@ -47,7 +47,7 @@ pub enum Event {
     ConfigChanged(Arc<Config>),
 }
 
-pub struct GroupIndicators {
+pub struct GroupBars {
     config: Arc<Config>,
     rx: Receiver,
     mtm: MainThreadMarker,
@@ -71,7 +71,7 @@ impl Drop for Indicator {
 pub type Sender = actor::Sender<Event>;
 pub type Receiver = actor::Receiver<Event>;
 
-impl GroupIndicators {
+impl GroupBars {
     pub fn new(config: Arc<Config>, rx: Receiver, mtm: MainThreadMarker) -> Self {
         Self {
             config,
