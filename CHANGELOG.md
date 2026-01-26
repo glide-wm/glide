@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.8](https://github.com/glide-wm/glide/compare/v0.2.7...v0.2.8) (2026-01-26)
+
+
+### Features
+
+* **spaces:** Integrate with mission control ([23619b3](https://github.com/glide-wm/glide/commit/23619b312398e867c56e22a50ffb319d4c322270))
+
+
+### Bug Fixes
+
+* Don't cover floating windows with group bars ([3b90450](https://github.com/glide-wm/glide/commit/3b90450855f75466f269d222f05cea6f566e355a))
+* **restore:** Remove terminated app windows from layout ([#115](https://github.com/glide-wm/glide/issues/115)) ([4334945](https://github.com/glide-wm/glide/commit/43349453e5916559a9278f15f23d2c25a375a7b8))
+
+
+### Improvements
+
+* **status:** Add Glide version number to status menu ([756cd0e](https://github.com/glide-wm/glide/commit/756cd0e0d6b6efce917764a13be3ed97887b0f6b))
+
 ## [0.2.7](https://github.com/glide-wm/glide/compare/v0.2.6...v0.2.7) (2026-01-24)
 
 
