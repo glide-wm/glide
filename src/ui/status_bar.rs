@@ -76,8 +76,18 @@ impl StatusIcon {
         space_toggle_item.setTag(TOGGLE_SPACE_TAG as isize);
         menu.addItem(&space_toggle_item);
 
-        let separator1 = NSMenuItem::separatorItem(mtm);
-        menu.addItem(&separator1);
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+
+        let version_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                NSMenuItem::alloc(mtm),
+                &NSString::from_str(&format!("Glide v{}", env!("CARGO_PKG_VERSION"))),
+                None,
+                ns_string!(""),
+            )
+        };
+        version_item.setEnabled(false);
+        menu.addItem(&version_item);
 
         let docs_item = unsafe {
             NSMenuItem::initWithTitle_action_keyEquivalent(
@@ -91,8 +101,7 @@ impl StatusIcon {
         docs_item.setTag(SHOW_DOCS_TAG as isize);
         menu.addItem(&docs_item);
 
-        let separator2 = NSMenuItem::separatorItem(mtm);
-        menu.addItem(&separator2);
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
 
         let toggle_ns_title = ns_string!("Enable Glide");
         let toggle_item = unsafe {
