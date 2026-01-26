@@ -48,6 +48,8 @@ pub enum WmEvent {
         CoordinateConverter,
         Vec<Option<SpaceId>>,
     ),
+    ExposeEntered,
+    ExposeExited,
     Command(WmCommand),
     ConfigUpdated(Arc<crate::config::Config>),
 }
@@ -100,6 +102,7 @@ pub struct WmController {
     enabled_spaces: HashSet<SpaceId>,
     login_window_pid: Option<pid_t>,
     login_window_active: bool,
+    expose_active: bool,
     is_globally_enabled: bool,
     hotkeys: Option<HotkeyManager>,
     mtm: MainThreadMarker,
@@ -133,6 +136,7 @@ impl WmController {
             enabled_spaces: HashSet::default(),
             login_window_pid: None,
             login_window_active: false,
+            expose_active: false,
             is_globally_enabled,
             hotkeys: None,
             mtm: MainThreadMarker::new().unwrap(),
@@ -225,11 +229,28 @@ impl WmController {
             }
             SpaceChanged(spaces) => {
                 self.handle_space_changed(spaces.clone());
-                self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
+                if !self.expose_active {
+                    // During expose windows from all spaces are returned to
+                    // self.get_windows(), so we may send a faulty list to the
+                    // reactor. This will be corrected when we get the
+                    // ExposeExited event or switch back to the space again, but
+                    // it adds visual noise so we try to avoid it.
+                    self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
+                }
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
                 self.status_tx.send(status::Event::SpaceEnabledChanged(
                     self.is_current_space_enabled(),
                 ));
+            }
+            ExposeEntered => {
+                self.expose_active = true;
+            }
+            ExposeExited => {
+                self.expose_active = false;
+                // We just need the reactor to update the list of visible
+                // windows for the current space. Everything else is handled by
+                // the SpaceChanged event.
+                self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
             }
             Command(Wm(ToggleSpaceActivated)) => {
                 let Some(space) = self.get_focused_space() else { return };

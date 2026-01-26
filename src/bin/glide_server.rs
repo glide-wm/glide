@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::Parser;
+use glide_wm::actor::dock::Dock;
 use glide_wm::actor::group_indicators::GroupIndicators;
 use glide_wm::actor::layout::LayoutManager;
 use glide_wm::actor::mouse::Mouse;
@@ -154,6 +155,7 @@ fn main() {
     );
     let group_indicators = GroupIndicators::new(config.clone(), group_indicators_rx, mtm);
     let window_server = WindowServer::new(mtm);
+    let dock = Dock::new(wm_controller_tx.clone());
 
     // TODO: Run on another thread so we don't tie up the main thread.
     let message_server = MessageServer::new(server::PORT_NAME, wm_controller_tx)
@@ -166,6 +168,7 @@ fn main() {
             mouse.run(),
             status.run(),
             window_server.run(ws_rx),
+            dock.run(),
             group_indicators.run(),
             message_server.run(),
         );

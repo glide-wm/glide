@@ -278,9 +278,8 @@ impl State {
     ) -> bool {
         // Register for notifications on the application element.
         for notif in APP_NOTIFICATIONS {
-            let res = self.observer.add_notification(&self.app, notif);
-            if let Err(err) = res {
-                debug!(pid = ?self.pid, ?err, "Watching app failed");
+            if let Err(err) = self.observer.add_notification(&self.app, notif) {
+                debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
                 return false;
             }
         }
