@@ -13,7 +13,7 @@ use tracing::Span;
 
 pub mod app;
 pub mod dock;
-pub mod group_indicators;
+pub mod group_bars;
 pub mod layout;
 pub mod mouse;
 pub mod notification_center;
