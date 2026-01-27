@@ -28,10 +28,8 @@ pub fn restore_file() -> PathBuf {
 
 pub fn config_path_default() -> PathBuf {
     if Path::new("~/.glide.toml").exists() {
-        println!("old config file found");
         return dirs::home_dir().unwrap().join(".glide.toml");
     } else {
-        println!("XDG_CONFIG_DIR config detected");
         return dirs::config_local_dir().unwrap().join("glide/glide.toml");
     }
 }
