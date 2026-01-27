@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::actor::wm_controller::WmCommand;
 
 pub fn data_dir() -> PathBuf {
-    dirs::config_local_dir().unwrap().join("glide")
+    dirs::home_dir().unwrap().join(".glide")
 }
 
 pub fn restore_file() -> PathBuf {
@@ -27,7 +27,13 @@ pub fn restore_file() -> PathBuf {
 }
 
 pub fn config_path_default() -> PathBuf {
-    dirs::config_local_dir().unwrap().join("glide.toml")
+    if Path::new("~/.glide.toml").exists() {
+        println!("old config file found");
+        return dirs::home_dir().unwrap().join(".glide.toml");
+    } else {
+        println!("XDG_CONFIG_DIR config detected");
+        return dirs::config_local_dir().unwrap().join("glide/glide.toml");
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
