@@ -26,7 +26,7 @@ pub fn restore_file() -> PathBuf {
     data_dir().join("layout.ron")
 }
 
-pub fn config_path_default() -> PathBuf {
+pub fn config_path() -> PathBuf {
     let default_path = dirs::config_local_dir().unwrap().join("glide/glide.toml");
     let try_paths = [
         default_path.clone(),
@@ -156,7 +156,7 @@ impl ConfigPartial {
 impl Config {
     pub fn load(custom_path: Option<&Path>) -> anyhow::Result<Config> {
         let mut buf = String::new();
-        let default = config_path_default();
+        let default = config_path();
         let (mut file, path) = match custom_path {
             Some(path) => (File::open(path)?, path),
             None => match File::open(&default) {
