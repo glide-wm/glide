@@ -27,11 +27,17 @@ pub fn restore_file() -> PathBuf {
 }
 
 pub fn config_path_default() -> PathBuf {
-    if Path::new("~/.glide.toml").exists() {
-        return dirs::home_dir().unwrap().join(".glide.toml");
-    } else {
-        return dirs::config_local_dir().unwrap().join("glide/glide.toml");
+    let default_path = dirs::config_local_dir().unwrap().join("glide/glide.toml");
+    let try_paths = [
+        default_path.clone(),
+        dirs::home_dir().unwrap().join(".glide.toml"),
+    ];
+    for path in try_paths {
+        if path.exists() {
+            return path;
+        }
     }
+    default_path
 }
 
 #[derive(Serialize, Deserialize, Debug)]
