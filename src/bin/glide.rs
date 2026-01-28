@@ -7,7 +7,7 @@ use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use glide_wm::{
     actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest},
-    config::{Config, config_path_default},
+    config::{Config, config_path},
     sys::{
         bundle::{self, BundleError},
         message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
@@ -127,7 +127,7 @@ fn main() -> Result<(), anyhow::Error> {
         }) => {
             let mut client = make_client()?;
             let mut update_config = || {
-                if !config.as_deref().unwrap_or(&config_path_default()).exists() {
+                if !config.as_deref().unwrap_or(&config_path()).exists() {
                     eprintln!("Warning: Config file missing; will load defaults");
                 }
                 let config = match Config::load(config.as_deref()) {
@@ -155,7 +155,7 @@ fn main() -> Result<(), anyhow::Error> {
             if watch {
                 let (tx, rx) = mpsc::channel();
                 let mut debouncer = new_debouncer(Duration::from_millis(50), tx)?;
-                debouncer.watcher().watch(&config_path_default(), RecursiveMode::NonRecursive)?;
+                debouncer.watcher().watch(&config_path(), RecursiveMode::NonRecursive)?;
                 update_config();
                 for event in rx {
                     event?;
@@ -169,7 +169,7 @@ fn main() -> Result<(), anyhow::Error> {
             config,
             action: ConfigSubcommand::Verify,
         }) => {
-            if !config.as_deref().unwrap_or(&config_path_default()).exists() {
+            if !config.as_deref().unwrap_or(&config_path()).exists() {
                 bail!("Config file missing");
             }
             if let Err(e) = Config::load(config.as_deref()) {
