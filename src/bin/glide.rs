@@ -202,7 +202,7 @@ fn launch(config: Option<PathBuf>, restore: bool) -> Result<(), anyhow::Error> {
                 bail!(
                     "Glide appears to be running already.
                         \n\
-                        Tip: The default key binding to exit Glide is Alt+Shift+E."
+                        Tip: The default key binding to exit Glide is Option+Shift+E."
                 );
             }
             let mut args = Vec::new();
@@ -217,8 +217,8 @@ fn launch(config: Option<PathBuf>, restore: bool) -> Result<(), anyhow::Error> {
             eprintln!(
                 "Glide is starting.
                     \n\
-                    Tip: Use Alt+Z to start managing the current space.\n\
-                    Tip: Use Alt+Shift+E to exit Glide."
+                    Tip: Use Option+Z to start managing the current space.\n\
+                    Tip: Use Option+Shift+E to exit Glide."
             );
             Ok(())
         }
