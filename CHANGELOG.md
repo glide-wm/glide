@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.9](https://github.com/glide-wm/glide/compare/v0.2.8...v0.2.9) (2026-01-28)
+
+
+### Improvements
+
+* **config:** Change preferred config path to ~/.config/glide/glide.toml ([#108](https://github.com/glide-wm/glide/issues/108)) ([4c8e94e](https://github.com/glide-wm/glide/commit/4c8e94eedb27ccbe06ecc58467afea2dd9f9b13e))
+
 ## [0.2.8](https://github.com/glide-wm/glide/compare/v0.2.7...v0.2.8) (2026-01-26)
 
 
