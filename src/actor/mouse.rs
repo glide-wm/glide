@@ -147,8 +147,9 @@ impl Mouse {
                 state.screens = frames;
                 state.converter = converter;
             }
-            Request::ConfigUpdated(config) => {
-                *self.config.borrow_mut() = config;
+            Request::ConfigUpdated(new_config) => {
+                drop(config);
+                *self.config.borrow_mut() = new_config;
                 self.apply_config();
             }
         }
