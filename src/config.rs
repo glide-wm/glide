@@ -66,6 +66,7 @@ pub struct Settings {
     pub focus_follows_mouse: bool,
     pub outer_gap: f64,
     pub inner_gap: f64,
+    pub default_keys: bool,
     #[derive_args(GroupBarsPartial)]
     pub group_bars: GroupBars,
     #[derive_args(StatusIconPartial)]
@@ -158,9 +159,16 @@ impl ConfigPartial {
     }
 
     fn merge(low: Self, high: Self) -> Self {
+        let mut keys =
+            if high.settings.default_keys.unwrap_or(Config::default().settings.default_keys) {
+                low.keys.unwrap_or_default()
+            } else {
+                Default::default()
+            };
+        keys.extend(high.keys.unwrap_or_default());
         Self {
             settings: SettingsPartial::merge(low.settings, high.settings),
-            keys: high.keys.or(low.keys),
+            keys: Some(keys),
         }
     }
 }
@@ -246,5 +254,45 @@ mod tests {
     #[test]
     fn default_settings_match_unspecified_setting_values() {
         assert_eq!(Config::default().settings, Config::parse("").unwrap().settings);
+    }
+
+    #[test]
+    fn default_keys_false_excludes_default_bindings() {
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = false
+
+            [keys]
+            "Alt + Q" = "debug"
+            "#,
+        )
+        .unwrap();
+
+        // Should only have our custom key, not the defaults
+        assert_eq!(config.keys.len(), 1);
+        let (hotkey, _cmd) = &config.keys[0];
+        assert_eq!(hotkey.to_string(), "Alt + KeyQ");
+    }
+
+    #[test]
+    fn default_keys_true_includes_default_bindings() {
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = true
+
+            [keys]
+            "Alt + Q" = "debug"
+            "#,
+        )
+        .unwrap();
+
+        // Should have default keys plus our custom key
+        let default_key_count = Config::default().keys.len();
+        assert_eq!(config.keys.len(), default_key_count + 1);
+
+        // Our custom key should be present
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
     }
 }
