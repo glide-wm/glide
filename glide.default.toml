@@ -26,6 +26,9 @@ outer_gap = 0
 # Gap between adjacent windows (in pixels).
 inner_gap = 0
 
+# The default layout kind for new spaces: "tree" or "scroll".
+default_layout_kind = "tree"
+
 # Visual bars for window groups (tabbed/stacked containers).
 group_bars.enable = true
 group_bars.thickness = 6
@@ -123,6 +126,10 @@ default_keys = false
 #
 
 # Print the current layout in the logs.
+# Switch between tree and scroll layout kinds.
+"Alt + Shift + S" = "change_layout_kind"
+"Alt + Shift + T" = "toggle_column_tabbed"
+
 "Alt + Shift + D" = "debug"
 
 # WARNING:
@@ -138,3 +145,13 @@ status_icon.color = false
 
 # Ignored; kept for compatibility.
 status_icon.enable = true
+
+# Scroll layout settings.
+scroll.center_focused_column = "never"
+scroll.visible_columns = 2
+scroll.column_width_presets = [0.333, 0.5, 0.667, 1.0]
+scroll.new_window_in_column = "new_column"
+scroll.scroll_sensitivity = 20.0
+scroll.invert_scroll_direction = false
+scroll.infinite_loop = false
+scroll.single_column_aspect_ratio = ""

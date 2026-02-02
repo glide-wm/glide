@@ -17,6 +17,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::actor::wm_controller::WmCommand;
+use crate::model::LayoutKind;
 
 pub fn data_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".glide")
@@ -30,6 +31,7 @@ pub fn config_path() -> PathBuf {
     let default_path = dirs::config_local_dir().unwrap().join("glide/glide.toml");
     let try_paths = [
         default_path.clone(),
+        dirs::home_dir().unwrap().join(".config/glide/glide.toml"),
         dirs::home_dir().unwrap().join(".glide.toml"),
     ];
     for path in try_paths {
@@ -80,6 +82,7 @@ pub struct Settings {
     pub outer_gap: f64,
     pub inner_gap: f64,
     pub default_keys: bool,
+    pub default_layout_kind: LayoutKind,
     #[derive_args(GroupBarsPartial)]
     pub group_bars: GroupBars,
     #[derive_args(StatusIconPartial)]
@@ -95,6 +98,106 @@ pub struct Settings {
 pub struct Experimental {
     #[derive_args(StatusIconExperimentalPartial)]
     pub status_icon: StatusIconExperimental,
+    #[derive_args(ScrollConfigPartial)]
+    pub scroll: ScrollConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum NewWindowPlacement {
+    NewColumn,
+    SameColumn,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CenterMode {
+    #[default]
+    Never,
+    Always,
+    OnOverflow,
+}
+
+#[derive(PartialConfig!)]
+#[derive_args(ScrollConfigPartial)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ScrollConfig {
+    pub center_focused_column: CenterMode,
+    pub visible_columns: u32,
+    pub column_width_presets: Vec<f64>,
+    pub new_window_in_column: NewWindowPlacement,
+    pub scroll_sensitivity: f64,
+    pub invert_scroll_direction: bool,
+    pub infinite_loop: bool,
+    pub single_column_aspect_ratio: String,
+}
+
+impl Default for ScrollConfig {
+    fn default() -> Self {
+        Self {
+            center_focused_column: CenterMode::Always,
+            visible_columns: 2,
+            column_width_presets: vec![0.333, 0.5, 0.667, 1.0],
+            new_window_in_column: NewWindowPlacement::NewColumn,
+            scroll_sensitivity: 20.0,
+            invert_scroll_direction: false,
+            infinite_loop: false,
+            single_column_aspect_ratio: String::new(),
+        }
+    }
+}
+
+impl ScrollConfig {
+    pub fn validated(mut self) -> Self {
+        self.visible_columns = self.visible_columns.clamp(1, 5);
+        self
+    }
+
+    pub fn aspect_ratio(&self) -> Option<AspectRatio> {
+        if self.single_column_aspect_ratio.is_empty() {
+            return None;
+        }
+        AspectRatio::from_str(&self.single_column_aspect_ratio).ok()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy, Serialize)]
+pub struct AspectRatio {
+    pub width: f64,
+    pub height: f64,
+}
+
+impl FromStr for AspectRatio {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (w, h) = s
+            .split_once(':')
+            .ok_or_else(|| format!("expected 'W:H' format, got {s:?}"))?;
+        let width: f64 = w
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid width: {w:?}"))?;
+        let height: f64 = h
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid height: {h:?}"))?;
+        if width <= 0.0 || height <= 0.0 {
+            return Err("aspect ratio values must be positive".into());
+        }
+        Ok(AspectRatio { width, height })
+    }
+}
+
+impl<'de> Deserialize<'de> for AspectRatio {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        AspectRatio::from_str(&s).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(PartialConfig!)]
@@ -286,7 +389,6 @@ mod tests {
         )
         .unwrap();
 
-        // Should only have our custom key, not the defaults
         assert_eq!(config.keys.len(), 1);
         let (hotkey, _cmd) = &config.keys[0];
         assert_eq!(hotkey.to_string(), "Alt + KeyQ");
@@ -305,11 +407,9 @@ mod tests {
         )
         .unwrap();
 
-        // Should have default keys plus our custom key
         let default_key_count = Config::default().keys.len();
         assert_eq!(config.keys.len(), default_key_count + 1);
 
-        // Our custom key should be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
     }
 
@@ -327,7 +427,6 @@ mod tests {
         )
         .unwrap();
 
-        // "disable" key should not appear in final config
         assert_eq!(config.keys.len(), 1);
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
         assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyW"));
@@ -335,7 +434,6 @@ mod tests {
 
     #[test]
     fn disable_can_override_default_key() {
-        // First verify Alt+H exists in defaults
         let default_config = Config::default();
         assert!(
             default_config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"),
@@ -353,9 +451,29 @@ mod tests {
         )
         .unwrap();
 
-        // Alt+H should be removed even though it's in defaults
         assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"));
-        // But other default keys should still be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyJ"));
+    }
+
+    #[test]
+    fn aspect_ratio_from_str_valid() {
+        let ar = AspectRatio::from_str("16:9").unwrap();
+        assert_eq!(ar.width, 16.0);
+        assert_eq!(ar.height, 9.0);
+    }
+
+    #[test]
+    fn aspect_ratio_from_str_with_spaces() {
+        let ar = AspectRatio::from_str(" 4 : 3 ").unwrap();
+        assert_eq!(ar.width, 4.0);
+        assert_eq!(ar.height, 3.0);
+    }
+
+    #[test]
+    fn aspect_ratio_from_str_invalid() {
+        assert!(AspectRatio::from_str("16x9").is_err());
+        assert!(AspectRatio::from_str("0:9").is_err());
+        assert!(AspectRatio::from_str("16:-1").is_err());
+        assert!(AspectRatio::from_str("abc:def").is_err());
     }
 }
