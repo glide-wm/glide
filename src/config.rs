@@ -51,7 +51,20 @@ pub struct Config {
 #[serde(default)]
 struct ConfigPartial {
     settings: SettingsPartial,
-    keys: Option<FxHashMap<String, WmCommand>>,
+    keys: Option<FxHashMap<String, WmCommandOrDisable>>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum WmCommandOrDisable {
+    WmCommand(WmCommand),
+    Disable(Disabled),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Disabled {
+    Disable,
 }
 
 #[derive(PartialConfig!)]
@@ -144,6 +157,10 @@ impl ConfigPartial {
     fn validate(self) -> Result<Config, SpannedError> {
         let mut keys = Vec::new();
         for (key, cmd) in self.keys.unwrap_or_default() {
+            let cmd = match cmd {
+                WmCommandOrDisable::WmCommand(wm_command) => wm_command,
+                WmCommandOrDisable::Disable(_) => continue,
+            };
             let Ok(key) = Hotkey::from_str(&key) else {
                 return Err(SpannedError {
                     message: format!("Could not parse hotkey: {key}"),
@@ -294,5 +311,51 @@ mod tests {
 
         // Our custom key should be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
+    }
+
+    #[test]
+    fn disable_removes_key_binding() {
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = false
+
+            [keys]
+            "Alt + Q" = "debug"
+            "Alt + W" = "disable"
+            "#,
+        )
+        .unwrap();
+
+        // "disable" key should not appear in final config
+        assert_eq!(config.keys.len(), 1);
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
+        assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyW"));
+    }
+
+    #[test]
+    fn disable_can_override_default_key() {
+        // First verify Alt+H exists in defaults
+        let default_config = Config::default();
+        assert!(
+            default_config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"),
+            "Alt+H should be a default key binding"
+        );
+
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = true
+
+            [keys]
+            "Alt + H" = "disable"
+            "#,
+        )
+        .unwrap();
+
+        // Alt+H should be removed even though it's in defaults
+        assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"));
+        // But other default keys should still be present
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyJ"));
     }
 }
