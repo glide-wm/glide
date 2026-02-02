@@ -35,6 +35,13 @@ group_bars.vertical_placement = "right"
 # Enables the status icon.
 status_icon.enable = true
 
+# Whether to include Glide's default key bindings.
+#
+# Note: Default keys are always included if there is no keys section of the
+# config. You can disable this by adding an empty `[keys]` section to your
+# config file.
+default_keys = false
+
 [keys]
 # Note: Modifier and key names must be capitalized.
 
