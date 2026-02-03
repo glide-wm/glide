@@ -2,21 +2,33 @@
 
 ## [0.2.9](https://github.com/glide-wm/glide/compare/v0.2.8...v0.2.9) (2026-02-02)
 
+This release adds the ability to add key bindings to the default set instead of replacing it. Note that this may become the default in the future.
+
+You can also set any default key binding to `"disable"` to disable it.
+
+```toml
+[settings]
+default_keys = true
+
+[keys]
+# Use ⎇- for horizontal split instead of ⎇=
+"Alt + Minus" = { split = "vertical" }
+"Alt + Equal" = "disable"
+```
 
 ### Features
 
 * **config:** Add settings.default_keys to include default key bindings ([945cd42](https://github.com/glide-wm/glide/commit/945cd42d241a6071e8055945a9216377b49c6177))
 * **config:** Disable default key bindings by setting to "disable" ([a454cbc](https://github.com/glide-wm/glide/commit/a454cbc0e4ed9434002342ef4e6b931bd2e56ec5))
 
-
 ### Bug Fixes
 
 * **config:** Fix server crash on `glide config update` ([6e1ca5c](https://github.com/glide-wm/glide/commit/6e1ca5c9c0fd1e175d947e21daceb2977f502669))
 
-
 ### Improvements
 
 * **config:** Change preferred config path to ~/.config/glide/glide.toml ([#108](https://github.com/glide-wm/glide/issues/108)) ([4c8e94e](https://github.com/glide-wm/glide/commit/4c8e94eedb27ccbe06ecc58467afea2dd9f9b13e))
+
 
 ## [0.2.8](https://github.com/glide-wm/glide/compare/v0.2.7...v0.2.8) (2026-01-26)
 
