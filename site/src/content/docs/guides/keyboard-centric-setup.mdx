@@ -1,0 +1,51 @@
+---
+title: Keyboard-centric setup
+description: How to set up macOS for full keyboard use
+---
+
+## Intro
+
+Most tiling window managers provide a first-class experience when working keyboard-only. Common examples are [Hyprland for Linux](https://github.com/hyprwm/Hyprland) and [AeroSpace for macOS](https://github.com/nikitabobko/AeroSpace). Glide can provide the same workflow with a few tweaks to your system configuration.
+
+## Hotkeys to switch macOS Spaces
+
+macOS provides an option to configure hotkeys to switch to specific Spaces. They are hidden, though. To configure them:
+
+1. Create several Spaces. As a rule of thumb, estimate your usual workflow, decide how many Spaces you need, and create them. They can be empty or contain any apps.
+2. Go to `System Settings` -> `Keyboard` -> `Keyboard Shortcuts` -> `Mission Control`. In the `Mission Control` section, find `Switch to Desktop X`. Enable all checkboxes and, optionally, set your own hotkeys.
+
+![system-settings-keyboard](../../../assets/space-hotkeys.png)
+
+Now you can switch Spaces with the combination `^ + X` (`Control + X`), where `X` is the target Space number.
+
+:::note
+If you want add more Spaces with hotkeys, just follow the same steps - first create as much Spaces as you need, then go back to `Keyboard Shortcuts` and enable checkboxes
+:::
+
+## Preserve Space order
+
+macOS rearranges your Spaces by default so the most recently used appears closer to the first (main) Space. This is counterintuitive if you arranged your Spaces in a specific order, like Space 1 for browser and mail, Space 2 for the terminal, Space 3 for the IDE, etc.
+
+Luckily this can be disabled by unchecking `System Settings` -> `Desktop & Dock` -> `Automatically rearrange Spaces based on most recent use`.
+
+![system-settings-desktop](../../../assets/space-order.png)
+
+When unchecked, macOS preserves the order of your Spaces. For example, you can place your browser in Space 1 and the terminal in Space 2, and that order will stay the same regardless of workflow.
+
+## Glide neat options
+
+By default Glide has to be activated on each Space individually. This can be changed:
+
+```toml
+[settings]
+
+default_disable = false
+```
+
+Also enable space index to visualize your current Space:
+
+```toml
+[settings.experimental]
+
+status_icon.space_index = true
+```
