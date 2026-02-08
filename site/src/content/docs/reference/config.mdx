@@ -3,6 +3,58 @@ title: Configuration
 description: Config keys for Glide
 ---
 
+## Configuration file location
+
+Glide looks for configuration in the following locations (in order of preference):
+
+1. `~/.config/glide/glide.toml` (preferred, added in v0.2.9)
+2. `~/.glide.toml` (legacy location, still supported)
+
+You can also specify a custom config path using the `--config` flag when launching Glide.
+
+:::note[Mac keyboard note]
+Throughout this documentation, "Alt" refers to the Option (⌥) key on Mac keyboards.
+:::
+
+## Working with default key bindings
+
+As of v0.2.9, you can choose to extend the default key bindings instead of replacing them entirely.
+
+### Extending defaults (new in v0.2.9)
+
+Set `default_keys = true` in the `[settings]` section to include all default key bindings. You can then add your own or override specific ones:
+
+```toml
+[settings]
+default_keys = true
+
+[keys]
+# Add a new key binding
+"Alt + M" = { move_focus = "left" }
+
+# Override a default binding
+"Alt + Minus" = { split = "vertical" }
+
+# Disable a default binding
+"Alt + Equal" = "disable"
+```
+
+### Replacing defaults (traditional behavior)
+
+If you want complete control, either:
+- Don't set `default_keys` (defaults to `false`), or
+- Set `default_keys = false`
+
+Then define all your key bindings in the `[keys]` section.
+
+:::tip
+If you add an empty `[keys]` section without `default_keys = true`, all default key bindings will be disabled.
+:::
+
+## Default configuration
+
+The following is the default configuration file that ships with Glide:
+
 import { Code } from '@astrojs/starlight/components';
 import defaults from '../../../../../glide.default.toml?raw';
 

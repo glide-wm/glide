@@ -33,11 +33,11 @@ _Note:_ If you don't have Homebrew, see the "manual installation" section below.
 The first time you do this, you will have to follow instructions to enable
 Accessibility permissions.
 
-Once Glide is running, press Alt+Z to start managing the current space. Note:
+Once Glide is running, press Alt+Z (Option+Z on Mac keyboards) to start managing the current space. Note:
 This will resize all your windows! To stop managing the space, press Alt+Z again.
 
 See [glide.default.toml] for a list of key bindings. You can customize these by
-editing `~/.glide.toml` and either restarting Glide or running the following:
+creating a config file at `~/.config/glide/glide.toml` (or `~/.glide.toml`) and either restarting Glide or running the following:
 
 ```
 glide config update
@@ -46,7 +46,10 @@ glide config update
 > [!TIP]
 > To apply changes as you save, add the `--watch` flag: `glide config update --watch`.
 
-To exit Glide, type Alt+Shift+E.
+To exit Glide, type Alt+Shift+E (Option+Shift+E on Mac keyboards).
+
+> [!NOTE]
+> **Mac keyboard note:** Throughout this documentation, "Alt" refers to the Option (⌥) key on Mac keyboards.
 
 <!-- GUIDE_EXCLUDE_START -->
 <!-- Use the local file on github (overrides the below) -->
@@ -57,7 +60,7 @@ To exit Glide, type Alt+Shift+E.
 ### Save and restore
 
 If you need to update Glide or restart it for any reason, exit with the
-`save_and_exit` key binding (default Alt+Shift+E). Then, when starting again,
+`save_and_exit` key binding (default Alt+Shift+E / Option+Shift+E). Then, when starting again,
 run it with the `--restore` flag:
 
 ```
