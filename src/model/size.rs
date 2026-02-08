@@ -206,12 +206,24 @@ impl Size {
         f64::from(self.info[node].total)
     }
 
+    pub(super) fn weight(&self, node: NodeId) -> f32 {
+        self.info[node].size
+    }
+
     pub(super) fn take_share(&mut self, map: &NodeMap, node: NodeId, from: NodeId, share: f32) {
         assert_eq!(node.parent(map), from.parent(map));
         let share = share.min(self.info[from].size);
         let share = share.max(-self.info[node].size);
         self.info[from].size -= share;
         self.info[node].size += share;
+    }
+
+    pub(super) fn set_weight(&mut self, node: NodeId, weight: f32, map: &NodeMap) {
+        let old = self.info[node].size;
+        self.info[node].size = weight;
+        if let Some(parent) = node.parent(map) {
+            self.info[parent].total += weight - old;
+        }
     }
 
     pub(super) fn set_fullscreen(&mut self, node: NodeId, is_fullscreen: bool) {
@@ -390,19 +402,42 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 }
             }
             Horizontal => {
-                let mut x = rect.origin.x;
-                let total = self.size.info[node].total;
-                let local_selection = self.selection.local_selection(self.map, node);
                 let inner_gap = self.config.settings.inner_gap;
-                let width =
-                    rect.size.width - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+                let local_selection = self.selection.local_selection(self.map, node);
+                let children: Vec<NodeId> = node.children(self.map).collect();
 
-                for child in node.children(self.map) {
-                    let ratio = f64::from(self.size.info[child].size) / f64::from(total);
+                let aspect_max_width = if children.len() == 1 {
+                    self.config
+                        .settings
+                        .experimental
+                        .scroll
+                        .aspect_ratio()
+                        .map(|ar| rect.size.height * (ar.width / ar.height))
+                } else {
+                    None
+                };
+
+                let inputs: Vec<super::scroll_constraints::WindowInput> = children
+                    .iter()
+                    .map(|&child| super::scroll_constraints::WindowInput {
+                        weight: f64::from(self.size.info[child].size),
+                        min_size: super::scroll_constraints::MIN_WINDOW_SIZE,
+                        max_size: aspect_max_width,
+                        fixed_size: None,
+                    })
+                    .collect();
+
+                let total_weight: f64 = inputs.iter().map(|i| i.weight).sum();
+                let virtual_width = total_weight * rect.size.width;
+                let outputs =
+                    super::scroll_constraints::solve_sizes(&inputs, virtual_width, inner_gap);
+
+                let mut x = rect.origin.x;
+                for (&child, output) in children.iter().zip(outputs.iter()) {
                     let rect = CGRect {
                         origin: CGPoint { x, y: rect.origin.y },
                         size: CGSize {
-                            width: width * ratio,
+                            width: output.size,
                             height: rect.size.height,
                         },
                     }
@@ -418,20 +453,30 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 }
             }
             Vertical => {
-                let mut y = rect.origin.y;
-                let total = self.size.info[node].total;
-                let local_selection = self.selection.local_selection(self.map, node);
                 let inner_gap = self.config.settings.inner_gap;
-                let height =
-                    rect.size.height - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+                let local_selection = self.selection.local_selection(self.map, node);
+                let children: Vec<NodeId> = node.children(self.map).collect();
 
-                for child in node.children(self.map) {
-                    let ratio = f64::from(self.size.info[child].size) / f64::from(total);
+                let inputs: Vec<super::scroll_constraints::WindowInput> = children
+                    .iter()
+                    .map(|&child| super::scroll_constraints::WindowInput {
+                        weight: f64::from(self.size.info[child].size),
+                        min_size: super::scroll_constraints::MIN_WINDOW_SIZE,
+                        max_size: None,
+                        fixed_size: None,
+                    })
+                    .collect();
+
+                let outputs =
+                    super::scroll_constraints::solve_sizes(&inputs, rect.size.height, inner_gap);
+
+                let mut y = rect.origin.y;
+                for (&child, output) in children.iter().zip(outputs.iter()) {
                     let rect = CGRect {
                         origin: CGPoint { x: rect.origin.x, y },
                         size: CGSize {
                             width: rect.size.width,
-                            height: height * ratio,
+                            height: output.size,
                         },
                     }
                     .round();
@@ -586,10 +631,10 @@ mod tests {
         assert_eq!(
             frames,
             vec![
-                (WindowId::new(1, 1), rect(0, 0, 1000, 1000)),
-                (WindowId::new(1, 2), rect(1000, 0, 1000, 500)),
-                (WindowId::new(1, 3), rect(1000, 500, 1000, 500)),
-                (WindowId::new(1, 4), rect(2000, 0, 1000, 1000)),
+                (WindowId::new(1, 1), rect(0, 0, 3000, 1000)),
+                (WindowId::new(1, 2), rect(3000, 0, 3000, 500)),
+                (WindowId::new(1, 3), rect(3000, 500, 3000, 500)),
+                (WindowId::new(1, 4), rect(6000, 0, 3000, 1000)),
             ]
         );
         assert_eq!(groups.len(), 0);
@@ -828,12 +873,12 @@ mod tests {
         let window2_frame = frames.iter().find(|(wid, _)| *wid == WindowId::new(1, 2)).unwrap().1;
         assert_eq!(
             window1_frame,
-            rect(10, 10, 490, 980),
+            rect(10, 10, 980, 980),
             "window1 before fullscreen"
         );
         assert_eq!(
             window2_frame,
-            rect(500, 10, 490, 980),
+            rect(990, 10, 980, 980),
             "window2 before fullscreen"
         );
 

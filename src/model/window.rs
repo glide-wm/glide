@@ -49,6 +49,28 @@ impl Window {
         self.window_nodes.entry(wid).or_default().push(WindowNodeInfo { layout, node });
     }
 
+    pub fn swap_windows(&mut self, node_a: NodeId, node_b: NodeId) {
+        let wid_a = self.windows.get(node_a).copied();
+        let wid_b = self.windows.get(node_b).copied();
+        match (wid_a, wid_b) {
+            (Some(a), Some(b)) => {
+                self.windows[node_a] = b;
+                self.windows[node_b] = a;
+                for info in self.window_nodes.get_mut(&a).into_iter().flatten() {
+                    if info.node == node_a {
+                        info.node = node_b;
+                    }
+                }
+                for info in self.window_nodes.get_mut(&b).into_iter().flatten() {
+                    if info.node == node_b {
+                        info.node = node_a;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn set_capacity(&mut self, capacity: usize) {
         self.windows.set_capacity(capacity);
         // There's not currently a stable way to do this for BTreeMap.

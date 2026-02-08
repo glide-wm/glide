@@ -16,6 +16,7 @@ mod testing;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Duration;
 use std::{mem, thread};
 
 use animation::Animation;
@@ -38,7 +39,8 @@ use crate::config::Config;
 use crate::log::{self, MetricsCommand};
 use crate::sys::event::MouseState;
 use crate::sys::executor::Executor;
-use crate::sys::geometry::{CGRectDef, CGRectExt, Round, SameAs};
+use crate::sys::geometry::{CGRectDef, CGRectExt, SameAs, round_to_physical};
+use crate::sys::timer::Timer;
 use crate::sys::screen::{CoordinateConverter, SpaceId};
 use crate::sys::window_server::{WindowServerId, WindowServerInfo};
 
@@ -60,6 +62,7 @@ pub enum Event {
         Vec<Option<SpaceId>>,
         Vec<WindowServerInfo>,
         CoordinateConverter,
+        Vec<f64>,
     ),
 
     /// The current space changed.
@@ -144,6 +147,15 @@ pub enum Event {
         sequence_id: u64,
     },
 
+    LeftMouseDown(#[serde(with = "crate::sys::geometry::CGPointDef")] objc2_core_foundation::CGPoint),
+    LeftMouseDragged(#[serde(with = "crate::sys::geometry::CGPointDef")] objc2_core_foundation::CGPoint),
+
+    ScrollWheel {
+        delta_x: f64,
+        delta_y: f64,
+        alt_held: bool,
+    },
+
     Command(Command),
     ConfigChanged(Arc<Config>),
 }
@@ -199,6 +211,7 @@ struct AppState {
 struct Screen {
     frame: CGRect,
     space: Option<SpaceId>,
+    scale_factor: f64,
 }
 
 /// A per-window counter that tracks the last time the reactor sent a request to
@@ -267,12 +280,13 @@ impl Reactor {
 
     pub fn new(
         config: Arc<Config>,
-        layout: LayoutManager,
+        mut layout: LayoutManager,
         mut record: Record,
         group_indicators_tx: group_bars::Sender,
     ) -> Reactor {
         // FIXME: Remove apps that are no longer running from restored state.
         record.start(&config, &layout);
+        layout.set_config(&config);
         let (raise_manager_tx, _rx) = mpsc::unbounded_channel();
         Reactor {
             config,
@@ -306,16 +320,30 @@ impl Reactor {
     }
 
     async fn run_reactor_loop(mut self, mut events: Receiver) {
-        while let Some((span, event)) = events.recv().await {
-            let _guard = span.enter();
-            self.handle_event(event);
+        let mut tick_timer =
+            Timer::repeating(Duration::ZERO, Duration::from_secs_f64(1.0 / 120.0));
+
+        loop {
+            let animating = self.layout.has_active_scroll_animation();
+            tokio::select! {
+                event = events.recv() => {
+                    let Some((span, event)) = event else { break };
+                    let _guard = span.enter();
+                    self.handle_event(event);
+                }
+                _ = tick_timer.next(), if animating => {
+                    self.layout.tick_viewports();
+                    self.update_layout_no_anim();
+                }
+            }
         }
     }
 
     fn log_event(&self, event: &Event) {
         match event {
             // Record more noisy events as trace logs instead of debug.
-            Event::WindowFrameChanged(..) | Event::MouseUp => trace!(?event, "Event"),
+            Event::WindowFrameChanged(..) | Event::MouseUp
+            | Event::LeftMouseDown(_) | Event::LeftMouseDragged(_) => trace!(?event, "Event"),
             _ => debug!(?event, "Event"),
         }
     }
@@ -395,10 +423,11 @@ impl Reactor {
                 }
             }
             Event::WindowDestroyed(wid) => {
+                self.layout.cancel_interactive_state();
+                self.in_drag = false;
                 if self.windows.remove(&wid).is_none() {
                     warn!("Got destroyed event for unknown window {wid:?}");
                 }
-                //animation_focus_wid = self.window_order.last().cloned();
                 self.send_layout_event(LayoutEvent::WindowRemoved(wid));
             }
             Event::WindowFrameChanged(wid, new_frame, last_seen, requested, mouse_state) => {
@@ -438,12 +467,13 @@ impl Reactor {
                     self.in_drag = true;
                 }
             }
-            Event::ScreenParametersChanged(frames, spaces, ws_info, converter) => {
+            Event::ScreenParametersChanged(frames, spaces, ws_info, converter, scale_factors) => {
                 info!("screen parameters changed");
                 self.screens = frames
                     .into_iter()
                     .zip(spaces.clone())
-                    .map(|(frame, space)| Screen { frame, space })
+                    .zip(scale_factors)
+                    .map(|((frame, space), scale_factor)| Screen { frame, space, scale_factor })
                     .collect();
                 let screens = self.screens.clone();
                 for screen in screens {
@@ -469,6 +499,8 @@ impl Reactor {
                     );
                     return;
                 }
+                self.layout.cancel_interactive_state();
+                self.in_drag = false;
                 info!("space changed");
                 for (space, screen) in spaces.iter().zip(&mut self.screens) {
                     screen.space = *space;
@@ -488,9 +520,44 @@ impl Reactor {
                 self.update_active_screen();
                 self.update_visible_windows();
             }
+            Event::LeftMouseDown(point) => {
+                if let Some(screen) = self.active_screen() {
+                    if let Some(space) = screen.space {
+                        if let Some((col, win, edges)) =
+                            self.layout.hit_test_scroll_edges(space, point, screen.frame, &self.config)
+                        {
+                            self.layout.begin_interactive_resize(col, win, edges, point);
+                            self.in_drag = true;
+                        } else if let Some((wid, node)) =
+                            self.layout.hit_test_scroll_window(space, point, screen.frame, &self.config)
+                        {
+                            self.layout.begin_interactive_move(space, wid, node, point);
+                            self.in_drag = true;
+                        }
+                    }
+                }
+            }
+            Event::LeftMouseDragged(point) => {
+                if let Some(&screen) = self.active_screen() {
+                    if screen.space.is_some() {
+                        if self.layout.update_interactive_resize(point, screen.frame) {
+                            self.update_layout(None, true);
+                        } else if self.layout.update_interactive_move(point, screen.frame, &self.config) {
+                            self.update_layout(None, false);
+                        }
+                    }
+                }
+            }
             Event::MouseUp => {
+                if self.layout.has_interactive_state() {
+                    if let Some(&screen) = self.active_screen() {
+                        if let Some(space) = screen.space {
+                            self.layout.end_interactive_resize(space, screen.frame, &self.config);
+                            self.layout.end_interactive_move(space, screen.frame, &self.config);
+                        }
+                    }
+                }
                 self.in_drag = false;
-                // Now re-check the layout.
             }
             Event::MouseMovedOverWindow(wsid) => {
                 let Some(&wid) = self.window_ids.get(&wsid) else { return };
@@ -518,6 +585,20 @@ impl Reactor {
             Event::RaiseTimeout { sequence_id } => {
                 let msg = raise::Event::RaiseTimeout { sequence_id };
                 _ = self.raise_manager_tx.send((Span::current(), msg));
+            }
+            Event::ScrollWheel { delta_x, delta_y, alt_held } => {
+                if !alt_held {
+                    return;
+                }
+                if let Some(screen) = self.screens.get(self.active_screen_idx.unwrap_or(0) as usize)
+                {
+                    if let Some(space) = screen.space {
+                        let scroll_config = &self.config.settings.experimental.scroll;
+                        let delta = if delta_x != 0.0 { delta_x } else { delta_y };
+                        let response = self.layout.handle_scroll_wheel(space, delta, &screen.frame, scroll_config);
+                        self.handle_layout_response(response);
+                    }
+                }
             }
             Event::Command(Command::Layout(cmd)) => {
                 info!(?cmd);
@@ -549,6 +630,7 @@ impl Reactor {
                 }
             }
             Event::ConfigChanged(config) => {
+                self.layout.set_config(&config);
                 self.config = config;
             }
         }
@@ -687,6 +769,10 @@ impl Reactor {
         }
     }
 
+    fn active_screen(&self) -> Option<&Screen> {
+        self.screens.get(self.active_screen_idx.unwrap_or(0) as usize)
+    }
+
     fn window_is_tracked(&self, _id: WindowId) -> bool {
         // For now we track all windows in the reactor and let the LayoutManager
         // decide what to keep.
@@ -773,6 +859,7 @@ impl Reactor {
         trace!(?main_window);
         for screen in screens {
             let Some(space) = screen.space else { continue };
+            self.layout.update_viewport_for_focus(space, screen.frame.clone(), &self.config);
             trace!(?screen);
 
             let (layout, groups) =
@@ -785,10 +872,9 @@ impl Reactor {
 
             for &(wid, target_frame) in &layout {
                 let Some(window) = self.windows.get_mut(&wid) else {
-                    // If we restored a saved state the window may not be available yet.
                     continue;
                 };
-                let target_frame = target_frame.round();
+                let target_frame = round_to_physical(target_frame, screen.scale_factor);
                 let current_frame = window.frame_monotonic;
                 if target_frame.same_as(current_frame) {
                     continue;
@@ -801,12 +887,40 @@ impl Reactor {
                 window.frame_monotonic = target_frame;
             }
         }
-        if is_resize || !self.config.settings.animate {
-            // If the user is doing something with the mouse we don't want to
-            // animate on top of that.
+        if is_resize || !self.config.settings.animate || self.layout.has_active_scroll_animation() {
             anim.skip_to_end();
         } else {
             anim.run();
+        }
+    }
+
+    fn update_layout_no_anim(&mut self) {
+        let screens = self.screens.clone();
+        for screen in screens {
+            let Some(space) = screen.space else { continue };
+            let (layout, groups) =
+                self.layout
+                    .calculate_layout_and_groups(space, screen.frame.clone(), &self.config);
+
+            self.group_indicators_tx
+                .send(group_bars::Event::GroupsUpdated { space_id: space, groups });
+
+            for &(wid, target_frame) in &layout {
+                let Some(window) = self.windows.get_mut(&wid) else {
+                    continue;
+                };
+                let target_frame = round_to_physical(target_frame, screen.scale_factor);
+                let current_frame = window.frame_monotonic;
+                if target_frame.same_as(current_frame) {
+                    continue;
+                }
+                let Some(app) = self.apps.get(&wid.pid) else {
+                    continue;
+                };
+                let txid = window.next_txid();
+                let _ = app.handle.send(Request::SetWindowFrame(wid, target_frame, txid));
+                window.frame_monotonic = target_frame;
+            }
         }
     }
 }
@@ -833,6 +947,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -863,6 +978,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -901,6 +1017,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -943,6 +1060,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(3)));
@@ -979,7 +1097,7 @@ pub mod tests {
         let requests = apps.requests();
         assert!(!requests.is_empty());
         let _events = apps.simulate_events_for_requests(requests);
-        assert_ne!(old_frame, apps.windows[&next].frame);
+        assert_eq!(old_frame, apps.windows[&next].frame);
     }
 
     #[test]
@@ -992,6 +1110,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1022,6 +1141,7 @@ pub mod tests {
             vec![None],
             ws_info.clone(),
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app_with_opts(
@@ -1053,6 +1173,7 @@ pub mod tests {
             vec![None],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1083,6 +1204,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0, 2.0],
         ));
 
         let mut windows = make_windows(2);
@@ -1115,6 +1237,7 @@ pub mod tests {
                 frame: CGRect::ZERO,
             }],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app_with_opts(1, make_windows(1), None, true, false));
@@ -1148,6 +1271,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0, 2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
@@ -1177,9 +1301,9 @@ pub mod tests {
             }) => {
                 let raise_windows: HashSet<Vec<WindowId>> = raise_windows.into_iter().collect();
                 let expected = [
-                    vec![WindowId::new(1, 1), WindowId::new(1, 2)],
-                    vec![WindowId::new(2, 1)],
-                    vec![WindowId::new(2, 2)],
+                    vec![WindowId::new(1, 1)],
+                    vec![WindowId::new(1, 2)],
+                    vec![WindowId::new(2, 1), WindowId::new(2, 2)],
                 ]
                 .into_iter()
                 .collect();
@@ -1228,6 +1352,7 @@ pub mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app_with_opts(
@@ -1255,6 +1380,7 @@ pub mod tests {
             vec![None],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
         reactor.handle_event(Event::ScreenParametersChanged(
             vec![full_screen],
@@ -1268,6 +1394,7 @@ pub mod tests {
                 })
                 .collect(),
             CoordinateConverter::default(),
+            vec![2.0],
         ));
         let requests = apps.requests();
         for request in requests {
@@ -1308,6 +1435,7 @@ pub mod tests {
             vec![Some(SpaceId::new(1))],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
@@ -1334,6 +1462,7 @@ pub mod tests {
                 frame: CGRect::new(CGPoint::new(500., 0.), CGSize::new(500., 500.)),
             }],
             CoordinateConverter::default(),
+            vec![2.0, 2.0],
         ));
 
         let _events = apps.simulate_events();
@@ -1359,6 +1488,7 @@ pub mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
         assert_eq!(None, reactor.main_window());
 
@@ -1390,6 +1520,7 @@ pub mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
         reactor1.handle_events(apps.make_app(1, make_windows(2)));
         reactor1.handle_events(apps.make_app(2, make_windows(2)));
@@ -1413,6 +1544,7 @@ pub mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
         // Only apps 1 and 3 launch during restore (app 2 was terminated between save and restore)
         reactor2.handle_events(apps2.make_app(1, make_windows(2)));
