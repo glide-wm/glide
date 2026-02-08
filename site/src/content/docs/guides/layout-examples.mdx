@@ -1,0 +1,232 @@
+---
+title: Layout Examples
+description: Example tiling layouts and how to create them
+---
+
+This guide shows you how to create common tiling layouts in Glide using the default key bindings. Each example includes a visual diagram and step-by-step instructions.
+
+:::note[Mac keyboard note]
+Throughout this documentation, "Alt" refers to the Option (⌥) key on Mac keyboards. For example, "Alt+Z" means pressing Option+Z.
+:::
+
+## Prerequisites
+
+Before starting, make sure:
+- Glide is running (`glide launch`)
+- You've activated the current space with **Alt+Z**
+- You have at least 2-4 windows open to work with
+
+## Basic Concepts
+
+### Window Focus and Movement
+- **Alt+H/J/K/L** - Move focus between windows (vim-style: H=left, J=down, K=up, L=right)
+- **Alt+Shift+H/J/K/L** - Move the current window in a direction
+
+### Splitting and Grouping
+- **Alt+Backslash** - Create a horizontal split (windows side-by-side)
+- **Alt+Equal** - Create a vertical split (windows stacked)
+- **Alt+T** - Create a horizontal group (tabbed layout)
+- **Alt+S** - Create a vertical group (stacked layout)
+- **Alt+E** - Remove grouping
+
+### Resizing
+- **Alt+Ctrl+H/J/K/L** - Resize the current window by 5% in a direction
+
+## Example 1: Two-Column Layout
+
+The simplest tiling layout - two windows side by side.
+
+```
+┌─────────────┬─────────────┐
+│             │             │
+│   Window 1  │   Window 2  │
+│             │             │
+│             │             │
+└─────────────┴─────────────┘
+```
+
+**How to create:**
+1. Start with Window 1 in focus
+2. Open Window 2 - Glide automatically tiles it next to Window 1
+
+**Result:** Two windows split horizontally across the screen.
+
+## Example 2: Three-Column Layout
+
+Three windows arranged side by side.
+
+```
+┌─────────┬─────────┬─────────┐
+│         │         │         │
+│ Window 1│ Window 2│ Window 3│
+│         │         │         │
+│         │         │         │
+└─────────┴─────────┴─────────┘
+```
+
+**How to create:**
+1. Start with a two-column layout (Window 1 and Window 2)
+2. Open Window 3 - it will be added to the layout
+3. Use **Alt+H/J/K/L** to navigate and **Alt+Shift+H/J/K/L** to rearrange if needed
+
+**Result:** Three equal columns across the screen.
+
+## Example 3: Two Columns with Stacked Group
+
+A main window on the left with multiple stacked windows on the right (like a traditional IDE layout).
+
+```
+┌──────────────┬──────────────┐
+│              │╔════════════╗│
+│              │║  Window 2  ║│
+│              │╚════════════╝│
+│   Window 1   │┌────────────┐│
+│              ││  Window 3  ││
+│              │└────────────┘│
+│              │┌────────────┐│
+│              ││  Window 4  ││
+└──────────────┴└────────────┘┘
+```
+
+**How to create:**
+1. Start with Window 1 in focus
+2. Open Window 2 - it appears next to Window 1
+3. Press **Alt+L** to focus Window 2
+4. Press **Alt+S** to create a vertical group (stacked layout)
+5. Open Window 3 - it appears in the stack below Window 2
+6. Open Window 4 - it appears in the stack below Window 3
+
+**Key actions:**
+- Focus the right column: **Alt+L**
+- Create stacked group: **Alt+S**
+- Navigate within stack: **Alt+J/K** (down/up)
+
+**Result:** One large window on the left, multiple stacked windows on the right. You can switch between the stacked windows with Alt+J/K.
+
+## Example 4: Two Columns with Tabbed Groups
+
+Similar to Example 3, but using tabs instead of stacks.
+
+```
+┌──────────────┬──────────────┐
+│              │ [W2][W3][W4] │
+│              │──────────────│
+│   Window 1   │              │
+│              │   Window 2   │
+│              │   (active)   │
+│              │              │
+│              │              │
+└──────────────┴──────────────┘
+```
+
+**How to create:**
+1. Start with Window 1 in focus
+2. Open Window 2 - it appears next to Window 1
+3. Press **Alt+L** to focus Window 2
+4. Press **Alt+T** to create a horizontal group (tabbed layout)
+5. Open Window 3 - it appears as a tab
+6. Open Window 4 - it appears as a tab
+
+**Key actions:**
+- Focus the right column: **Alt+L**
+- Create tabbed group: **Alt+T**
+- Navigate between tabs: **Alt+H/L** (left/right)
+
+**Result:** One large window on the left, multiple tabbed windows on the right. You can switch between tabs with Alt+H/L.
+
+## Example 5: Both Columns with Stacked Groups
+
+Two columns, each containing stacked windows (advanced workspace setup).
+
+```
+┌──────────────┬──────────────┐
+│╔════════════╗│╔════════════╗│
+│║  Window 1  ║│║  Window 3  ║│
+│╚════════════╝│╚════════════╝│
+│┌────────────┐│┌────────────┐│
+││  Window 2  │││  Window 4  ││
+│└────────────┘│└────────────┘│
+│              │              │
+│              │              │
+└──────────────┴──────────────┘
+```
+
+**How to create:**
+1. Start with Window 1 in focus
+2. Press **Alt+S** to create a vertical group for the left column
+3. Open Window 2 - it appears in the left stack
+4. Press **Alt+L** to move focus to the right
+5. Open Window 3 - it appears on the right
+6. Press **Alt+S** to create a vertical group for the right column
+7. Open Window 4 - it appears in the right stack
+
+**Key actions:**
+- Create left stack: **Alt+S** (with Window 1 focused)
+- Move to right column: **Alt+L**
+- Create right stack: **Alt+S** (with Window 3 focused)
+- Navigate within stacks: **Alt+J/K**
+- Move between columns: **Alt+H/L**
+
+**Result:** Two columns of stacked windows. Great for organizing multiple tasks side by side.
+
+## Advanced Tips
+
+### Resizing Windows
+After creating any layout, you can resize windows with **Alt+Ctrl+H/J/K/L**:
+- **Alt+Ctrl+H** - Make narrower (move left edge right)
+- **Alt+Ctrl+L** - Make wider (move right edge right)
+- **Alt+Ctrl+J** - Make taller (move bottom edge down)
+- **Alt+Ctrl+K** - Make shorter (move top edge down)
+
+### Reorganizing Windows
+- Move windows between columns/stacks: **Alt+Shift+H/J/K/L**
+- Remove a window from a group: Focus the window and press **Alt+E**
+
+### Converting Between Stack and Tabs
+- From stack to tabs: Focus the group and press **Alt+T**
+- From tabs to stack: Focus the group and press **Alt+S**
+
+### Tree Navigation (Advanced)
+For complex layouts, you can use:
+- **Alt+A** - Ascend to parent container
+- **Alt+D** - Descend to child container
+
+These commands change which node is selected in the layout tree, affecting how subsequent operations work. See the [keyboard-centric setup guide](/guides/keyboard-centric-setup#understanding-tree-navigation-ascenddescend) for more details.
+
+## Common Workflows
+
+### IDE-like Layout
+Use Example 3 (main window + stacked sidebar):
+- Large code editor on the left
+- Terminal, file browser, and documentation stacked on the right
+
+### Multi-monitor Simulation
+Use Example 5 (both columns stacked):
+- Left column: Development windows (editor, terminal)
+- Right column: Reference windows (browser, documentation)
+
+### Communication Setup
+Use Example 4 (main window + tabbed sidebar):
+- Large content window on the left
+- Tabbed communication apps on the right (Slack, email, calendar)
+
+## Troubleshooting
+
+**Windows not tiling as expected?**
+- Make sure you've activated the space with **Alt+Z**
+- Check that `default_disable = true` in your config (or manually activate each space)
+
+**Can't see which window is focused?**
+- Enable focus indicators in your config
+- Use mouse-follows-focus: the cursor will move to the focused window
+
+**Layout gets messed up?**
+- Use **Alt+E** to ungroup containers
+- Move windows back to desired positions with **Alt+Shift+H/J/K/L**
+- In worst case, restart Glide with **Alt+Shift+E** and relaunch
+
+## Next Steps
+
+- Customize key bindings in `~/.config/glide/glide.toml`
+- Learn about [keyboard-centric setup](/guides/keyboard-centric-setup) for full keyboard workflow
+- See the [configuration reference](/reference/config) for all available options
