@@ -41,6 +41,7 @@ export default defineConfig({
           items: [
             // Each item here is one entry in the navigation menu.
             { label: "Getting Started", slug: "guides/getting-started" },
+            { label: "Keyboard-centric setup", slug: "guides/keyboard-centric-setup" },
           ],
         },
         {
