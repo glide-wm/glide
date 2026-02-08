@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { directive } from "micromark-extension-directive";
+import { directiveFromMarkdown } from "mdast-util-directive";
 
 interface PluginOptions {
   githubUrl: string;
@@ -22,13 +24,18 @@ export function remarkReadmeImport(options: PluginOptions) {
     try {
       const readmeContent = file.value;
       const filteredContent = filterReadmeContent(readmeContent);
+      const withAdmonitions = convertAdmonitions(filteredContent);
       const processedContent = processLinksForGithub(
-        filteredContent,
+        withAdmonitions,
         githubUrl,
       );
 
       // Parse the processed markdown back into AST nodes
-      const readmeAst = fromMarkdown(processedContent);
+      // Include directive support so that :::note etc. are parsed correctly
+      const readmeAst = fromMarkdown(processedContent, {
+        extensions: [directive()],
+        mdastExtensions: [directiveFromMarkdown()],
+      });
 
       // Replace all content after the frontmatter with README content
       // Keep the root node but replace its children
@@ -79,6 +86,52 @@ function filterReadmeContent(content: string): string {
   }
 
   return filteredLines.join("\n").trim();
+}
+
+/**
+ * Converts GitHub-style admonitions to Starlight format
+ */
+function convertAdmonitions(content: string): string {
+  const lines = content.split("\n");
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const match = line.match(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+
+    if (match) {
+      const admonitionType = match[1].toLowerCase();
+      // Map GitHub admonition types to Starlight types
+      const starlightType =
+        admonitionType === "important"
+          ? "note"
+          : admonitionType === "warning"
+            ? "caution"
+            : admonitionType;
+
+      // Collect the content of the admonition (lines starting with >)
+      const admonitionLines: string[] = [];
+      i++; // Skip the admonition header line
+
+      while (i < lines.length && lines[i].startsWith(">")) {
+        // Remove the leading > and optional space
+        const contentLine = lines[i].replace(/^>\s?/, "");
+        admonitionLines.push(contentLine);
+        i++;
+      }
+
+      // Convert to Starlight format
+      result.push(`:::${starlightType}`);
+      result.push(...admonitionLines);
+      result.push(":::");
+    } else {
+      result.push(line);
+      i++;
+    }
+  }
+
+  return result.join("\n");
 }
 
 /**
