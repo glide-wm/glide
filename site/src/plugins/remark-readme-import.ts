@@ -103,12 +103,14 @@ function convertAdmonitions(content: string): string {
     if (match) {
       const admonitionType = match[1].toLowerCase();
       // Map GitHub admonition types to Starlight types
-      const starlightType =
-        admonitionType === "important"
-          ? "note"
-          : admonitionType === "warning"
-            ? "caution"
-            : admonitionType;
+      const typeMap: Record<string, string> = {
+        note: "note",
+        tip: "tip",
+        important: "note",
+        warning: "caution",
+        caution: "caution",
+      };
+      const starlightType = typeMap[admonitionType] || admonitionType;
 
       // Collect the content of the admonition (lines starting with >)
       const admonitionLines: string[] = [];
