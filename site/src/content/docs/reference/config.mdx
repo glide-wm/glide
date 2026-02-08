@@ -16,6 +16,39 @@ You can also specify a custom config path using the `--config` flag when launchi
 Throughout this documentation, "Alt" refers to the Option (⌥) key on Mac keyboards.
 :::
 
+## Key naming conventions
+
+When defining key bindings in your config file, you must use specific key names that Glide recognizes.
+
+### Common keys
+
+- **Arrow keys**: `ArrowLeft`, `ArrowDown`, `ArrowUp`, `ArrowRight`
+- **Letter keys**: Just use the letter capitalized (e.g., `A`, `H`, `J`, `K`, `L`)
+- **Number keys**: Use the number (e.g., `1`, `2`, `3`)
+- **Modifiers**: `Alt`, `Ctrl`, `Shift`, `Cmd` (all must be capitalized)
+
+### Examples
+
+```toml
+[keys]
+# Using arrow keys
+"Alt + ArrowLeft" = { move_focus = "left" }
+"Alt + ArrowDown" = { move_focus = "down" }
+"Alt + ArrowUp" = { move_focus = "up" }
+"Alt + ArrowRight" = { move_focus = "right" }
+
+# Using letter keys
+"Alt + H" = { move_focus = "left" }
+"Alt + J" = { move_focus = "down" }
+
+# Multiple modifiers
+"Alt + Shift + E" = "save_and_exit"
+```
+
+:::tip[Complete key name reference]
+For a comprehensive list of all supported key names, see the [livesplit-hotkey documentation](https://docs.rs/livesplit-hotkey/latest/livesplit_hotkey/).
+:::
+
 ## Working with default key bindings
 
 As of v0.2.9, you can choose to extend the default key bindings instead of replacing them entirely.

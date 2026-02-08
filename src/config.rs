@@ -358,4 +358,48 @@ mod tests {
         // But other default keys should still be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyJ"));
     }
+
+    #[test]
+    fn arrow_keys_parse_correctly() {
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = false
+
+            [keys]
+            "Alt + ArrowLeft" = { move_focus = "left" }
+            "Alt + ArrowDown" = { move_focus = "down" }
+            "Alt + ArrowUp" = { move_focus = "up" }
+            "Alt + ArrowRight" = { move_focus = "right" }
+            "#,
+        )
+        .unwrap();
+
+        // Should have all 4 arrow key bindings
+        assert_eq!(config.keys.len(), 4);
+        
+        // Verify all arrow keys are present
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowLeft"));
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowDown"));
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowUp"));
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowRight"));
+    }
+
+    #[test]
+    fn invalid_arrow_key_names_fail() {
+        // Test that the incorrect arrow key names (without "Arrow" prefix) fail to parse
+        let result = Config::parse(
+            r#"
+            [settings]
+            default_keys = false
+
+            [keys]
+            "Alt + Down" = { move_focus = "down" }
+            "#,
+        );
+
+        assert!(result.is_err());
+        let err_msg = format!("{:?}", result.unwrap_err());
+        assert!(err_msg.contains("Could not parse hotkey"));
+    }
 }
