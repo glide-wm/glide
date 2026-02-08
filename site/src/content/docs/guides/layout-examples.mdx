@@ -29,9 +29,6 @@ Before starting, make sure:
 - **Alt+S** - Create a vertical group (stacked layout)
 - **Alt+E** - Remove grouping
 
-### Resizing
-- **Alt+Ctrl+H/J/K/L** - Resize the current window by 5% in a direction
-
 ## Example 1: Two-Column Layout
 
 The simplest tiling layout - two windows side by side.
@@ -91,14 +88,14 @@ A main window on the left with multiple stacked windows on the right (like a tra
 **How to create:**
 1. Start with Window 1 in focus
 2. Open Window 2 - it appears next to Window 1
-3. Press **Alt+L** to focus Window 2
-4. Press **Alt+S** to create a vertical group (stacked layout)
+3. Press **Alt+Equal** to create a vertical split on the right
+4. Press **Alt+S** to convert to a stacked group
 5. Open Window 3 - it appears in the stack below Window 2
 6. Open Window 4 - it appears in the stack below Window 3
 
 **Key actions:**
-- Focus the right column: **Alt+L**
-- Create stacked group: **Alt+S**
+- Create vertical split: **Alt+Equal**
+- Convert to stacked group: **Alt+S**
 - Navigate within stack: **Alt+J/K** (down/up)
 
 **Result:** One large window on the left, multiple stacked windows on the right. You can switch between the stacked windows with Alt+J/K.
@@ -122,14 +119,14 @@ Similar to Example 3, but using tabs instead of stacks.
 **How to create:**
 1. Start with Window 1 in focus
 2. Open Window 2 - it appears next to Window 1
-3. Press **Alt+L** to focus Window 2
-4. Press **Alt+T** to create a horizontal group (tabbed layout)
+3. Press **Alt+Backslash** to create a horizontal split on the right
+4. Press **Alt+T** to convert to a tabbed group
 5. Open Window 3 - it appears as a tab
 6. Open Window 4 - it appears as a tab
 
 **Key actions:**
-- Focus the right column: **Alt+L**
-- Create tabbed group: **Alt+T**
+- Create horizontal split: **Alt+Backslash**
+- Convert to tabbed group: **Alt+T**
 - Navigate between tabs: **Alt+H/L** (left/right)
 
 **Result:** One large window on the left, multiple tabbed windows on the right. You can switch between tabs with Alt+H/L.
@@ -153,17 +150,18 @@ Two columns, each containing stacked windows (advanced workspace setup).
 
 **How to create:**
 1. Start with Window 1 in focus
-2. Press **Alt+S** to create a vertical group for the left column
-3. Open Window 2 - it appears in the left stack
-4. Press **Alt+L** to move focus to the right
-5. Open Window 3 - it appears on the right
-6. Press **Alt+S** to create a vertical group for the right column
-7. Open Window 4 - it appears in the right stack
+2. Press **Alt+Equal** to create a vertical split
+3. Press **Alt+S** to convert to a stacked group
+4. Open Window 2 - it appears in the left stack
+5. Press **Alt+L** to move focus to the right
+6. Open Window 3 - it appears on the right
+7. Press **Alt+Equal** to create a vertical split
+8. Press **Alt+S** to convert to a stacked group
+9. Open Window 4 - it appears in the right stack
 
 **Key actions:**
-- Create left stack: **Alt+S** (with Window 1 focused)
-- Move to right column: **Alt+L**
-- Create right stack: **Alt+S** (with Window 3 focused)
+- Create vertical split: **Alt+Equal**
+- Convert to stacked group: **Alt+S**
 - Navigate within stacks: **Alt+J/K**
 - Move between columns: **Alt+H/L**
 
@@ -172,11 +170,11 @@ Two columns, each containing stacked windows (advanced workspace setup).
 ## Advanced Tips
 
 ### Resizing Windows
-After creating any layout, you can resize windows with **Alt+Ctrl+H/J/K/L**:
-- **Alt+Ctrl+H** - Make narrower (move left edge right)
-- **Alt+Ctrl+L** - Make wider (move right edge right)
-- **Alt+Ctrl+J** - Make taller (move bottom edge down)
-- **Alt+Ctrl+K** - Make shorter (move top edge down)
+After creating any layout, you can resize windows with **Alt+Ctrl+H/J/K/L**. These bindings make the current window bigger by moving each edge outward:
+- **Alt+Ctrl+H** - Expand left (move left edge left)
+- **Alt+Ctrl+L** - Expand right (move right edge right)
+- **Alt+Ctrl+J** - Expand down (move bottom edge down)
+- **Alt+Ctrl+K** - Expand up (move top edge up)
 
 ### Reorganizing Windows
 - Move windows between columns/stacks: **Alt+Shift+H/J/K/L**
@@ -214,16 +212,6 @@ Use Example 4 (main window + tabbed sidebar):
 
 **Windows not tiling as expected?**
 - Make sure you've activated the space with **Alt+Z**
-- Check that `default_disable = true` in your config (or manually activate each space)
-
-**Can't see which window is focused?**
-- Enable focus indicators in your config
-- Use mouse-follows-focus: the cursor will move to the focused window
-
-**Layout gets messed up?**
-- Use **Alt+E** to ungroup containers
-- Move windows back to desired positions with **Alt+Shift+H/J/K/L**
-- In worst case, restart Glide with **Alt+Shift+E** and relaunch
 
 ## Next Steps
 
