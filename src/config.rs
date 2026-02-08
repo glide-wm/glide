@@ -377,7 +377,7 @@ mod tests {
 
         // Should have all 4 arrow key bindings
         assert_eq!(config.keys.len(), 4);
-        
+
         // Verify all arrow keys are present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowLeft"));
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowDown"));
