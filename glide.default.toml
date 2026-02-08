@@ -46,6 +46,7 @@ default_keys = false
 
 [keys]
 # Note: Modifier and key names must be capitalized.
+# On Mac keyboards, "Alt" refers to the Option (⌥) key.
 
 # Save the current state to the restore file and exit.
 # Restore this with the --restore option when starting glide.
@@ -74,8 +75,11 @@ default_keys = false
 "Alt + Ctrl + K" = { resize = { direction = "up", percent = 5 } }
 "Alt + Ctrl + L" = { resize = { direction = "right", percent = 5 } }
 
-# Move up or down the tree hieararchy, selecting a parent or child node
-# respectively.
+# Move up or down the tree hierarchy, selecting a parent or child node
+# respectively. These commands change which node is selected (similar to
+# move_focus) rather than moving windows. The selected node affects subsequent
+# operations like move_node, split, or group commands.
+# Note: The selected node is not currently shown visually.
 "Alt + A" = "ascend"
 "Alt + D" = "descend"
 
