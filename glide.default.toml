@@ -101,7 +101,11 @@ default_keys = false
 "Alt + Equal" = { split = "vertical" }
 
 # Change the parent node to a horizontal or vertical group, also known as
-# "tabbed" and "stacked" respectively.
+# "tabbed" and "stacked" respectively. Groups show one window at a time,
+# allocating their entire frame to that window.
+#
+# These commands all the parent of the current window, converting it to
+# or from a group.
 "Alt + T" = { group = "horizontal" }
 "Alt + S" = { group = "vertical" }
 "Alt + E" = "ungroup"
