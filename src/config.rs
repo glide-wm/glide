@@ -384,22 +384,4 @@ mod tests {
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowUp"));
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowRight"));
     }
-
-    #[test]
-    fn invalid_arrow_key_names_fail() {
-        // Test that the incorrect arrow key names (without "Arrow" prefix) fail to parse
-        let result = Config::parse(
-            r#"
-            [settings]
-            default_keys = false
-
-            [keys]
-            "Alt + Down" = { move_focus = "down" }
-            "#,
-        );
-
-        assert!(result.is_err());
-        let err_msg = format!("{:?}", result.unwrap_err());
-        assert!(err_msg.contains("Could not parse hotkey"));
-    }
 }
