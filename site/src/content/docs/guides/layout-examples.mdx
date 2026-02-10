@@ -70,39 +70,7 @@ Three windows arranged side by side.
 
 ## Example 3: Two Columns with Stacked Group
 
-A main window on the left with multiple stacked windows on the right (like a traditional IDE layout).
-
-```
-┌──────────────┬──────────────┐
-│              │╔════════════╗│
-│              │║  Window 2  ║│
-│              │╚════════════╝│
-│   Window 1   │┌────────────┐│
-│              ││  Window 3  ││
-│              │└────────────┘│
-│              │┌────────────┐│
-│              ││  Window 4  ││
-└──────────────┴└────────────┘┘
-```
-
-**How to create:**
-1. Start with Window 1 in focus
-2. Open Window 2 - it appears next to Window 1
-3. Press **Alt+Equal** to create a vertical split on the right
-4. Press **Alt+S** to convert to a stacked group
-5. Open Window 3 - it appears in the stack below Window 2
-6. Open Window 4 - it appears in the stack below Window 3
-
-**Key actions:**
-- Create vertical split: **Alt+Equal**
-- Convert to stacked group: **Alt+S**
-- Navigate within stack: **Alt+J/K** (down/up)
-
-**Result:** One large window on the left, multiple stacked windows on the right. You can switch between the stacked windows with Alt+J/K.
-
-## Example 4: Two Columns with Tabbed Groups
-
-Similar to Example 3, but using tabs instead of stacks.
+A main window on the left with multiple stacked windows on the right.
 
 ```
 ┌──────────────┬──────────────┐
@@ -119,53 +87,49 @@ Similar to Example 3, but using tabs instead of stacks.
 **How to create:**
 1. Start with Window 1 in focus
 2. Open Window 2 - it appears next to Window 1
-3. Press **Alt+Backslash** to create a horizontal split on the right
-4. Press **Alt+T** to convert to a tabbed group
-5. Open Window 3 - it appears as a tab
-6. Open Window 4 - it appears as a tab
+3. Press **Alt+Equal** to create a vertical split on the right
+4. Press **Alt+S** to convert to a stacked group
+5. Open Window 3 - it appears in the stack below Window 2
+6. Open Window 4 - it appears in the stack below Window 3
 
 **Key actions:**
-- Create horizontal split: **Alt+Backslash**
-- Convert to tabbed group: **Alt+T**
-- Navigate between tabs: **Alt+H/L** (left/right)
+- Create vertical split: **Alt+Equal**
+- Convert to stacked group: **Alt+S**
+- Navigate within stack: **Alt+J/K** (down/up)
 
-**Result:** One large window on the left, multiple tabbed windows on the right. You can switch between tabs with Alt+H/L.
+**Result:** One large window on the left, multiple stacked windows on the right with one visible at a time. You can switch between the stacked windows with Alt+J/K.
 
-## Example 5: Both Columns with Stacked Groups
+## Example 4: Both Columns with Vertical Containers
 
-Two columns, each containing stacked windows (advanced workspace setup).
+Two columns, each containing vertical containers.
 
 ```
 ┌──────────────┬──────────────┐
-│╔════════════╗│╔════════════╗│
-│║  Window 1  ║│║  Window 3  ║│
-│╚════════════╝│╚════════════╝│
-│┌────────────┐│┌────────────┐│
-││  Window 2  │││  Window 4  ││
-│└────────────┘│└────────────┘│
-│              │              │
-│              │              │
+│              ║              │
+│   Window 1   ║   Window 3   │
+│              ║              │
+│──────────────║──────────────│
+│              ║              │
+│   Window 2   ║   Window 4   │
+│              ║              │
 └──────────────┴──────────────┘
 ```
 
 **How to create:**
 1. Start with Window 1 in focus
 2. Press **Alt+Equal** to create a vertical split
-3. Press **Alt+S** to convert to a stacked group
-4. Open Window 2 - it appears in the left stack
-5. Press **Alt+L** to move focus to the right
-6. Open Window 3 - it appears on the right
+4. Open Window 2 - it appears below Window 1
+6. Open Window 3 - it appears below Windows 1 and 2
+5. Press **Alt+Shift+L** to move Window 3 to the right
 7. Press **Alt+Equal** to create a vertical split
-8. Press **Alt+S** to convert to a stacked group
-9. Open Window 4 - it appears in the right stack
+9. Open Window 4 - it appears on the right
 
 **Key actions:**
 - Create vertical split: **Alt+Equal**
-- Convert to stacked group: **Alt+S**
-- Navigate within stacks: **Alt+J/K**
+- Navigate within columns: **Alt+J/K**
 - Move between columns: **Alt+H/L**
 
-**Result:** Two columns of stacked windows. Great for organizing multiple tasks side by side.
+**Result:** Two columns of windows.
 
 ## Advanced Tips
 
@@ -178,7 +142,7 @@ After creating any layout, you can resize windows with **Alt+Ctrl+H/J/K/L**. The
 
 ### Reorganizing Windows
 - Move windows between columns/stacks: **Alt+Shift+H/J/K/L**
-- Remove a window from a group: Focus the window and press **Alt+E**
+- Ungroup: Focus a window in the group and press **Alt+E** to convert the parent group to a horizontal or vertical container
 
 ### Converting Between Stack and Tabs
 - From stack to tabs: Focus the group and press **Alt+T**
@@ -191,26 +155,10 @@ For complex layouts, you can use:
 
 These commands change which node is selected in the layout tree, affecting how subsequent operations work. See the [keyboard-centric setup guide](/guides/keyboard-centric-setup#understanding-tree-navigation-ascenddescend) for more details.
 
-## Common Workflows
-
-### IDE-like Layout
-Use Example 3 (main window + stacked sidebar):
-- Large code editor on the left
-- Terminal, file browser, and documentation stacked on the right
-
-### Multi-monitor Simulation
-Use Example 5 (both columns stacked):
-- Left column: Development windows (editor, terminal)
-- Right column: Reference windows (browser, documentation)
-
-### Communication Setup
-Use Example 4 (main window + tabbed sidebar):
-- Large content window on the left
-- Tabbed communication apps on the right (Slack, email, calendar)
-
 ## Troubleshooting
 
 **Windows not tiling as expected?**
+
 - Make sure you've activated the space with **Alt+Z**
 
 ## Next Steps
