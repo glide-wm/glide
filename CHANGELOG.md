@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.10](https://github.com/glide-wm/glide/compare/v0.2.9...v0.2.10) (2026-02-10)
+
+
+### Documentation
+
+* clarify Alt key, improve tree navigation, document v0.2.9 features ([#133](https://github.com/glide-wm/glide/issues/133)) ([fa44b60](https://github.com/glide-wm/glide/commit/fa44b60339d65f55d4f507e102d7198e14f8aa85))
+* Clarify role of group commands ([9e35acc](https://github.com/glide-wm/glide/commit/9e35accf84f2c258ff928791009f40ae045f8760))
+
 ## [0.2.9](https://github.com/glide-wm/glide/compare/v0.2.8...v0.2.9) (2026-02-02)
 
 This release adds the ability to add key bindings to the default set instead of replacing it. Note that this may become the default in the future.
