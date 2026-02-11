@@ -476,4 +476,28 @@ mod tests {
         assert!(AspectRatio::from_str("16:-1").is_err());
         assert!(AspectRatio::from_str("abc:def").is_err());
     }
+
+    #[test]
+    fn arrow_keys_parse_correctly() {
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = false
+
+            [keys]
+            "Alt + ArrowLeft" = { move_focus = "left" }
+            "Alt + ArrowDown" = { move_focus = "down" }
+            "Alt + ArrowUp" = { move_focus = "up" }
+            "Alt + ArrowRight" = { move_focus = "right" }
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(config.keys.len(), 4);
+
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowLeft"));
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowDown"));
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowUp"));
+        assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowRight"));
+    }
 }

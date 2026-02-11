@@ -23,7 +23,7 @@
     { "type": "dev", "section": "Developer Tools" },
     { "type": "devtool", "section": "Developer Tools" },
     { "type": "experiment", "section": "Experimental Features" },
-    { "type": "docs", "section": "Documentation", "hidden": true },
+    { "type": "docs", "section": "Documentation" },
     { "type": "style", "section": "Styles", "hidden": true },
     { "type": "chore", "section": "Miscellaneous Chores", "hidden": true },
     { "type": "refactor", "section": "Code Refactoring", "hidden": true },
