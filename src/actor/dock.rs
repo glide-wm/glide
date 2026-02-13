@@ -3,7 +3,9 @@
 
 //! Watches Dock notifications for expose (mission control) events.
 
-use std::{cell::RefCell, future::pending, rc::Rc};
+use std::cell::RefCell;
+use std::future::pending;
+use std::rc::Rc;
 
 use accessibility::AXUIElement;
 use anyhow::{Context, bail};
@@ -11,10 +13,9 @@ use objc2_app_kit::NSRunningApplication;
 use objc2_foundation::ns_string;
 use tracing::{Span, error, warn};
 
-use crate::{
-    actor::wm_controller::{self, WmEvent},
-    sys::{app::NSRunningApplicationExt, observer::Observer},
-};
+use crate::actor::wm_controller::{self, WmEvent};
+use crate::sys::app::NSRunningApplicationExt;
+use crate::sys::observer::Observer;
 
 pub struct Dock {
     #[expect(dead_code)]

@@ -1,7 +1,8 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{ffi::OsString, process::Command};
+use std::ffi::OsString;
+use std::process::Command;
 
 use anyhow::bail;
 use objc2::rc::Retained;

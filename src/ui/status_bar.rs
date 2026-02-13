@@ -17,7 +17,6 @@ use objc2_foundation::{NSData, NSObject, NSString, ns_string};
 use tracing::{Span, debug, error, warn};
 
 use crate::actor::reactor;
-
 /// Manages a menu bar icon that displays the current space ID.
 use crate::actor::reactor::{
     Command, Event as ReactorEvent, ReactorCommand, Sender as ReactorSender,

@@ -1,18 +1,17 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{borrow::Borrow, path::PathBuf, sync::mpsc, time::Duration};
+use std::borrow::Borrow;
+use std::path::PathBuf;
+use std::sync::mpsc;
+use std::time::Duration;
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
-use glide_wm::{
-    actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest},
-    config::{Config, config_path},
-    sys::{
-        bundle::{self, BundleError},
-        message_port::{RemoteMessagePort, RemotePortCreateError, SendError},
-    },
-};
+use glide_wm::actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest};
+use glide_wm::config::{Config, config_path};
+use glide_wm::sys::bundle::{self, BundleError};
+use glide_wm::sys::message_port::{RemoteMessagePort, RemotePortCreateError, SendError};
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
 

@@ -32,10 +32,11 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+use std::ffi::c_void;
 use std::mem::ManuallyDrop;
 use std::ptr;
+use std::ptr::NonNull;
 use std::time::Duration;
-use std::{ffi::c_void, ptr::NonNull};
 
 use objc2_core_foundation::{
     CFData, CFMessagePort, CFMessagePortContext, CFRetained, CFRunLoop, CFString,
@@ -314,10 +315,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::{Duration, Instant};
+
+    use super::*;
 
     #[test]
     fn test_local_port_creation() {
