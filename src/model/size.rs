@@ -259,6 +259,7 @@ impl Size {
         config: &Config,
         root: NodeId,
         screen: CGRect,
+        is_scroll: bool,
     ) -> Vec<(WindowId, CGRect)> {
         let mut sizes = vec![];
         Visitor {
@@ -269,6 +270,7 @@ impl Size {
             fullscreen_nodes: &[],
             config,
             screen,
+            is_scroll,
             sizes: &mut sizes,
             groups: None,
         }
@@ -284,6 +286,7 @@ impl Size {
         config: &Config,
         root: NodeId,
         screen: CGRect,
+        is_scroll: bool,
     ) -> (Vec<(WindowId, CGRect)>, Vec<GroupBarInfo>) {
         let mut sizes = vec![];
         let mut groups = vec![];
@@ -299,6 +302,7 @@ impl Size {
             fullscreen_nodes,
             config,
             screen,
+            is_scroll,
             sizes: &mut sizes,
             groups: Some(&mut groups),
         }
@@ -315,6 +319,7 @@ struct Visitor<'a, 'out> {
     fullscreen_nodes: &'a [NodeId],
     config: &'a Config,
     screen: CGRect,
+    is_scroll: bool,
     sizes: &'out mut Vec<(WindowId, CGRect)>,
     groups: Option<&'out mut Vec<GroupBarInfo>>,
 }
@@ -428,7 +433,11 @@ impl<'a, 'out> Visitor<'a, 'out> {
                     .collect();
 
                 let total_weight: f64 = inputs.iter().map(|i| i.weight).sum();
-                let virtual_width = total_weight * rect.size.width;
+                let virtual_width = if self.is_scroll {
+                    total_weight * rect.size.width
+                } else {
+                    rect.size.width
+                };
                 let outputs =
                     super::scroll_constraints::solve_sizes(&inputs, virtual_width, inner_gap);
 
@@ -631,10 +640,10 @@ mod tests {
         assert_eq!(
             frames,
             vec![
-                (WindowId::new(1, 1), rect(0, 0, 3000, 1000)),
-                (WindowId::new(1, 2), rect(3000, 0, 3000, 500)),
-                (WindowId::new(1, 3), rect(3000, 500, 3000, 500)),
-                (WindowId::new(1, 4), rect(6000, 0, 3000, 1000)),
+                (WindowId::new(1, 1), rect(0, 0, 1000, 1000)),
+                (WindowId::new(1, 2), rect(1000, 0, 1000, 500)),
+                (WindowId::new(1, 3), rect(1000, 500, 1000, 500)),
+                (WindowId::new(1, 4), rect(2000, 0, 1000, 1000)),
             ]
         );
         assert_eq!(groups.len(), 0);
@@ -873,12 +882,12 @@ mod tests {
         let window2_frame = frames.iter().find(|(wid, _)| *wid == WindowId::new(1, 2)).unwrap().1;
         assert_eq!(
             window1_frame,
-            rect(10, 10, 980, 980),
+            rect(10, 10, 490, 980),
             "window1 before fullscreen"
         );
         assert_eq!(
             window2_frame,
-            rect(990, 10, 980, 980),
+            rect(500, 10, 490, 980),
             "window2 before fullscreen"
         );
 

@@ -329,7 +329,7 @@ fn inspect(mtm: MainThreadMarker) {
 
 async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
     let mut screen_cache = ScreenCache::new(mtm);
-    let Some((_, _, converter, _)) = screen_cache.update_screen_config() else {
+    let Some((_, converter)) = screen_cache.update_screen_config() else {
         return;
     };
     while let Some(()) = rx.recv().await {

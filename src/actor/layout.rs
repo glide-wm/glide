@@ -7,20 +7,18 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use objc2_core_foundation::{CGRect, CGSize};
+use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
-
-use objc2_core_foundation::CGPoint;
 
 use crate::actor::app::{WindowId, pid_t};
 use crate::collections::{BTreeExt, BTreeSet, HashMap, HashSet};
 use crate::config::{Config, NewWindowPlacement, ScrollConfig};
+use crate::model::scroll_viewport::ViewportState;
 use crate::model::{
     ContainerKind, Direction, LayoutId, LayoutKind, LayoutTree, NodeId, Orientation,
     SpaceLayoutMapping,
 };
-use crate::model::scroll_viewport::ViewportState;
 use crate::sys::geometry::{CGRectExt, CGSizeExt};
 use crate::sys::screen::SpaceId;
 
@@ -104,13 +102,19 @@ impl LayoutCommand {
     fn modifies_layout(&self) -> bool {
         use LayoutCommand::*;
         match self {
-            MoveNode(_) | Group(_) | Ungroup | Resize { .. }
-            | CycleColumnWidth | ConsumeIntoColumn(_) | ExpelFromColumn(_)
+            MoveNode(_)
+            | Group(_)
+            | Ungroup
+            | Resize { .. }
+            | CycleColumnWidth
+            | ConsumeIntoColumn(_)
+            | ExpelFromColumn(_)
             | ToggleColumnTabbed => true,
 
             NextLayout | PrevLayout | MoveFocus(_) | Ascend | Descend | Split(_)
-            | ToggleFocusFloating | ToggleWindowFloating | ToggleFullscreen
-            | ChangeLayoutKind => false,
+            | ToggleFocusFloating | ToggleWindowFloating | ToggleFullscreen | ChangeLayoutKind => {
+                false
+            }
         }
     }
 }
@@ -186,7 +190,9 @@ pub struct LayoutManager {
     active_floating_windows: HashMap<SpaceId, HashMap<pid_t, HashSet<WindowId>>>,
     #[serde(skip)]
     focused_window: Option<WindowId>,
+    /// Last window focused in floating mode.
     #[serde(skip)]
+    // TODO: We should keep a stack for each space.
     last_floating_focus: Option<WindowId>,
     #[serde(skip)]
     viewports: HashMap<LayoutId, ViewportState>,
@@ -256,6 +262,7 @@ impl LayoutManager {
         self.default_layout_kind = config.settings.default_layout_kind;
         self.scroll_cfg = config.settings.experimental.scroll.clone().validated();
 
+        // TODO: Move this calculation to the model layer.
         let weight = 1.0 / self.scroll_cfg.visible_columns.max(1) as f32;
         for layout in self.tree.layouts().collect::<Vec<_>>() {
             if self.tree.is_scroll_layout(layout) {
@@ -346,8 +353,14 @@ impl LayoutManager {
                     .collect();
                 self.tree.set_windows_for_app(self.layout(space), pid, tree_windows);
                 for wid in new_windows {
-                    let new_column = self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
-                    self.tree.add_window_to_scroll_column_with_visible(layout, wid, new_column, self.scroll_config().visible_columns);
+                    let new_column =
+                        self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
+                    self.tree.add_window_to_scroll_column_with_visible(
+                        layout,
+                        wid,
+                        new_column,
+                        self.scroll_config().visible_columns,
+                    );
                 }
                 for wid in add_floating {
                     self.add_floating_window(wid, Some(space));
@@ -367,8 +380,14 @@ impl LayoutManager {
                     WindowClass::Regular => {
                         let layout = self.layout(space);
                         if self.tree.is_scroll_layout(layout) {
-                            let new_column = self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
-                            self.tree.add_window_to_scroll_column_with_visible(layout, wid, new_column, self.scroll_config().visible_columns);
+                            let new_column = self.scroll_config().new_window_in_column
+                                == NewWindowPlacement::NewColumn;
+                            self.tree.add_window_to_scroll_column_with_visible(
+                                layout,
+                                wid,
+                                new_column,
+                                self.scroll_config().visible_columns,
+                            );
                         } else {
                             self.tree.add_window_after(layout, self.tree.selection(layout), wid);
                         }
@@ -594,10 +613,15 @@ impl LayoutManager {
                     && self.scroll_config().infinite_loop
                     && matches!(direction, Direction::Left | Direction::Right);
                 let new_focus = if use_wrapping {
-                    self.tree.traverse_scroll_wrapping(layout, self.tree.selection(layout), direction)
+                    self.tree.traverse_scroll_wrapping(
+                        layout,
+                        self.tree.selection(layout),
+                        direction,
+                    )
                 } else {
                     self.tree.traverse(self.tree.selection(layout), direction)
-                }.or_else(|| {
+                }
+                .or_else(|| {
                     let layout = self.layout(next_space(direction)?);
                     Some(self.tree.selection(layout))
                 });
@@ -629,12 +653,12 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::Split(orientation) => {
+                // Don't mark as written yet, since merely splitting doesn't
+                // usually have a visible effect.
                 if self.tree.is_scroll_layout(layout) && orientation == Orientation::Horizontal {
                     let selection = self.tree.selection(layout);
                     let root = self.tree.root(layout);
-                    if selection == root
-                        || selection.parent(self.tree.map()) == Some(root)
-                    {
+                    if selection == root || selection.parent(self.tree.map()) == Some(root) {
                         return EventResponse::default();
                     }
                 }
@@ -744,7 +768,9 @@ impl LayoutManager {
                     LayoutKind::Scroll => LayoutKind::Tree,
                 };
 
-                let windows: Vec<WindowId> = self.tree.root(layout)
+                let windows: Vec<WindowId> = self
+                    .tree
+                    .root(layout)
                     .traverse_postorder(self.tree.map())
                     .filter_map(|n| self.tree.window_at(n))
                     .collect();
@@ -758,7 +784,12 @@ impl LayoutManager {
                 for &wid in &windows {
                     self.tree.remove_window(wid);
                     if new_kind == LayoutKind::Scroll {
-                        self.tree.add_window_to_scroll_column_with_visible(new_layout, wid, true, visible_columns);
+                        self.tree.add_window_to_scroll_column_with_visible(
+                            new_layout,
+                            wid,
+                            true,
+                            visible_columns,
+                        );
                     } else {
                         let sel = self.tree.selection(new_layout);
                         self.tree.add_window_after(new_layout, sel, wid);
@@ -841,6 +872,7 @@ impl LayoutManager {
         let layout = self.layout(space);
         let (sizes, mut groups) = self.tree.calculate_layout_and_groups(layout, screen, config);
         if self.is_floating() {
+            // Make sure group bars don't cover the floating windows.
             for group in &mut groups {
                 group.is_on_top = false;
             }
@@ -901,7 +933,13 @@ impl LayoutManager {
             if let Some((_, frame)) = frames.iter().find(|(w, _)| *w == wid) {
                 if let Some(c) = col {
                     let col_idx = columns.iter().position(|&n| n == c).unwrap_or(0);
-                    vp.ensure_column_visible(col_idx, frame.origin.x, frame.size.width, center_mode, gap);
+                    vp.ensure_column_visible(
+                        col_idx,
+                        frame.origin.x,
+                        frame.size.width,
+                        center_mode,
+                        gap,
+                    );
                 }
             }
         }
@@ -937,7 +975,11 @@ impl LayoutManager {
 
         let step_threshold = screen.size.width / col_count.min(3) as f64;
 
-        let delta = if config.invert_scroll_direction { -delta_x } else { delta_x };
+        let delta = if config.invert_scroll_direction {
+            -delta_x
+        } else {
+            delta_x
+        };
         let scaled_delta = delta * config.scroll_sensitivity;
 
         let is_discrete = delta_x.abs() < 10.0 && delta_x.fract() == 0.0;
@@ -956,7 +998,11 @@ impl LayoutManager {
         };
 
         let selection = self.tree.selection(layout);
-        let direction = if steps < 0 { Direction::Right } else { Direction::Left };
+        let direction = if steps < 0 {
+            Direction::Right
+        } else {
+            Direction::Left
+        };
         let abs_steps = steps.unsigned_abs() as usize;
 
         let mut current = selection;
@@ -1311,8 +1357,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 120, 60)),
-                (WindowId::new(pid, 2), rect(0, 60, 120, 60)),
-                (WindowId::new(pid, 3), rect(120, 60, 120, 60)),
+                (WindowId::new(pid, 2), rect(0, 60, 60, 60)),
+                (WindowId::new(pid, 3), rect(60, 60, 60, 60)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1324,8 +1370,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 1200, 600)),
-                (WindowId::new(pid, 2), rect(0, 600, 1200, 600)),
-                (WindowId::new(pid, 3), rect(1200, 600, 1200, 600)),
+                (WindowId::new(pid, 2), rect(0, 600, 600, 600)),
+                (WindowId::new(pid, 3), rect(600, 600, 600, 600)),
             ],
             mgr.layout_sorted(space, screen2),
             "layout was not correctly scaled to new screen size"
@@ -1335,9 +1381,9 @@ mod tests {
         _ = mgr.handle_command(Some(space), &[space], MoveNode(Direction::Down));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 1200, 1200)),
-                (WindowId::new(pid, 2), rect(1200, 0, 1200, 1200)),
-                (WindowId::new(pid, 3), rect(2400, 0, 1200, 1200)),
+                (WindowId::new(pid, 1), rect(0, 0, 400, 1200)),
+                (WindowId::new(pid, 2), rect(400, 0, 400, 1200)),
+                (WindowId::new(pid, 3), rect(800, 0, 400, 1200)),
             ],
             mgr.layout_sorted(space, screen2),
         );
@@ -1348,8 +1394,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 120, 60)),
-                (WindowId::new(pid, 2), rect(0, 60, 120, 60)),
-                (WindowId::new(pid, 3), rect(120, 60, 120, 60)),
+                (WindowId::new(pid, 2), rect(0, 60, 60, 60)),
+                (WindowId::new(pid, 3), rect(60, 60, 60, 60)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1359,9 +1405,9 @@ mod tests {
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, windows.clone()));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 1200, 1200)),
-                (WindowId::new(pid, 2), rect(1200, 0, 1200, 1200)),
-                (WindowId::new(pid, 3), rect(2400, 0, 1200, 1200)),
+                (WindowId::new(pid, 1), rect(0, 0, 400, 1200)),
+                (WindowId::new(pid, 2), rect(400, 0, 400, 1200)),
+                (WindowId::new(pid, 3), rect(800, 0, 400, 1200)),
             ],
             mgr.layout_sorted(space, screen2),
         );
@@ -1383,9 +1429,9 @@ mod tests {
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 1)));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 120, 120)),
-                (WindowId::new(pid, 2), rect(120, 0, 120, 120)),
-                (WindowId::new(pid, 3), rect(240, 0, 120, 120)),
+                (WindowId::new(pid, 1), rect(0, 0, 40, 120)),
+                (WindowId::new(pid, 2), rect(40, 0, 40, 120)),
+                (WindowId::new(pid, 3), rect(80, 0, 40, 120)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1397,9 +1443,9 @@ mod tests {
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 1)));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 1200, 1200)),
-                (WindowId::new(pid, 2), rect(1200, 0, 1200, 1200)),
-                (WindowId::new(pid, 3), rect(2400, 0, 1200, 1200)),
+                (WindowId::new(pid, 1), rect(0, 0, 400, 1200)),
+                (WindowId::new(pid, 2), rect(400, 0, 400, 1200)),
+                (WindowId::new(pid, 3), rect(800, 0, 400, 1200)),
             ],
             mgr.layout_sorted(space, screen2),
             "layout was not correctly scaled to new screen size"
@@ -1410,8 +1456,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 1200, 600)),
-                (WindowId::new(pid, 2), rect(0, 600, 1200, 600)),
-                (WindowId::new(pid, 3), rect(1200, 600, 1200, 600)),
+                (WindowId::new(pid, 2), rect(0, 600, 600, 600)),
+                (WindowId::new(pid, 3), rect(600, 600, 600, 600)),
             ],
             mgr.layout_sorted(space, screen2),
         );
@@ -1423,8 +1469,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 120, 60)),
-                (WindowId::new(pid, 2), rect(0, 60, 120, 60)),
-                (WindowId::new(pid, 3), rect(120, 60, 120, 60)),
+                (WindowId::new(pid, 2), rect(0, 60, 60, 60)),
+                (WindowId::new(pid, 3), rect(60, 60, 60, 60)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1436,8 +1482,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 12, 6)),
-                (WindowId::new(pid, 2), rect(0, 6, 12, 6)),
-                (WindowId::new(pid, 3), rect(12, 6, 12, 6)),
+                (WindowId::new(pid, 2), rect(0, 6, 6, 6)),
+                (WindowId::new(pid, 3), rect(6, 6, 6, 6)),
             ],
             mgr.layout_sorted(space, screen3),
         );
@@ -1446,9 +1492,9 @@ mod tests {
         _ = mgr.handle_command(Some(space), &[space], MoveNode(Direction::Left));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 12, 12)),
-                (WindowId::new(pid, 2), rect(12, 0, 12, 12)),
-                (WindowId::new(pid, 3), rect(24, 0, 12, 12)),
+                (WindowId::new(pid, 1), rect(0, 0, 6, 12)),
+                (WindowId::new(pid, 2), rect(6, 0, 3, 12)),
+                (WindowId::new(pid, 3), rect(9, 0, 3, 12)),
             ],
             mgr.layout_sorted(space, screen3),
         );
@@ -1459,9 +1505,9 @@ mod tests {
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, windows.clone()));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 120, 120)),
-                (WindowId::new(pid, 2), rect(120, 0, 120, 120)),
-                (WindowId::new(pid, 3), rect(240, 0, 120, 120)),
+                (WindowId::new(pid, 1), rect(0, 0, 60, 120)),
+                (WindowId::new(pid, 2), rect(60, 0, 30, 120)),
+                (WindowId::new(pid, 3), rect(90, 0, 30, 120)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1479,8 +1525,8 @@ mod tests {
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 1200, 600)),
-                (WindowId::new(pid, 2), rect(0, 600, 1200, 600)),
-                (WindowId::new(pid, 3), rect(1200, 600, 1200, 600)),
+                (WindowId::new(pid, 2), rect(0, 600, 600, 600)),
+                (WindowId::new(pid, 3), rect(600, 600, 600, 600)),
             ],
             mgr.layout_sorted(space, screen2),
         );
@@ -1506,8 +1552,8 @@ mod tests {
         _ = mgr.handle_command(Some(space), &[space], ToggleWindowFloating);
         let sizes: HashMap<_, _> =
             mgr.calculate_layout(space, screen1, config).into_iter().collect();
-        assert_eq!(sizes[&WindowId::new(pid, 2)], rect(0, 0, 120, 120));
-        assert_eq!(sizes[&WindowId::new(pid, 3)], rect(120, 0, 120, 120));
+        assert_eq!(sizes[&WindowId::new(pid, 2)], rect(0, 0, 60, 120));
+        assert_eq!(sizes[&WindowId::new(pid, 3)], rect(60, 0, 60, 120));
 
         // Toggle back to the tiled windows.
         let response = mgr.handle_command(Some(space), &[space], ToggleFocusFloating);
@@ -1564,8 +1610,8 @@ mod tests {
 
         let sizes: HashMap<_, _> =
             mgr.calculate_layout(space, screen1, config).into_iter().collect();
-        assert_eq!(sizes[&WindowId::new(pid, 2)], rect(0, 0, 120, 120));
-        assert_eq!(sizes[&WindowId::new(pid, 3)], rect(120, 0, 120, 120));
+        assert_eq!(sizes[&WindowId::new(pid, 2)], rect(0, 0, 60, 120));
+        assert_eq!(sizes[&WindowId::new(pid, 3)], rect(60, 0, 60, 120));
 
         // Toggle back to the tiled windows.
         let response = mgr.handle_command(Some(space), &[space], ToggleFocusFloating);
@@ -1615,10 +1661,10 @@ mod tests {
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 15)),
-                (WindowId::new(pid, 3), rect(300, 15, 300, 15)),
-                (WindowId::new(pid, 4), rect(600, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 15)),
+                (WindowId::new(pid, 3), rect(100, 15, 100, 15)),
+                (WindowId::new(pid, 4), rect(200, 0, 100, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1628,11 +1674,11 @@ mod tests {
         _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(600, 0, 300, 15)),
-                (WindowId::new(pid, 3), rect(600, 15, 300, 15)),
-                (WindowId::new(pid, 4), rect(900, 0, 300, 30)),
-                (WindowId::new(pid, 6), rect(300, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 75, 30)),
+                (WindowId::new(pid, 2), rect(150, 0, 75, 15)),
+                (WindowId::new(pid, 3), rect(150, 15, 75, 15)),
+                (WindowId::new(pid, 4), rect(225, 0, 75, 30)),
+                (WindowId::new(pid, 6), rect(75, 0, 75, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1643,11 +1689,11 @@ mod tests {
         _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 10)),
-                (WindowId::new(pid, 3), rect(300, 20, 300, 10)),
-                (WindowId::new(pid, 4), rect(600, 0, 300, 30)),
-                (WindowId::new(pid, 6), rect(300, 10, 300, 10)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 10)),
+                (WindowId::new(pid, 3), rect(100, 20, 100, 10)),
+                (WindowId::new(pid, 4), rect(200, 0, 100, 30)),
+                (WindowId::new(pid, 6), rect(100, 10, 100, 10)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1659,11 +1705,11 @@ mod tests {
         _ = mgr.handle_command(Some(space), &[space], ToggleWindowFloating);
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 10)),
-                (WindowId::new(pid, 3), rect(300, 20, 300, 10)),
-                (WindowId::new(pid, 4), rect(600, 0, 300, 30)),
-                (WindowId::new(pid, 5), rect(300, 10, 300, 10)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 10)),
+                (WindowId::new(pid, 3), rect(100, 20, 100, 10)),
+                (WindowId::new(pid, 4), rect(200, 0, 100, 30)),
+                (WindowId::new(pid, 5), rect(100, 10, 100, 10)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1674,11 +1720,11 @@ mod tests {
         _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 10)),
-                (WindowId::new(pid, 3), rect(300, 10, 300, 10)),
-                (WindowId::new(pid, 4), rect(600, 0, 300, 30)),
-                (WindowId::new(pid, 6), rect(300, 20, 300, 10)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 10)),
+                (WindowId::new(pid, 3), rect(100, 10, 100, 10)),
+                (WindowId::new(pid, 4), rect(200, 0, 100, 30)),
+                (WindowId::new(pid, 6), rect(100, 20, 100, 10)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1689,11 +1735,11 @@ mod tests {
         _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 6), win_info()));
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 15)),
-                (WindowId::new(pid, 3), rect(300, 15, 300, 15)),
-                (WindowId::new(pid, 4), rect(600, 0, 300, 30)),
-                (WindowId::new(pid, 6), rect(900, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 75, 30)),
+                (WindowId::new(pid, 2), rect(75, 0, 75, 15)),
+                (WindowId::new(pid, 3), rect(75, 15, 75, 15)),
+                (WindowId::new(pid, 4), rect(150, 0, 75, 30)),
+                (WindowId::new(pid, 6), rect(225, 0, 75, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1716,9 +1762,9 @@ mod tests {
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 30)),
-                (WindowId::new(pid, 3), rect(600, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 30)),
+                (WindowId::new(pid, 3), rect(200, 0, 100, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1732,9 +1778,9 @@ mod tests {
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 30)),
-                (WindowId::new(pid, 3), rect(600, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 30)),
+                (WindowId::new(pid, 3), rect(200, 0, 100, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1756,25 +1802,25 @@ mod tests {
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 30)),
-                (WindowId::new(pid, 3), rect(600, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 30)),
+                (WindowId::new(pid, 3), rect(200, 0, 100, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
 
         _ = mgr.handle_event(WindowResized {
             wid: WindowId::new(pid, 2),
-            old_frame: rect(300, 0, 300, 30),
+            old_frame: rect(100, 0, 100, 30),
             new_frame: screen1,
             screens: vec![(space, screen1)],
         });
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
                 (WindowId::new(pid, 2), screen1),
-                (WindowId::new(pid, 3), rect(600, 0, 300, 30)),
+                (WindowId::new(pid, 3), rect(200, 0, 100, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1782,15 +1828,15 @@ mod tests {
         _ = mgr.handle_event(WindowResized {
             wid: WindowId::new(pid, 2),
             old_frame: screen1,
-            new_frame: rect(300, 0, 300, 30),
+            new_frame: rect(100, 0, 100, 30),
             screens: vec![(space, screen1)],
         });
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 300, 30)),
-                (WindowId::new(pid, 2), rect(300, 0, 300, 30)),
-                (WindowId::new(pid, 3), rect(600, 0, 300, 30)),
+                (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
+                (WindowId::new(pid, 2), rect(100, 0, 100, 30)),
+                (WindowId::new(pid, 3), rect(200, 0, 100, 30)),
             ],
             mgr.layout_sorted(space, screen1),
         );
@@ -1812,15 +1858,15 @@ mod tests {
         _ = mgr.handle_event(WindowAdded(space, WindowId::new(pid, 3), win_info()));
 
         let orig = vec![
-            (WindowId::new(pid, 1), rect(0, 10, 300, 20)),
-            (WindowId::new(pid, 2), rect(300, 10, 300, 20)),
-            (WindowId::new(pid, 3), rect(600, 10, 300, 20)),
+            (WindowId::new(pid, 1), rect(0, 10, 100, 20)),
+            (WindowId::new(pid, 2), rect(100, 10, 100, 20)),
+            (WindowId::new(pid, 3), rect(200, 10, 100, 20)),
         ];
         assert_eq!(orig, mgr.layout_sorted(space, screen1));
 
         _ = mgr.handle_event(WindowResized {
             wid: WindowId::new(pid, 1),
-            old_frame: rect(0, 10, 300, 20),
+            old_frame: rect(0, 10, 100, 20),
             new_frame: screen1_full,
             screens: vec![(space, screen1)],
         });
@@ -1828,7 +1874,7 @@ mod tests {
         _ = mgr.handle_event(WindowResized {
             wid: WindowId::new(pid, 1),
             old_frame: screen1_full,
-            new_frame: rect(0, 10, 300, 20),
+            new_frame: rect(0, 10, 100, 20),
             screens: vec![(space, screen1)],
         });
 
@@ -1897,9 +1943,9 @@ mod tests {
         assert_eq!(
             vec![
                 // Note that 2 is moved to the right of 3.
-                (WindowId::new(pid, 2), rect(600, 0, 300, 30)),
-                (WindowId::new(pid, 3), rect(300, 0, 300, 30)),
-                (WindowId::new(pid, 4), rect(900, 0, 300, 30)),
+                (WindowId::new(pid, 2), rect(400, 0, 100, 30)),
+                (WindowId::new(pid, 3), rect(300, 0, 100, 30)),
+                (WindowId::new(pid, 4), rect(500, 0, 100, 30)),
             ],
             mgr.layout_sorted(space2, screen2),
         );
@@ -1922,15 +1968,15 @@ mod tests {
         let pid = 1;
         let windows = make_windows(pid, 2);
 
-        let screen = rect(0, 0, 1000, 1000);
+        let screen = rect(0, 0, 100, 100);
         _ = mgr.handle_event(SpaceExposed(space, screen.size));
         _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, windows));
         _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 1)));
 
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 1000, 1000)),
-                (WindowId::new(pid, 2), rect(1000, 0, 1000, 1000)),
+                (WindowId::new(pid, 1), rect(0, 0, 50, 100)),
+                (WindowId::new(pid, 2), rect(50, 0, 50, 100)),
             ],
             mgr.layout_sorted(space, screen),
         );
@@ -1945,8 +1991,8 @@ mod tests {
         );
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 1100, 1000)),
-                (WindowId::new(pid, 2), rect(1100, 0, 900, 1000)),
+                (WindowId::new(pid, 1), rect(0, 0, 60, 100)),
+                (WindowId::new(pid, 2), rect(60, 0, 40, 100)),
             ],
             mgr.layout_sorted(space, screen),
         );
@@ -1962,8 +2008,8 @@ mod tests {
         );
         assert_eq!(
             vec![
-                (WindowId::new(pid, 1), rect(0, 0, 1000, 1000)),
-                (WindowId::new(pid, 2), rect(1000, 0, 1000, 1000)),
+                (WindowId::new(pid, 1), rect(0, 0, 50, 100)),
+                (WindowId::new(pid, 2), rect(50, 0, 50, 100)),
             ],
             mgr.layout_sorted(space, screen),
         );

@@ -1,8 +1,11 @@
+// TODO: Consider moving animation state out of the model layer.
+
 use std::time::Instant;
 
 use objc2_core_foundation::CGRect;
-use crate::config::CenterMode;
+
 use super::spring::SpringAnimation;
+use crate::config::CenterMode;
 
 #[derive(Debug, Clone)]
 pub enum ScrollState {
@@ -71,9 +74,7 @@ impl ViewportState {
         let current = self.target_offset();
 
         let new_offset = match center_mode {
-            CenterMode::Always => {
-                column_x + column_width / 2.0 - self.screen_width / 2.0
-            }
+            CenterMode::Always => column_x + column_width / 2.0 - self.screen_width / 2.0,
             CenterMode::OnOverflow => {
                 if column_width > self.screen_width {
                     column_x + column_width / 2.0 - self.screen_width / 2.0
@@ -81,9 +82,7 @@ impl ViewportState {
                     self.compute_edge_fit(column_x, column_width, current, gap)
                 }
             }
-            CenterMode::Never => {
-                self.compute_edge_fit(column_x, column_width, current, gap)
-            }
+            CenterMode::Never => self.compute_edge_fit(column_x, column_width, current, gap),
         };
 
         if (new_offset - current).abs() > 0.5 {
@@ -118,7 +117,8 @@ impl ViewportState {
                 spring.retarget(target);
             }
             ScrollState::Static(current) => {
-                self.scroll = ScrollState::Animating(SpringAnimation::with_defaults(*current, target));
+                self.scroll =
+                    ScrollState::Animating(SpringAnimation::with_defaults(*current, target));
             }
         }
     }
@@ -213,8 +213,9 @@ impl ViewportState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use objc2_core_foundation::{CGPoint, CGSize};
+
+    use super::*;
 
     fn make_rect(x: f64, y: f64, w: f64, h: f64) -> CGRect {
         CGRect::new(CGPoint::new(x, y), CGSize::new(w, h))
@@ -257,15 +258,20 @@ mod tests {
 
         for (_, r) in &result {
             assert_eq!(r.size.width, 640.0, "all windows should preserve original width");
-            assert_eq!(r.size.height, 1080.0, "all windows should preserve original height");
+            assert_eq!(
+                r.size.height, 1080.0,
+                "all windows should preserve original height"
+            );
         }
 
-        let on_screen: Vec<_> = result.iter().filter(|(_, r)| {
-            r.origin.x + r.size.width > 0.0 && r.origin.x < 1920.0
-        }).collect();
-        let off_screen: Vec<_> = result.iter().filter(|(_, r)| {
-            r.origin.x + r.size.width <= 0.0 || r.origin.x >= 1920.0
-        }).collect();
+        let on_screen: Vec<_> = result
+            .iter()
+            .filter(|(_, r)| r.origin.x + r.size.width > 0.0 && r.origin.x < 1920.0)
+            .collect();
+        let off_screen: Vec<_> = result
+            .iter()
+            .filter(|(_, r)| r.origin.x + r.size.width <= 0.0 || r.origin.x >= 1920.0)
+            .collect();
         assert!(!on_screen.is_empty());
         assert!(!off_screen.is_empty());
     }
@@ -275,5 +281,20 @@ mod tests {
         let vp = ViewportState::new(1920.0);
         assert!(vp.is_visible(make_rect(0.0, 0.0, 500.0, 1080.0)));
         assert!(!vp.is_visible(make_rect(2000.0, 0.0, 500.0, 1080.0)));
+    }
+
+    #[test]
+    fn static_viewport_is_not_animating() {
+        let vp = ViewportState::new(1000.0);
+        assert!(!vp.is_animating());
+    }
+
+    #[test]
+    fn completed_animation_settles_to_static() {
+        let mut vp = ViewportState::new(1000.0);
+        vp.animate_to(10.0);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        vp.tick();
+        assert!(!vp.is_animating());
     }
 }

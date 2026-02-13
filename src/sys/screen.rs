@@ -56,9 +56,7 @@ impl<S: System> ScreenCache<S> {
     /// The main screen (if any) is always first. Note that there may be no
     /// screens.
     #[forbid(unsafe_code)] // called from test
-    pub fn update_screen_config(
-        &mut self,
-    ) -> Option<(Vec<CGRect>, Vec<ScreenId>, CoordinateConverter, Vec<f64>)> {
+    pub fn update_screen_config(&mut self) -> Option<(Vec<ScreenInfo>, CoordinateConverter)> {
         let ns_screens = self.system.ns_screens();
         debug!("ns_screens={ns_screens:?}");
 
@@ -77,7 +75,7 @@ impl<S: System> ScreenCache<S> {
         }
 
         if cg_screens.is_empty() {
-            return Some((vec![], vec![], CoordinateConverter::default(), vec![]));
+            return Some((vec![], CoordinateConverter::default()));
         };
 
         // Ensure that the main screen is always first.
@@ -101,15 +99,22 @@ impl<S: System> ScreenCache<S> {
             screen_height: cg_screens[0].bounds.max().y,
         };
 
-        let (visible_frames, (ids, scale_factors)): (Vec<_>, (Vec<_>, Vec<_>)) = cg_screens
+        let screens: Vec<ScreenInfo> = cg_screens
             .iter()
             .flat_map(|&CGScreenInfo { cg_id, .. }| {
-                let ns_screen = ns_screens.iter().find(|s| s.cg_id == cg_id)?;
+                let Some(ns_screen) = ns_screens.iter().find(|s| s.cg_id == cg_id) else {
+                    warn!("Can't find NSScreen corresponding to {cg_id:?}");
+                    return None;
+                };
                 let converted = converter.convert_rect(ns_screen.visible_frame).unwrap();
-                Some((converted, (cg_id, ns_screen.backing_scale_factor)))
+                Some(ScreenInfo {
+                    visible_frame: converted,
+                    id: cg_id,
+                    scale_factor: ns_screen.backing_scale_factor,
+                })
             })
-            .unzip();
-        Some((visible_frames, ids, converter, scale_factors))
+            .collect();
+        Some((screens, converter))
     }
 
     /// Returns a list of the active spaces on each screen. The order
@@ -239,6 +244,13 @@ impl System for Actual {
 }
 
 type CGDirectDisplayID = u32;
+
+#[derive(Debug, Clone)]
+pub struct ScreenInfo {
+    pub visible_frame: CGRect,
+    pub id: ScreenId,
+    pub scale_factor: f64,
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 pub struct ScreenId(CGDirectDisplayID);
@@ -432,7 +444,12 @@ mod test {
                 CGRect::new(CGPoint::new(0.0, 25.0), CGSize::new(3840.0, 2059.0)),
                 CGRect::new(CGPoint::new(3840.0, 1112.0), CGSize::new(1512.0, 950.0)),
             ],
-            sc.update_screen_config().unwrap().0
+            sc.update_screen_config()
+                .unwrap()
+                .0
+                .iter()
+                .map(|s| s.visible_frame)
+                .collect::<Vec<_>>()
         );
     }
 }

@@ -6,13 +6,13 @@
 
 mod layout_mapping;
 mod layout_tree;
-mod selection;
 mod scroll_constraints;
+pub mod scroll_viewport;
+mod selection;
 mod size;
+pub mod spring;
 mod tree;
 mod window;
-pub mod spring;
-pub mod scroll_viewport;
 
 pub use layout_mapping::SpaceLayoutMapping;
 pub use layout_tree::{LayoutId, LayoutKind, LayoutTree};

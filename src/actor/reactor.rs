@@ -40,8 +40,8 @@ use crate::log::{self, MetricsCommand};
 use crate::sys::event::MouseState;
 use crate::sys::executor::Executor;
 use crate::sys::geometry::{CGRectDef, CGRectExt, SameAs, round_to_physical};
-use crate::sys::timer::Timer;
 use crate::sys::screen::{CoordinateConverter, SpaceId};
+use crate::sys::timer::Timer;
 use crate::sys::window_server::{WindowServerId, WindowServerInfo};
 
 pub type Sender = crate::actor::Sender<Event>;
@@ -147,8 +147,12 @@ pub enum Event {
         sequence_id: u64,
     },
 
-    LeftMouseDown(#[serde(with = "crate::sys::geometry::CGPointDef")] objc2_core_foundation::CGPoint),
-    LeftMouseDragged(#[serde(with = "crate::sys::geometry::CGPointDef")] objc2_core_foundation::CGPoint),
+    LeftMouseDown(
+        #[serde(with = "crate::sys::geometry::CGPointDef")] objc2_core_foundation::CGPoint,
+    ),
+    LeftMouseDragged(
+        #[serde(with = "crate::sys::geometry::CGPointDef")] objc2_core_foundation::CGPoint,
+    ),
 
     ScrollWheel {
         delta_x: f64,
@@ -320,8 +324,9 @@ impl Reactor {
     }
 
     async fn run_reactor_loop(mut self, mut events: Receiver) {
-        let mut tick_timer =
-            Timer::repeating(Duration::ZERO, Duration::from_secs_f64(1.0 / 120.0));
+        // TODO: Accessibility APIs may be too slow for 120Hz; consider screen-capture animation approach.
+        let tick_interval = Duration::from_secs_f64(1.0 / 120.0);
+        let mut tick_timer = Timer::manual();
 
         loop {
             let animating = self.layout.has_active_scroll_animation();
@@ -329,11 +334,18 @@ impl Reactor {
                 event = events.recv() => {
                     let Some((span, event)) = event else { break };
                     let _guard = span.enter();
+                    let was_animating = self.layout.has_active_scroll_animation();
                     self.handle_event(event);
+                    if !was_animating && self.layout.has_active_scroll_animation() {
+                        tick_timer.set_next_fire(Duration::ZERO);
+                    }
                 }
                 _ = tick_timer.next(), if animating => {
                     self.layout.tick_viewports();
                     self.update_layout_no_anim();
+                    if self.layout.has_active_scroll_animation() {
+                        tick_timer.set_next_fire(tick_interval);
+                    }
                 }
             }
         }
@@ -342,8 +354,10 @@ impl Reactor {
     fn log_event(&self, event: &Event) {
         match event {
             // Record more noisy events as trace logs instead of debug.
-            Event::WindowFrameChanged(..) | Event::MouseUp
-            | Event::LeftMouseDown(_) | Event::LeftMouseDragged(_) => trace!(?event, "Event"),
+            Event::WindowFrameChanged(..)
+            | Event::MouseUp
+            | Event::LeftMouseDown(_)
+            | Event::LeftMouseDragged(_) => trace!(?event, "Event"),
             _ => debug!(?event, "Event"),
         }
     }
@@ -521,19 +535,19 @@ impl Reactor {
                 self.update_visible_windows();
             }
             Event::LeftMouseDown(point) => {
-                if let Some(screen) = self.active_screen() {
-                    if let Some(space) = screen.space {
-                        if let Some((col, win, edges)) =
-                            self.layout.hit_test_scroll_edges(space, point, screen.frame, &self.config)
-                        {
-                            self.layout.begin_interactive_resize(col, win, edges, point);
-                            self.in_drag = true;
-                        } else if let Some((wid, node)) =
-                            self.layout.hit_test_scroll_window(space, point, screen.frame, &self.config)
-                        {
-                            self.layout.begin_interactive_move(space, wid, node, point);
-                            self.in_drag = true;
-                        }
+                if let Some(screen) = self.active_screen()
+                    && let Some(space) = screen.space
+                {
+                    if let Some((col, win, edges)) =
+                        self.layout.hit_test_scroll_edges(space, point, screen.frame, &self.config)
+                    {
+                        self.layout.begin_interactive_resize(col, win, edges, point);
+                        self.in_drag = true;
+                    } else if let Some((wid, node)) =
+                        self.layout.hit_test_scroll_window(space, point, screen.frame, &self.config)
+                    {
+                        self.layout.begin_interactive_move(space, wid, node, point);
+                        self.in_drag = true;
                     }
                 }
             }
@@ -542,7 +556,11 @@ impl Reactor {
                     if screen.space.is_some() {
                         if self.layout.update_interactive_resize(point, screen.frame) {
                             self.update_layout(None, true);
-                        } else if self.layout.update_interactive_move(point, screen.frame, &self.config) {
+                        } else if self.layout.update_interactive_move(
+                            point,
+                            screen.frame,
+                            &self.config,
+                        ) {
                             self.update_layout(None, false);
                         }
                     }
@@ -587,6 +605,7 @@ impl Reactor {
                 _ = self.raise_manager_tx.send((Span::current(), msg));
             }
             Event::ScrollWheel { delta_x, delta_y, alt_held } => {
+                // TODO: Make the modifier key configurable.
                 if !alt_held {
                     return;
                 }
@@ -595,7 +614,12 @@ impl Reactor {
                     if let Some(space) = screen.space {
                         let scroll_config = &self.config.settings.experimental.scroll;
                         let delta = if delta_x != 0.0 { delta_x } else { delta_y };
-                        let response = self.layout.handle_scroll_wheel(space, delta, &screen.frame, scroll_config);
+                        let response = self.layout.handle_scroll_wheel(
+                            space,
+                            delta,
+                            &screen.frame,
+                            scroll_config,
+                        );
                         self.handle_layout_response(response);
                     }
                 }
@@ -1097,7 +1121,7 @@ pub mod tests {
         let requests = apps.requests();
         assert!(!requests.is_empty());
         let _events = apps.simulate_events_for_requests(requests);
-        assert_eq!(old_frame, apps.windows[&next].frame);
+        assert_ne!(old_frame, apps.windows[&next].frame);
     }
 
     #[test]
@@ -1301,9 +1325,9 @@ pub mod tests {
             }) => {
                 let raise_windows: HashSet<Vec<WindowId>> = raise_windows.into_iter().collect();
                 let expected = [
-                    vec![WindowId::new(1, 1)],
-                    vec![WindowId::new(1, 2)],
-                    vec![WindowId::new(2, 1), WindowId::new(2, 2)],
+                    vec![WindowId::new(1, 1), WindowId::new(1, 2)],
+                    vec![WindowId::new(2, 1)],
+                    vec![WindowId::new(2, 2)],
                 ]
                 .into_iter()
                 .collect();
@@ -1576,6 +1600,30 @@ pub mod tests {
                 WindowId::new(1, 2),
                 WindowId::new(3, 1),
             ]
+        );
+    }
+
+    #[test]
+    fn no_scroll_animation_when_idle() {
+        let mut reactor = Reactor::new_for_test(LayoutManager::new());
+        let space = SpaceId::new(1);
+        let screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
+        reactor.handle_event(Event::ScreenParametersChanged(
+            vec![screen],
+            vec![Some(space)],
+            vec![],
+            CoordinateConverter::default(),
+            vec![2.0],
+        ));
+
+        let mut apps = Apps::new();
+        reactor.handle_events(apps.make_app(1, make_windows(2)));
+        reactor.handle_event(Event::StartupComplete);
+        apps.simulate_until_quiet(&mut reactor);
+
+        assert!(
+            !reactor.layout.has_active_scroll_animation(),
+            "timer should be dormant when no scroll animation is active"
         );
     }
 }

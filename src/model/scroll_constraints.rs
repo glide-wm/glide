@@ -9,6 +9,7 @@ pub(crate) struct WindowInput {
 
 pub(crate) struct WindowOutput {
     pub size: f64,
+    #[cfg_attr(not(test), allow(dead_code))]
     pub was_constrained: bool,
 }
 
@@ -33,10 +34,7 @@ pub(crate) fn solve_sizes(windows: &[WindowInput], available: f64, gap: f64) -> 
                 } else {
                     1.0
                 };
-                WindowOutput {
-                    size,
-                    was_constrained: true,
-                }
+                WindowOutput { size, was_constrained: true }
             })
             .collect();
     }
@@ -60,10 +58,7 @@ pub(crate) fn solve_sizes(windows: &[WindowInput], available: f64, gap: f64) -> 
     for _ in 0..count + 1 {
         let used: f64 = (0..count).filter(|&i| fixed[i]).map(|i| sizes[i]).sum();
         let remaining = usable - used;
-        let total_weight: f64 = (0..count)
-            .filter(|&i| !fixed[i])
-            .map(|i| weights[i])
-            .sum();
+        let total_weight: f64 = (0..count).filter(|&i| !fixed[i]).map(|i| weights[i]).sum();
 
         if total_weight <= 0.0 {
             break;
@@ -106,10 +101,8 @@ pub(crate) fn solve_sizes(windows: &[WindowInput], available: f64, gap: f64) -> 
     }
 
     if excess > 0.0 {
-        let redist_weight: f64 = (0..count)
-            .filter(|&i| !max_fixed[i] && !fixed[i])
-            .map(|i| weights[i])
-            .sum();
+        let redist_weight: f64 =
+            (0..count).filter(|&i| !max_fixed[i] && !fixed[i]).map(|i| weights[i]).sum();
         if redist_weight > 0.0 {
             for i in 0..count {
                 if !max_fixed[i] && !fixed[i] {
@@ -131,10 +124,7 @@ pub(crate) fn solve_sizes(windows: &[WindowInput], available: f64, gap: f64) -> 
             let was_constrained = fixed[i]
                 && (Some(size) == w.max_size.map(|m| size.min(m))
                     || (size - w.min_size).abs() < f64::EPSILON);
-            WindowOutput {
-                size,
-                was_constrained,
-            }
+            WindowOutput { size, was_constrained }
         })
         .collect()
 }
@@ -180,7 +170,7 @@ mod tests {
     fn unequal_weights() {
         let inputs = vec![input(1.0), input(2.0)];
         let result = solve_sizes(&inputs, 310.0, 10.0);
-        let usable = 300.0;
+        let _usable = 300.0;
         assert!((result[0].size - 100.0).abs() < 0.01);
         assert!((result[1].size - 200.0).abs() < 0.01);
     }

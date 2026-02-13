@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
 use core_graphics::event::{
-    CGEvent, CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions,
-    CGEventTapPlacement, CGEventType, CallbackResult, EventField,
+    CGEvent, CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+    CGEventType, CallbackResult, EventField,
 };
 use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{MainThreadMarker, NSInteger};
@@ -182,17 +182,15 @@ impl Mouse {
                 }
             }
             CGEventType::ScrollWheel => {
-                let delta_y =
-                    event.get_integer_value_field(EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1)
-                        as f64;
-                let delta_x =
-                    event.get_integer_value_field(EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_2)
-                        as f64;
+                let delta_y = event
+                    .get_integer_value_field(EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1)
+                    as f64;
+                let delta_x = event
+                    .get_integer_value_field(EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_2)
+                    as f64;
 
                 if delta_x != 0.0 || delta_y != 0.0 {
-                    let alt_held = event
-                        .get_flags()
-                        .contains(CGEventFlags::CGEventFlagAlternate);
+                    let alt_held = event.get_flags().contains(CGEventFlags::CGEventFlagAlternate);
                     self.events_tx.send(Event::ScrollWheel { delta_x, delta_y, alt_held });
                 }
             }

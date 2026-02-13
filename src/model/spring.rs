@@ -63,8 +63,8 @@ impl SpringAnimation {
         } else {
             let decay = (-self.zeta * self.omega_n * t).exp();
             let cos_part = x0 * (self.omega_d * t).cos();
-            let sin_part = ((v0 + self.zeta * self.omega_n * x0) / self.omega_d)
-                * (self.omega_d * t).sin();
+            let sin_part =
+                ((v0 + self.zeta * self.omega_n * x0) / self.omega_d) * (self.omega_d * t).sin();
             decay * (cos_part + sin_part)
         };
 
@@ -112,8 +112,9 @@ impl SpringAnimation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::Duration;
+
+    use super::*;
 
     #[test]
     fn critically_damped_converges() {

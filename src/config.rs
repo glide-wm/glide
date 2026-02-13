@@ -11,7 +11,6 @@ use std::str::FromStr;
 
 use livesplit_hotkey::Hotkey;
 use macro_rules_attribute::derive;
-
 use partial::{PartialConfig, ValidationError};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -31,7 +30,6 @@ pub fn config_path() -> PathBuf {
     let default_path = dirs::config_local_dir().unwrap().join("glide/glide.toml");
     let try_paths = [
         default_path.clone(),
-        dirs::home_dir().unwrap().join(".config/glide/glide.toml"),
         dirs::home_dir().unwrap().join(".glide.toml"),
     ];
     for path in try_paths {
@@ -172,17 +170,10 @@ impl FromStr for AspectRatio {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (w, h) = s
-            .split_once(':')
-            .ok_or_else(|| format!("expected 'W:H' format, got {s:?}"))?;
-        let width: f64 = w
-            .trim()
-            .parse()
-            .map_err(|_| format!("invalid width: {w:?}"))?;
-        let height: f64 = h
-            .trim()
-            .parse()
-            .map_err(|_| format!("invalid height: {h:?}"))?;
+        let (w, h) =
+            s.split_once(':').ok_or_else(|| format!("expected 'W:H' format, got {s:?}"))?;
+        let width: f64 = w.trim().parse().map_err(|_| format!("invalid width: {w:?}"))?;
+        let height: f64 = h.trim().parse().map_err(|_| format!("invalid height: {h:?}"))?;
         if width <= 0.0 || height <= 0.0 {
             return Err("aspect ratio values must be positive".into());
         }
@@ -389,6 +380,7 @@ mod tests {
         )
         .unwrap();
 
+        // Should only have our custom key, not the defaults
         assert_eq!(config.keys.len(), 1);
         let (hotkey, _cmd) = &config.keys[0];
         assert_eq!(hotkey.to_string(), "Alt + KeyQ");
@@ -407,9 +399,11 @@ mod tests {
         )
         .unwrap();
 
+        // Should have default keys plus our custom key
         let default_key_count = Config::default().keys.len();
         assert_eq!(config.keys.len(), default_key_count + 1);
 
+        // Our custom key should be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
     }
 
@@ -427,6 +421,7 @@ mod tests {
         )
         .unwrap();
 
+        // "disable" key should not appear in final config
         assert_eq!(config.keys.len(), 1);
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyQ"));
         assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyW"));
@@ -434,6 +429,7 @@ mod tests {
 
     #[test]
     fn disable_can_override_default_key() {
+        // First verify Alt+H exists in defaults
         let default_config = Config::default();
         assert!(
             default_config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"),
@@ -451,7 +447,9 @@ mod tests {
         )
         .unwrap();
 
+        // Alt+H should be removed even though it's in defaults
         assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"));
+        // But other default keys should still be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyJ"));
     }
 
@@ -493,8 +491,10 @@ mod tests {
         )
         .unwrap();
 
+        // Should have all 4 arrow key bindings
         assert_eq!(config.keys.len(), 4);
 
+        // Verify all arrow keys are present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowLeft"));
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowDown"));
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowUp"));
