@@ -276,12 +276,9 @@ impl State {
         info: AppInfo,
         _startup: Option<wm_controller::StartupToken>,
     ) -> bool {
-        // Register for notifications on the application element.
-        for notif in APP_NOTIFICATIONS {
-            if let Err(err) = self.observer.add_notification(&self.app, notif) {
-                debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
-                return false;
-            }
+        if !self.register_app_notifs(&info) {
+            debug!("Failed to register for app notifications");
+            return false;
         }
 
         // Now that we will observe new window events, read the list of windows.
@@ -328,6 +325,33 @@ impl State {
             return false;
         };
 
+        debug!("Initialized");
+        true
+    }
+
+    fn register_app_notifs(&mut self, info: &AppInfo) -> bool {
+        // Some apps do not respond to AX requests on startup. For these we
+        // implement exponential backoff with a timeout.
+        let timeout = Instant::now()
+            + match info.bundle_id.as_deref() {
+                Some("com.jetbrains.intellij") => Duration::from_secs(60),
+                _ => Duration::ZERO,
+            };
+        let mut sleep_dur = Duration::from_millis(20);
+        let mut sleep = || {
+            let now = Instant::now();
+            thread::sleep(Duration::min(sleep_dur, timeout - now));
+            sleep_dur = Duration::min(sleep_dur * 2, Duration::from_secs(1));
+            Instant::now() < timeout
+        };
+        for notif in APP_NOTIFICATIONS {
+            while let Err(err) = self.observer.add_notification(&self.app, notif) {
+                debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
+                if !sleep() {
+                    return false;
+                }
+            }
+        }
         true
     }
 
