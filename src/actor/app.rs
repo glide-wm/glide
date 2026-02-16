@@ -334,7 +334,7 @@ impl State {
         // implement exponential backoff with a timeout.
         let timeout = Instant::now()
             + match info.bundle_id.as_deref() {
-                Some("com.jetbrains.intellij") => Duration::from_secs(60),
+                Some(id) if id.starts_with("com.jetbrains.") => Duration::from_secs(60),
                 _ => Duration::ZERO,
             };
         let mut sleep_dur = Duration::from_millis(20);
