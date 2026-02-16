@@ -340,9 +340,12 @@ impl State {
         let mut sleep_dur = Duration::from_millis(20);
         let mut sleep = || {
             let now = Instant::now();
-            thread::sleep(Duration::min(sleep_dur, timeout - now));
+            let Some(remaining) = timeout.checked_duration_since(now) else {
+                return false;
+            };
+            thread::sleep(Duration::min(sleep_dur, remaining));
             sleep_dur = Duration::min(sleep_dur * 2, Duration::from_secs(1));
-            Instant::now() < timeout
+            true
         };
         for notif in APP_NOTIFICATIONS {
             while let Err(err) = self.observer.add_notification(&self.app, notif) {
