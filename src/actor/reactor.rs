@@ -259,6 +259,14 @@ impl From<WindowInfo> for WindowState {
     }
 }
 
+enum LayoutMode<'m, 'a> {
+    Animate {
+        new_wid: Option<WindowId>,
+        anim: &'m mut Animation<'a>,
+    },
+    Immediate,
+}
+
 impl Reactor {
     pub fn spawn(
         config: Arc<Config>,
@@ -877,41 +885,16 @@ impl Reactor {
 
     #[instrument(skip(self), fields())]
     pub fn update_layout(&mut self, new_wid: Option<WindowId>, is_resize: bool) {
-        let screens = self.screens.clone();
-        let mut anim = Animation::new();
         let main_window = self.main_window();
         trace!(?main_window);
-        for screen in screens {
-            let Some(space) = screen.space else { continue };
-            self.layout.update_viewport_for_focus(space, screen.frame.clone(), &self.config);
-            trace!(?screen);
-
-            let (layout, groups) =
-                self.layout
-                    .calculate_layout_and_groups(space, screen.frame.clone(), &self.config);
-            trace!(?layout, "Layout");
-
-            self.group_indicators_tx
-                .send(group_bars::Event::GroupsUpdated { space_id: space, groups });
-
-            for &(wid, target_frame) in &layout {
-                let Some(window) = self.windows.get_mut(&wid) else {
-                    continue;
-                };
-                let target_frame = round_to_physical(target_frame, screen.scale_factor);
-                let current_frame = window.frame_monotonic;
-                if target_frame.same_as(current_frame) {
-                    continue;
-                }
-                trace!(?wid, ?current_frame, ?target_frame);
-                let handle = &self.apps.get(&wid.pid).unwrap().handle;
-                let is_new = Some(wid) == new_wid;
-                let txid = window.next_txid();
-                anim.add_window(handle, wid, current_frame, target_frame, is_new, txid);
-                window.frame_monotonic = target_frame;
-            }
-        }
-        if is_resize || !self.config.settings.animate || self.layout.has_active_scroll_animation() {
+        let mut anim = Animation::new();
+        let Self { screens, layout, config, group_indicators_tx, windows, apps, .. } = self;
+        Self::apply_layout(
+            screens, layout, config, group_indicators_tx, windows, apps,
+            LayoutMode::Animate { new_wid, anim: &mut anim },
+            true,
+        );
+        if is_resize || !config.settings.animate || layout.has_active_scroll_animation() {
             anim.skip_to_end();
         } else {
             anim.run();
@@ -919,18 +902,38 @@ impl Reactor {
     }
 
     fn update_layout_no_anim(&mut self) {
-        let screens = self.screens.clone();
-        for screen in screens {
-            let Some(space) = screen.space else { continue };
-            let (layout, groups) =
-                self.layout
-                    .calculate_layout_and_groups(space, screen.frame.clone(), &self.config);
+        let Self { screens, layout, config, group_indicators_tx, windows, apps, .. } = self;
+        Self::apply_layout(
+            screens, layout, config, group_indicators_tx, windows, apps,
+            LayoutMode::Immediate,
+            false,
+        );
+    }
 
-            self.group_indicators_tx
+    #[allow(clippy::too_many_arguments)]
+    fn apply_layout<'a>(
+        screens: &[Screen],
+        layout: &mut LayoutManager,
+        config: &Config,
+        group_indicators_tx: &group_bars::Sender,
+        windows: &mut HashMap<WindowId, WindowState>,
+        apps: &'a HashMap<pid_t, AppState>,
+        mut mode: LayoutMode<'_, 'a>,
+        update_viewport: bool,
+    ) {
+        for &screen in screens {
+            let Some(space) = screen.space else { continue };
+            if update_viewport {
+                layout.update_viewport_for_focus(space, screen.frame, config);
+            }
+            let (result, groups) =
+                layout.calculate_layout_and_groups(space, screen.frame, config);
+
+            group_indicators_tx
                 .send(group_bars::Event::GroupsUpdated { space_id: space, groups });
 
-            for &(wid, target_frame) in &layout {
-                let Some(window) = self.windows.get_mut(&wid) else {
+            for &(wid, target_frame) in &result {
+                let Some(window) = windows.get_mut(&wid) else {
                     continue;
                 };
                 let target_frame = round_to_physical(target_frame, screen.scale_factor);
@@ -938,11 +941,20 @@ impl Reactor {
                 if target_frame.same_as(current_frame) {
                     continue;
                 }
-                let Some(app) = self.apps.get(&wid.pid) else {
+                let Some(app) = apps.get(&wid.pid) else {
                     continue;
                 };
                 let txid = window.next_txid();
-                let _ = app.handle.send(Request::SetWindowFrame(wid, target_frame, txid));
+                match &mut mode {
+                    LayoutMode::Animate { new_wid, anim } => {
+                        trace!(?wid, ?current_frame, ?target_frame);
+                        let is_new = Some(wid) == *new_wid;
+                        anim.add_window(&app.handle, wid, current_frame, target_frame, is_new, txid);
+                    }
+                    LayoutMode::Immediate => {
+                        let _ = app.handle.send(Request::SetWindowFrame(wid, target_frame, txid));
+                    }
+                }
                 window.frame_monotonic = target_frame;
             }
         }
