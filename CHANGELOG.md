@@ -5,13 +5,12 @@
 
 ### Bug Fixes
 
-* Add workaround for Jetbrains IDE windows not being managed ([#144](https://github.com/glide-wm/glide/issues/144)) ([addae58](https://github.com/glide-wm/glide/commit/addae58db6cdf9fd60a4e150070913c2a9d654de))
-
+* Jetbrains IDE windows are now correctly managed ([#144](https://github.com/glide-wm/glide/issues/144)).
 
 ### Documentation
 
-* clarify Alt key, improve tree navigation, document v0.2.9 features ([#133](https://github.com/glide-wm/glide/issues/133)) ([fa44b60](https://github.com/glide-wm/glide/commit/fa44b60339d65f55d4f507e102d7198e14f8aa85))
-* Clarify role of group commands ([9e35acc](https://github.com/glide-wm/glide/commit/9e35accf84f2c258ff928791009f40ae045f8760))
+* Many improvements to documentation, including new [Layout examples](https://glidewm.org/guides/layout-examples/) and [Keyboard-centric setup](https://glidewm.org/guides/keyboard-centric-setup/) pages.
+
 
 ## [0.2.9](https://github.com/glide-wm/glide/compare/v0.2.8...v0.2.9) (2026-02-02)
 
