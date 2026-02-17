@@ -450,6 +450,7 @@ impl Reactor {
                 if self.windows.remove(&wid).is_none() {
                     warn!("Got destroyed event for unknown window {wid:?}");
                 }
+                //animation_focus_wid = self.window_order.last().cloned();
                 self.send_layout_event(LayoutEvent::WindowRemoved(wid));
             }
             Event::WindowFrameChanged(wid, new_frame, last_seen, requested, mouse_state) => {
@@ -584,6 +585,7 @@ impl Reactor {
                     }
                 }
                 self.in_drag = false;
+                // Now re-check the layout.
             }
             Event::MouseMovedOverWindow(wsid) => {
                 let Some(&wid) = self.window_ids.get(&wsid) else { return };
@@ -894,6 +896,8 @@ impl Reactor {
             LayoutMode::Animate { new_wid, anim: &mut anim },
             true,
         );
+        // If the user is doing something with the mouse we don't want to
+        // animate on top of that.
         if is_resize || !config.settings.animate || layout.has_active_scroll_animation() {
             anim.skip_to_end();
         } else {
@@ -934,6 +938,7 @@ impl Reactor {
 
             for &(wid, target_frame) in &result {
                 let Some(window) = windows.get_mut(&wid) else {
+                    // If we restored a saved state the window may not be available yet.
                     continue;
                 };
                 let target_frame = round_to_physical(target_frame, screen.scale_factor);

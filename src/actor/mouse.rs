@@ -68,6 +68,7 @@ impl Mouse {
         let this = Rc::new(self);
 
         let events = vec![
+            // Any event we want the mouse to be shown for, plus scroll events.
             CGEventType::LeftMouseDown,
             CGEventType::LeftMouseUp,
             CGEventType::RightMouseDown,

@@ -158,65 +158,6 @@ impl LayoutTree {
         self.tree.data.size.set_weight(node, weight, &self.tree.map);
     }
 
-    pub fn consume_into_column(&mut self, layout: LayoutId, direction: Direction) -> bool {
-        let selection = self.selection(layout);
-        let Some(current_col) = self.column_of(layout, selection) else {
-            return false;
-        };
-        let adjacent = match direction {
-            Direction::Left => current_col.prev_sibling(&self.tree.map),
-            Direction::Right => current_col.next_sibling(&self.tree.map),
-            _ => return false,
-        };
-        let Some(adj_col) = adjacent else { return false };
-        let target_window = match direction {
-            Direction::Left => {
-                let mut cursor = adj_col;
-                while let Some(last) = cursor.last_child(&self.tree.map) {
-                    cursor = last;
-                }
-                cursor
-            }
-            _ => {
-                let mut cursor = adj_col;
-                while let Some(first) = cursor.first_child(&self.tree.map) {
-                    cursor = first;
-                }
-                cursor
-            }
-        };
-        if self.window_at(target_window).is_none() && target_window != adj_col {
-            return false;
-        }
-        target_window.detach(&mut self.tree).push_back(current_col);
-        true
-    }
-
-    pub fn expel_from_column(&mut self, layout: LayoutId, direction: Direction) -> bool {
-        let selection = self.selection(layout);
-        let Some(current_col) = self.column_of(layout, selection) else {
-            return false;
-        };
-        if selection == current_col {
-            return false;
-        }
-        let new_col = match direction {
-            Direction::Left => {
-                let col = self.tree.mk_node().insert_before(current_col);
-                self.tree.data.size.set_kind(col, ContainerKind::Vertical);
-                col
-            }
-            Direction::Right => {
-                let col = self.tree.mk_node().insert_after(current_col);
-                self.tree.data.size.set_kind(col, ContainerKind::Vertical);
-                col
-            }
-            _ => return false,
-        };
-        selection.detach(&mut self.tree).push_back(new_col);
-        true
-    }
-
     pub fn clone_layout(&mut self, layout: LayoutId) -> LayoutId {
         let source_root = self.layout_roots[layout].id();
         let cloned = source_root.deep_copy(&mut self.tree).make_root("layout_root");
@@ -1384,6 +1325,9 @@ mod tests {
         ];
         assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
+        // We may want to have a mode that adjusts sizes so that only the
+        // requested edge is resized. Notice that the width is redistributed
+        // between c1 and c2 here.
         tree.resize(c2, 0.01, Direction::Right);
         assert_frames_are(
             tree.calculate_layout(layout, screen, config),
@@ -1488,6 +1432,7 @@ mod tests {
         ];
         assert_frames_are(tree.calculate_layout(layout, screen, config), orig.clone());
 
+        // Moves should be rejected and ignored.
         tree.set_frame_from_resize(
             c1,
             rect(1000, 1000, 500, 1000),
@@ -1523,6 +1468,10 @@ mod tests {
             [
                 (WindowId::new(1, 1), rect(0, 0, 900, 3000)),
                 (WindowId::new(2, 1), rect(900, 0, 1100, 900)),
+                // This may not be what we actually want; notice the width
+                // increase is redistributed across c1 and c2. In any case it's
+                // confusing to have something called set_frame that results in
+                // a different frame than requested..
                 (WindowId::new(3, 1), rect(900, 900, 550, 1100)),
                 (WindowId::new(3, 2), rect(1450, 900, 550, 1100)),
                 (WindowId::new(2, 3), rect(900, 2000, 1100, 1000)),

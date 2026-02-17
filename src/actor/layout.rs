@@ -45,8 +45,6 @@ pub enum LayoutCommand {
         percent: f64,
     },
     CycleColumnWidth,
-    ConsumeIntoColumn(Direction),
-    ExpelFromColumn(Direction),
     ChangeLayoutKind,
     ToggleColumnTabbed,
 }
@@ -107,8 +105,6 @@ impl LayoutCommand {
             | Ungroup
             | Resize { .. }
             | CycleColumnWidth
-            | ConsumeIntoColumn(_)
-            | ExpelFromColumn(_)
             | ToggleColumnTabbed => true,
 
             NextLayout | PrevLayout | MoveFocus(_) | Ascend | Descend | Split(_)
@@ -732,20 +728,6 @@ impl LayoutManager {
                 }
                 EventResponse::default()
             }
-            LayoutCommand::ConsumeIntoColumn(direction) => {
-                if !self.tree.is_scroll_layout(layout) {
-                    return EventResponse::default();
-                }
-                self.tree.consume_into_column(layout, direction);
-                EventResponse::default()
-            }
-            LayoutCommand::ExpelFromColumn(direction) => {
-                if !self.tree.is_scroll_layout(layout) {
-                    return EventResponse::default();
-                }
-                self.tree.expel_from_column(layout, direction);
-                EventResponse::default()
-            }
             LayoutCommand::ToggleColumnTabbed => {
                 if !self.tree.is_scroll_layout(layout) {
                     return EventResponse::default();
@@ -854,6 +836,7 @@ impl LayoutManager {
         config: &Config,
     ) -> Vec<(WindowId, CGRect)> {
         let layout = self.layout(space);
+        //debug!("{}", self.tree.draw_tree(space));
         let frames = self.tree.calculate_layout(layout, screen, config);
         if self.tree.is_scroll_layout(layout) {
             if let Some(vp) = self.viewports.get(&layout) {
@@ -1810,6 +1793,9 @@ mod tests {
             screens: vec![(space, screen1)],
         });
 
+        // Check that the other windows aren't resized (especially to zero);
+        // otherwise, we will lose the layout state as we receive nonconforming
+        // frame changed events.
         assert_eq!(
             vec![
                 (WindowId::new(pid, 1), rect(0, 0, 100, 30)),
@@ -1858,6 +1844,10 @@ mod tests {
         ];
         assert_eq!(orig, mgr.layout_sorted(space, screen1));
 
+        // Simulate a window going fullscreen on the current space.
+        //
+        // The leftmost window is better for testing because it passes the
+        // "only resize in 2 directions" requirement.
         _ = mgr.handle_event(WindowResized {
             wid: WindowId::new(pid, 1),
             old_frame: rect(0, 10, 100, 20),
