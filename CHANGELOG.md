@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.10](https://github.com/glide-wm/glide/compare/v0.2.9...v0.2.10) (2026-02-16)
+
+
+### Bug Fixes
+
+* Jetbrains IDE windows are now correctly managed ([#144](https://github.com/glide-wm/glide/issues/144)).
+
+### Documentation
+
+* Many improvements to documentation, including new [Layout examples](https://glidewm.org/guides/layout-examples/) and [Keyboard-centric setup](https://glidewm.org/guides/keyboard-centric-setup/) pages.
+
+
 ## [0.2.9](https://github.com/glide-wm/glide/compare/v0.2.8...v0.2.9) (2026-02-02)
 
 This release adds the ability to add key bindings to the default set instead of replacing it. Note that this may become the default in the future.
