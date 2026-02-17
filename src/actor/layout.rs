@@ -1176,37 +1176,31 @@ impl LayoutManager {
         let source_wid = state.window_id;
         let layout = state.layout_id;
         let frames = self.tree.calculate_layout(layout, screen, config);
-        if let Some(vp) = self.viewports.get(&layout) {
-            for (wid, frame) in &frames {
-                if *wid == source_wid {
-                    continue;
-                }
-                let visible_frame = vp.offset_rect(*frame);
+        let vp_opt = self.viewports.get(&layout);
+
+        for (wid, frame) in &frames {
+            if *wid == source_wid {
+                continue;
+            }
+
+            let target_frame;
+            if let Some(vp) = vp_opt {
                 if !vp.is_visible(*frame) {
                     continue;
                 }
-                if visible_frame.contains(mouse) {
-                    if let Some(target_node) = self.tree.window_node(layout, *wid) {
-                        self.tree.swap_windows(source_node, target_node);
-                        let state = self.interactive_move.as_mut().unwrap();
-                        state.window_node = target_node;
-                        return true;
-                    }
-                }
+                target_frame = vp.offset_rect(*frame);
+            } else {
+                target_frame = *frame;
             }
-        } else {
-            for (wid, frame) in &frames {
-                if *wid == source_wid {
-                    continue;
+
+            if target_frame.contains(mouse)
+                && let Some(target_node) = self.tree.window_node(layout, *wid)
+            {
+                self.tree.swap_windows(source_node, target_node);
+                if let Some(state) = self.interactive_move.as_mut() {
+                    state.window_node = target_node;
                 }
-                if frame.contains(mouse) {
-                    if let Some(target_node) = self.tree.window_node(layout, *wid) {
-                        self.tree.swap_windows(source_node, target_node);
-                        let state = self.interactive_move.as_mut().unwrap();
-                        state.window_node = target_node;
-                        return true;
-                    }
-                }
+                return true;
             }
         }
         false
