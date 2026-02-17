@@ -8,8 +8,7 @@ use std::sync::Arc;
 use objc2::MainThreadMarker;
 use tracing::instrument;
 
-use crate::actor::reactor;
-use crate::actor::wm_controller;
+use crate::actor::{reactor, wm_controller};
 use crate::config::Config;
 use crate::sys::screen::{SpaceId, get_active_space_number};
 use crate::ui::status_bar::StatusIcon;

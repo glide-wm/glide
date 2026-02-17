@@ -3,23 +3,19 @@
 
 //! Message server that handles requests from the Glide CLI.
 
-use std::{
-    cell::RefCell,
-    fmt::{Display, Formatter},
-    future::pending,
-    rc::Rc,
-    sync::Arc,
-};
+use std::cell::RefCell;
+use std::fmt::{Display, Formatter};
+use std::future::pending;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use objc2_service_management::SMAppService;
 use serde::{Deserialize, Serialize};
 use tracing::{Span, error, info, instrument, warn};
 
-use crate::{
-    actor::wm_controller,
-    config::Config,
-    sys::message_port::{LocalMessagePort, LocalPortCreateError},
-};
+use crate::actor::wm_controller;
+use crate::config::Config;
+use crate::sys::message_port::{LocalMessagePort, LocalPortCreateError};
 
 pub const PORT_NAME: &str = "org.glidewm.server";
 

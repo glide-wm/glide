@@ -197,8 +197,9 @@ macro_rules! PartialConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde::{Deserialize, Serialize};
+
+    use super::*;
 
     #[test]
     fn merge_nested() {

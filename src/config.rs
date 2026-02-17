@@ -11,7 +11,6 @@ use std::str::FromStr;
 
 use livesplit_hotkey::Hotkey;
 use macro_rules_attribute::derive;
-
 use partial::{PartialConfig, ValidationError};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
