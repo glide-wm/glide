@@ -170,11 +170,11 @@ impl ViewportState {
         rect_right > view_left && rect_left < view_right
     }
 
-    pub fn apply_viewport_to_frames(
+    pub fn apply_viewport_to_frames<T>(
         &self,
         screen: CGRect,
-        frames: Vec<(crate::actor::app::WindowId, CGRect)>,
-    ) -> Vec<(crate::actor::app::WindowId, CGRect)> {
+        frames: Vec<(T, CGRect)>,
+    ) -> Vec<(T, CGRect)> {
         let offset = self.scroll_offset();
         let view_left = offset;
         let view_right = offset + self.screen_width;
@@ -239,15 +239,13 @@ mod tests {
 
     #[test]
     fn apply_viewport_returns_all_windows_with_correct_positions() {
-        use crate::actor::app::WindowId;
-
         let mut vp = ViewportState::new(1920.0);
         vp.snap_to_offset(960.0);
         let screen = make_rect(0.0, 0.0, 1920.0, 1080.0);
 
-        let frames: Vec<(WindowId, CGRect)> = (0..5)
+        let frames: Vec<(usize, CGRect)> = (0..5)
             .map(|i| {
-                let wid = WindowId::new(1, i + 1);
+                let wid = i;
                 let rect = make_rect(i as f64 * 640.0, 0.0, 640.0, 1080.0);
                 (wid, rect)
             })
