@@ -1268,6 +1268,14 @@ fn detect_edges(point: CGPoint, frame: CGRect) -> ResizeEdge {
     if point.y > frame.origin.y + frame.size.height - threshold {
         edges |= ResizeEdge::BOTTOM;
     }
+    // If both opposing edges are set (window too small for edge detection),
+    // disable that axis to avoid conflicting resize directions.
+    if edges & ResizeEdge::LEFT != 0 && edges & ResizeEdge::RIGHT != 0 {
+        edges &= !(ResizeEdge::LEFT | ResizeEdge::RIGHT);
+    }
+    if edges & ResizeEdge::TOP != 0 && edges & ResizeEdge::BOTTOM != 0 {
+        edges &= !(ResizeEdge::TOP | ResizeEdge::BOTTOM);
+    }
     ResizeEdge(edges)
 }
 
