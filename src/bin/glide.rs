@@ -8,10 +8,18 @@ use std::time::Duration;
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
-use glide_wm::actor::server::{self, AsciiEscaped, Request, Response, ServiceRequest};
-use glide_wm::config::{Config, config_path};
-use glide_wm::sys::bundle::{self, BundleError};
-use glide_wm::sys::message_port::{RemoteMessagePort, RemotePortCreateError, SendError};
+use glide_wm::actor::server::{
+    self, self, AsciiEscaped, AsciiEscaped, Request, Request, Response, Response, ServiceRequest,
+    ServiceRequest,
+};
+use glide_wm::config::{
+    Config, Config, Config, config_path, config_path_default, config_path_default,
+};
+use glide_wm::sys::bundle::{self, self, BundleError, BundleError};
+use glide_wm::sys::message_port::{
+    RemoteMessagePort, RemoteMessagePort, RemotePortCreateError, RemotePortCreateError, SendError,
+    SendError,
+};
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
 
@@ -81,6 +89,8 @@ enum ConfigSubcommand {
     Update(CmdUpdate),
     /// Check the config file for errors.
     Verify,
+    /// Dump current config.
+    Dump(CmdDump),
 }
 
 /// Updates the server config by parsing the config file on disk.
@@ -91,6 +101,14 @@ struct CmdUpdate {
     /// Watch for config changes, continuously updating the file.
     #[arg(long)]
     watch: bool,
+}
+
+/// Dumps current config to specified path or to default.
+#[derive(Parser, Clone)]
+struct CmdDump {
+    /// Path where to dump the config. Default - ~/.glide.toml
+    #[arg(long)]
+    path: Option<String>,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -176,6 +194,20 @@ fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
             eprintln!("config ok");
+        }
+        Command::Config(CmdConfig {
+            config,
+            action: ConfigSubcommand::Dump(CmdDump { path }),
+        }) => {
+            if !config.as_deref().unwrap_or(&config_path_default()).exists() {
+                bail!("Config file missing");
+            }
+            let config = Config::load(config.as_deref())?;
+            if let Err(e) = config.dump(path) {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+            eprintln!("config dumped");
         }
     }
 
