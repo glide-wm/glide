@@ -14,10 +14,10 @@ pub enum ScrollState {
 }
 
 impl ScrollState {
-    pub fn current(&self) -> f64 {
+    pub fn current(&self, now: Instant) -> f64 {
         match self {
             ScrollState::Static(v) => *v,
-            ScrollState::Animating(spring) => spring.current(),
+            ScrollState::Animating(spring) => spring.current(now),
         }
     }
 
@@ -49,8 +49,8 @@ impl ViewportState {
         }
     }
 
-    pub fn scroll_offset(&self) -> f64 {
-        self.scroll.current()
+    pub fn scroll_offset(&self, now: Instant) -> f64 {
+        self.scroll.current(now)
     }
 
     pub fn target_offset(&self) -> f64 {
@@ -68,6 +68,7 @@ impl ViewportState {
         column_width: f64,
         center_mode: CenterMode,
         gap: f64,
+        now: Instant,
     ) {
         self.active_column_index = column_index;
         self.user_scrolling = false;
@@ -86,7 +87,7 @@ impl ViewportState {
         };
 
         if (new_offset - current).abs() > 0.5 {
-            self.animate_to(new_offset);
+            self.animate_to(new_offset, now);
         }
     }
 
@@ -111,14 +112,14 @@ impl ViewportState {
         self.scroll = ScrollState::Static(offset);
     }
 
-    pub fn animate_to(&mut self, target: f64) {
+    pub fn animate_to(&mut self, target: f64, now: Instant) {
         match &mut self.scroll {
             ScrollState::Animating(spring) => {
-                spring.retarget(target);
+                spring.retarget(target, now);
             }
             ScrollState::Static(current) => {
                 self.scroll =
-                    ScrollState::Animating(SpringAnimation::with_defaults(*current, target));
+                    ScrollState::Animating(SpringAnimation::with_defaults(*current, target, now));
             }
         }
     }
@@ -137,32 +138,32 @@ impl ViewportState {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
+    pub fn is_animating(&self, now: Instant) -> bool {
         match &self.scroll {
             ScrollState::Static(_) => false,
-            ScrollState::Animating(spring) => !spring.is_complete(Instant::now()),
+            ScrollState::Animating(spring) => !spring.is_complete(now),
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, now: Instant) {
         if let ScrollState::Animating(spring) = &self.scroll {
-            if spring.is_complete(Instant::now()) {
+            if spring.is_complete(now) {
                 self.scroll = ScrollState::Static(spring.target());
                 self.user_scrolling = false;
             }
         }
     }
 
-    pub fn offset_rect(&self, rect: CGRect) -> CGRect {
-        let offset = self.scroll_offset();
+    pub fn offset_rect(&self, rect: CGRect, now: Instant) -> CGRect {
+        let offset = self.scroll_offset(now);
         CGRect::new(
             objc2_core_foundation::CGPoint::new(rect.origin.x - offset, rect.origin.y),
             rect.size,
         )
     }
 
-    pub fn is_visible(&self, rect: CGRect) -> bool {
-        let offset = self.scroll_offset();
+    pub fn is_visible(&self, rect: CGRect, now: Instant) -> bool {
+        let offset = self.scroll_offset(now);
         let view_left = offset;
         let view_right = offset + self.screen_width;
         let rect_left = rect.origin.x;
@@ -174,8 +175,9 @@ impl ViewportState {
         &self,
         screen: CGRect,
         frames: Vec<(T, CGRect)>,
+        now: Instant,
     ) -> Vec<(T, CGRect)> {
-        let offset = self.scroll_offset();
+        let offset = self.scroll_offset(now);
         let view_left = offset;
         let view_right = offset + self.screen_width;
 
@@ -186,7 +188,7 @@ impl ViewportState {
                 let rect_left = rect.origin.x;
 
                 if rect_right > view_left && rect_left < view_right {
-                    (wid, self.offset_rect(rect))
+                    (wid, self.offset_rect(rect, now))
                 } else if rect_right <= view_left {
                     let hidden = CGRect::new(
                         objc2_core_foundation::CGPoint::new(
@@ -223,17 +225,19 @@ mod tests {
 
     #[test]
     fn ensure_column_visible_already_visible() {
+        let now = Instant::now();
         let mut vp = ViewportState::new(1920.0);
         vp.snap_to_offset(0.0);
-        vp.ensure_column_visible(0, 100.0, 500.0, CenterMode::Never, 0.0);
+        vp.ensure_column_visible(0, 100.0, 500.0, CenterMode::Never, 0.0, now);
         assert_eq!(vp.target_offset(), 0.0);
     }
 
     #[test]
     fn ensure_column_visible_scrolls_left() {
+        let now = Instant::now();
         let mut vp = ViewportState::new(1920.0);
         vp.snap_to_offset(500.0);
-        vp.ensure_column_visible(0, 100.0, 500.0, CenterMode::Never, 0.0);
+        vp.ensure_column_visible(0, 100.0, 500.0, CenterMode::Never, 0.0, now);
         assert_eq!(vp.target_offset(), 100.0);
     }
 
@@ -251,7 +255,7 @@ mod tests {
             })
             .collect();
 
-        let result = vp.apply_viewport_to_frames(screen, frames);
+        let result = vp.apply_viewport_to_frames(screen, frames, Instant::now());
         assert_eq!(result.len(), 5);
 
         for (_, r) in &result {
@@ -277,22 +281,23 @@ mod tests {
     #[test]
     fn is_visible_checks_correctly() {
         let vp = ViewportState::new(1920.0);
-        assert!(vp.is_visible(make_rect(0.0, 0.0, 500.0, 1080.0)));
-        assert!(!vp.is_visible(make_rect(2000.0, 0.0, 500.0, 1080.0)));
+        assert!(vp.is_visible(make_rect(0.0, 0.0, 500.0, 1080.0), Instant::now()));
+        assert!(!vp.is_visible(make_rect(2000.0, 0.0, 500.0, 1080.0), Instant::now()));
     }
 
     #[test]
     fn static_viewport_is_not_animating() {
         let vp = ViewportState::new(1000.0);
-        assert!(!vp.is_animating());
+        assert!(!vp.is_animating(Instant::now()));
     }
 
     #[test]
     fn completed_animation_settles_to_static() {
+        let now = Instant::now();
         let mut vp = ViewportState::new(1000.0);
-        vp.animate_to(10.0);
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        vp.tick();
-        assert!(!vp.is_animating());
+        vp.animate_to(10.0, now);
+        let later = now + std::time::Duration::from_secs(1);
+        vp.tick(later);
+        assert!(!vp.is_animating(later));
     }
 }

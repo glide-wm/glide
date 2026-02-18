@@ -6,6 +6,7 @@
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::time::Instant;
 
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use serde::{Deserialize, Serialize};
@@ -840,7 +841,7 @@ impl LayoutManager {
         let frames = self.tree.calculate_layout(layout, screen, config);
         if self.tree.is_scroll_layout(layout) {
             if let Some(vp) = self.viewports.get(&layout) {
-                return vp.apply_viewport_to_frames(screen, frames);
+                return vp.apply_viewport_to_frames(screen, frames, Instant::now());
             }
         }
         frames
@@ -862,9 +863,9 @@ impl LayoutManager {
         }
         if self.tree.is_scroll_layout(layout) {
             if let Some(vp) = self.viewports.get(&layout) {
-                let transformed = vp.apply_viewport_to_frames(screen, sizes);
+                let transformed = vp.apply_viewport_to_frames(screen, sizes, Instant::now());
                 for group in &mut groups {
-                    group.indicator_frame = vp.offset_rect(group.indicator_frame);
+                    group.indicator_frame = vp.offset_rect(group.indicator_frame, Instant::now());
                 }
                 return (transformed, groups);
             }
@@ -922,6 +923,7 @@ impl LayoutManager {
                         frame.size.width,
                         center_mode,
                         gap,
+                        Instant::now(),
                     );
                 }
             }
@@ -929,12 +931,12 @@ impl LayoutManager {
     }
 
     pub fn has_active_scroll_animation(&self) -> bool {
-        self.viewports.values().any(|vp| vp.is_animating())
+        self.viewports.values().any(|vp| vp.is_animating(Instant::now()))
     }
 
     pub fn tick_viewports(&mut self) {
         for vp in self.viewports.values_mut() {
-            vp.tick();
+            vp.tick(Instant::now());
         }
     }
 
@@ -1168,10 +1170,10 @@ impl LayoutManager {
 
             let target_frame;
             if let Some(vp) = vp_opt {
-                if !vp.is_visible(*frame) {
+                if !vp.is_visible(*frame, Instant::now()) {
                     continue;
                 }
-                target_frame = vp.offset_rect(*frame);
+                target_frame = vp.offset_rect(*frame, Instant::now());
             } else {
                 target_frame = *frame;
             }

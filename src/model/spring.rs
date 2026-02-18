@@ -21,6 +21,7 @@ impl SpringAnimation {
         initial_velocity: f64,
         response: f64,
         damping_fraction: f64,
+        now: Instant,
     ) -> Self {
         let omega_n = 2.0 * std::f64::consts::PI / response;
         let zeta = damping_fraction;
@@ -29,7 +30,7 @@ impl SpringAnimation {
             initial_value,
             target_value,
             initial_velocity,
-            start_time: Instant::now(),
+            start_time: now,
             response,
             damping_fraction,
             omega_n,
@@ -38,12 +39,11 @@ impl SpringAnimation {
         }
     }
 
-    pub fn with_defaults(initial_value: f64, target_value: f64) -> Self {
-        Self::new(initial_value, target_value, 0.0, 0.5, 1.0)
+    pub fn with_defaults(initial_value: f64, target_value: f64, now: Instant) -> Self {
+        Self::new(initial_value, target_value, 0.0, 0.5, 1.0, now)
     }
 
-    pub fn retarget(&mut self, new_target: f64) {
-        let now = Instant::now();
+    pub fn retarget(&mut self, new_target: f64, now: Instant) {
         let current = self.value_at(now);
         let vel = self.velocity_at(now);
         self.initial_value = current;
@@ -105,8 +105,8 @@ impl SpringAnimation {
         self.target_value
     }
 
-    pub fn current(&self) -> f64 {
-        self.value_at(Instant::now())
+    pub fn current(&self, now: Instant) -> f64 {
+        self.value_at(now)
     }
 }
 
@@ -118,7 +118,8 @@ mod tests {
 
     #[test]
     fn critically_damped_converges() {
-        let spring = SpringAnimation::new(0.0, 100.0, 0.0, 0.5, 1.0);
+        let now = Instant::now();
+        let spring = SpringAnimation::new(0.0, 100.0, 0.0, 0.5, 1.0, now);
         let end = spring.start_time + Duration::from_secs(2);
         let val = spring.value_at(end);
         assert!((val - 100.0).abs() < 1.0);
@@ -127,7 +128,8 @@ mod tests {
 
     #[test]
     fn underdamped_oscillates() {
-        let spring = SpringAnimation::new(0.0, 100.0, 0.0, 0.5, 0.5);
+        let now = Instant::now();
+        let spring = SpringAnimation::new(0.0, 100.0, 0.0, 0.5, 0.5, now);
         let mid = spring.start_time + Duration::from_millis(200);
         let val = spring.value_at(mid);
         assert!(val > 50.0);
@@ -135,11 +137,12 @@ mod tests {
 
     #[test]
     fn retarget_preserves_continuity() {
-        let mut spring = SpringAnimation::new(0.0, 100.0, 0.0, 0.5, 1.0);
-        let mid = Instant::now();
+        let now = Instant::now();
+        let mut spring = SpringAnimation::new(0.0, 100.0, 0.0, 0.5, 1.0, now);
+        let mid = now;
         let val_before = spring.value_at(mid);
-        spring.retarget(200.0);
-        let val_after = spring.value_at(Instant::now());
+        spring.retarget(200.0, now);
+        let val_after = spring.value_at(now);
         assert!((val_before - val_after).abs() < 5.0);
     }
 }
