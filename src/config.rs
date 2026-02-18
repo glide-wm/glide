@@ -213,7 +213,7 @@ impl Config {
     pub fn dump(&self, path: Option<String>) -> anyhow::Result<()> {
         let mut file = match path {
             Some(v) => File::create(Path::new(&v))?,
-            None => File::create(config_path_default())?,
+            None => File::create(config_path())?,
         };
         let mut keys = BTreeMap::new();
         for (key, cmd) in &self.keys {
