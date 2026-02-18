@@ -90,6 +90,18 @@ impl LayoutTree {
         self.layout_kind(layout) == LayoutKind::Scroll
     }
 
+    /// Returns true if `node` is the root node of a scroll layout.
+    fn is_scroll_root(&self, node: NodeId) -> bool {
+        for (layout_id, &kind) in &self.layout_kinds {
+            if kind == LayoutKind::Scroll
+                && self.layout_roots.get(layout_id).map(|r| r.id()) == Some(node)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     pub fn add_window_to_scroll_column(
         &mut self,
         layout: LayoutId,
@@ -681,13 +693,13 @@ impl LayoutTree {
         });
         let parent = resizing_node.parent(&self.tree.map).unwrap();
         let parent_total = self.tree.data.size.total(parent);
-        let is_scroll_horizontal = self.tree.data.size.kind(parent) == ContainerKind::Horizontal;
-        let local_ratio = if is_scroll_horizontal {
+        let is_scroll_column = self.is_scroll_root(parent);
+        let local_ratio = if is_scroll_column {
             f64::from(screen_ratio) / exchange_rate
         } else {
             f64::from(screen_ratio) * parent_total / exchange_rate
         };
-        if is_scroll_horizontal {
+        if is_scroll_column {
             let current_weight = self.tree.data.size.weight(resizing_node);
             self.tree.data.size.set_weight(
                 resizing_node,
