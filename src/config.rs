@@ -36,7 +36,7 @@ pub fn config_path() -> PathBuf {
 }
 
 fn default_config_paths() -> Vec<PathBuf> {
-    let home = dirs::home_dir().unwrap();
+    let home = dirs::home_dir().expect("Could not determine home directory");
     let xdg_path = home.join(".config/glide/glide.toml");
     let legacy_path = home.join(".glide.toml");
 
