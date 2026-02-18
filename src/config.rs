@@ -149,6 +149,8 @@ impl Default for ScrollConfig {
 impl ScrollConfig {
     pub fn validated(mut self) -> Self {
         self.visible_columns = self.visible_columns.clamp(1, 5);
+        self.scroll_sensitivity = self.scroll_sensitivity.clamp(0.0, 100.0);
+        self.column_width_presets.retain(|&p| p > 0.0 && p <= 1.0);
         self
     }
 

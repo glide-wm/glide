@@ -978,7 +978,7 @@ impl LayoutManager {
         } else {
             Direction::Left
         };
-        let abs_steps = steps.unsigned_abs() as usize;
+        let abs_steps = steps.unsigned_abs().min(16) as usize;
 
         let mut current = selection;
         for _ in 0..abs_steps {
