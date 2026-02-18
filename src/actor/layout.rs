@@ -258,16 +258,6 @@ impl LayoutManager {
     pub fn set_config(&mut self, config: &Config) {
         self.default_layout_kind = config.settings.default_layout_kind;
         self.scroll_cfg = config.settings.experimental.scroll.clone().validated();
-
-        // TODO: Move this calculation to the model layer.
-        let weight = 1.0 / self.scroll_cfg.visible_columns.max(1) as f32;
-        for layout in self.tree.layouts().collect::<Vec<_>>() {
-            if self.tree.is_scroll_layout(layout) {
-                for col in self.tree.columns(layout) {
-                    self.tree.set_column_weight(col, weight);
-                }
-            }
-        }
     }
 
     pub fn debug_tree(&self, space: SpaceId) {
