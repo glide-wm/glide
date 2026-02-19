@@ -26,17 +26,25 @@ pub fn restore_file() -> PathBuf {
 }
 
 pub fn config_path() -> PathBuf {
-    let default_path = dirs::config_local_dir().unwrap().join("glide/glide.toml");
-    let try_paths = [
-        default_path.clone(),
-        dirs::home_dir().unwrap().join(".glide.toml"),
-    ];
-    for path in try_paths {
-        if path.exists() {
-            return path;
+    let try_paths = default_config_paths();
+    for path in &try_paths {
+        if path.try_exists().unwrap_or(false) {
+            return path.clone();
         }
     }
-    default_path
+    try_paths[0].clone()
+}
+
+fn default_config_paths() -> Vec<PathBuf> {
+    let home = dirs::home_dir().expect("Could not determine home directory");
+    let xdg_path = home.join(".config/glide/glide.toml");
+    let legacy_path = home.join(".glide.toml");
+
+    let mut paths = vec![xdg_path.clone()];
+    if legacy_path != xdg_path {
+        paths.push(legacy_path);
+    }
+    paths
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -192,17 +200,28 @@ impl ConfigPartial {
 impl Config {
     pub fn load(custom_path: Option<&Path>) -> anyhow::Result<Config> {
         let mut buf = String::new();
-        let default = config_path();
         let (mut file, path) = match custom_path {
-            Some(path) => (File::open(path)?, path),
-            None => match File::open(&default) {
-                Ok(file) => (file, &*default),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Config::default()),
-                Err(e) => return Err(e.into()),
-            },
+            Some(path) => (File::open(path)?, path.to_path_buf()),
+            None => {
+                let mut selected: Option<(File, PathBuf)> = None;
+                for path in default_config_paths() {
+                    match File::open(&path) {
+                        Ok(file) => {
+                            selected = Some((file, path));
+                            break;
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(e) => return Err(e.into()),
+                    }
+                }
+                match selected {
+                    Some(pair) => pair,
+                    None => return Ok(Config::default()),
+                }
+            }
         };
         file.read_to_string(&mut buf)?;
-        Self::parse(&buf).map_err(|e| anyhow::anyhow!("{}", format_toml_error(e, &buf, path)))
+        Self::parse(&buf).map_err(|e| anyhow::anyhow!("{}", format_toml_error(e, &buf, &path)))
     }
 
     pub fn default() -> Config {
