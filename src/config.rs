@@ -402,16 +402,4 @@ mod tests {
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowUp"));
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + ArrowRight"));
     }
-
-    #[test]
-    #[ignore = "only for debug purposes"]
-    fn print_config_search_paths() {
-        let candidates = default_config_paths();
-
-        eprintln!("Config candidates (in search order):");
-        for (index, path) in candidates.iter().enumerate() {
-            eprintln!("  {}. {}", index + 1, path.display());
-        }
-        eprintln!("Resolved config_path(): {}", config_path().display());
-    }
 }
