@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.11](https://github.com/glide-wm/glide/compare/v0.2.10...v0.2.11) (2026-02-19)
+
+
+### Bug Fixes
+
+* **config:** `~/.config/glide/config.toml` is now correctly found ([ce2ad5e](https://github.com/glide-wm/glide/commit/ce2ad5e3050452c02e106f40b15475dc5ab510fb))
+
+
+### Developer Tools
+
+* Add ARCHITECTURE.md ([d0560d3](https://github.com/glide-wm/glide/commit/d0560d3972e0f11c8e8ea79d841a68c8033ae0a1))
+
 ## [0.2.10](https://github.com/glide-wm/glide/compare/v0.2.9...v0.2.10) (2026-02-16)
 
 
