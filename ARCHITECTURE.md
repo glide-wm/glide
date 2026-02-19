@@ -159,3 +159,28 @@ When configuration is hot-reloaded, only default or unmodified values should be 
 Even after validation, code that iterates based on external values should have caps. This is defense-in-depth: validation catches expected bad input, caps catch unexpected arithmetic.
 
 When computing resize edges, drag thresholds, or hit testing, consider degenerate geometry. A window narrower than twice the resize threshold can have overlapping left and right edges.
+
+## Scroll layout
+
+The scroll layout is an alternative to the default tree layout, inspired by niri and PaperWM. Instead of subdividing the screen into tiles, columns extend in a horizontal strip and the user scrolls a viewport across them.
+
+The tree supports two layout modes, selected per-space:
+
+- **Tree** – traditional tiling with horizontal/vertical splitting (i3-style)
+- **Scroll** – scrollable column layout
+
+Both modes share the same tree structure, weight-based sizing, and selection model. The scroll mode adds a `ViewportState` per layout and routes additional events (scroll wheel, interactive resize/move) through the LayoutManager.
+
+### Viewport and animation
+
+`ViewportState` manages the horizontal scroll offset. It is either static or animating via a `SpringAnimation`. The spring uses a classical damped model with configurable response time and damping fraction (default: critically damped). `retarget()` preserves continuity of position and velocity when the target changes mid-animation, so rapid focus changes feel fluid rather than jerky.
+
+Three centering modes control when the viewport scrolls to keep the focused column visible: `Always`, `OnOverflow`, and `Never`.
+
+After layout calculation, `apply_viewport_to_frames` offsets window positions by the scroll offset and hides off-screen windows by moving them out of view. This function is generic over the window identifier type to keep the model layer free of actor-layer dependencies.
+
+The Reactor drives animation with a timer that fires only when a scroll animation is active.
+
+### Interactive resize and move
+
+The LayoutManager handles interactive resize and move via mouse drag. `detect_edges` determines which edges of the focused window are near the cursor and sets the drag mode. Interactive resize works by converting pixel deltas into weight adjustments on the layout tree.

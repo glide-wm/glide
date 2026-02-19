@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
 use core_graphics::event::{
-    CGEvent, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
-    CallbackResult,
+    CGEvent, CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+    CGEventType, CallbackResult, EventField,
 };
 use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::{MainThreadMarker, NSInteger};
@@ -68,8 +68,7 @@ impl Mouse {
         let this = Rc::new(self);
 
         let events = vec![
-            // Any event we want the mouse to be shown for.
-            // Note that this does not include scroll events.
+            // Any event we want the mouse to be shown for, plus scroll events.
             CGEventType::LeftMouseDown,
             CGEventType::LeftMouseUp,
             CGEventType::RightMouseDown,
@@ -77,6 +76,7 @@ impl Mouse {
             CGEventType::MouseMoved,
             CGEventType::LeftMouseDragged,
             CGEventType::RightMouseDragged,
+            CGEventType::ScrollWheel,
         ];
         let this_ = Rc::clone(&this);
         let current = CFRunLoop::get_current();
@@ -157,13 +157,22 @@ impl Mouse {
 
     fn on_event(self: &Rc<Self>, event_type: CGEventType, event: &CGEvent, mtm: MainThreadMarker) {
         let mut state = self.state.borrow_mut();
-        if state.hide_count > 0 {
+        let is_scroll = matches!(event_type, CGEventType::ScrollWheel);
+        if !is_scroll && state.hide_count > 0 {
             debug!("Showing mouse");
             state.show_mouse();
         }
         match event_type {
+            CGEventType::LeftMouseDown => {
+                let loc = event.location();
+                self.events_tx.send(Event::LeftMouseDown(loc.to_icrate()));
+            }
             CGEventType::LeftMouseUp => {
                 self.events_tx.send(Event::MouseUp);
+            }
+            CGEventType::LeftMouseDragged => {
+                let loc = event.location();
+                self.events_tx.send(Event::LeftMouseDragged(loc.to_icrate()));
             }
             CGEventType::MouseMoved if self.config.borrow().settings.focus_follows_mouse => {
                 let loc = event.location();
@@ -171,6 +180,19 @@ impl Mouse {
                 tracing::trace!("Mouse moved {loc:?}");
                 if let Some(wsid) = state.track_mouse_move(loc.to_icrate(), mtm) {
                     self.events_tx.send(Event::MouseMovedOverWindow(wsid));
+                }
+            }
+            CGEventType::ScrollWheel => {
+                let delta_y = event
+                    .get_integer_value_field(EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_1)
+                    as f64;
+                let delta_x = event
+                    .get_integer_value_field(EventField::SCROLL_WHEEL_EVENT_DELTA_AXIS_2)
+                    as f64;
+
+                if delta_x != 0.0 || delta_y != 0.0 {
+                    let alt_held = event.get_flags().contains(CGEventFlags::CGEventFlagAlternate);
+                    self.events_tx.send(Event::ScrollWheel { delta_x, delta_y, alt_held });
                 }
             }
             _ => (),

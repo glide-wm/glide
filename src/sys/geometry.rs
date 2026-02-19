@@ -81,6 +81,20 @@ impl Round for ic::CGRect {
     }
 }
 
+pub fn round_to_physical(rect: ic::CGRect, scale: f64) -> ic::CGRect {
+    let min_x = (rect.min().x * scale).round() / scale;
+    let min_y = (rect.min().y * scale).round() / scale;
+    let max_x = (rect.max().x * scale).round() / scale;
+    let max_y = (rect.max().y * scale).round() / scale;
+    ic::CGRect {
+        origin: ic::CGPoint { x: min_x, y: min_y },
+        size: ic::CGSize {
+            width: max_x - min_x,
+            height: max_y - min_y,
+        },
+    }
+}
+
 impl Round for ic::CGPoint {
     fn round(&self) -> Self {
         ic::CGPoint {
@@ -227,5 +241,49 @@ impl<'de> DeserializeAs<'de, ic::CGRect> for CGRectDef {
         D: Deserializer<'de>,
     {
         CGRectDef::deserialize(deserializer)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn round_to_physical_retina() {
+        let rect = ic::CGRect {
+            origin: ic::CGPoint { x: 10.3, y: 20.7 },
+            size: ic::CGSize { width: 100.3, height: 200.7 },
+        };
+        let result = round_to_physical(rect, 2.0);
+        assert_eq!(result.origin.x, 10.5);
+        assert_eq!(result.origin.y, 20.5);
+        assert_eq!(result.size.width, 100.0);
+        assert_eq!(result.size.height, 201.0);
+    }
+
+    #[test]
+    fn round_to_physical_1x() {
+        let rect = ic::CGRect {
+            origin: ic::CGPoint { x: 10.3, y: 20.7 },
+            size: ic::CGSize { width: 100.3, height: 200.7 },
+        };
+        let result = round_to_physical(rect, 1.0);
+        assert_eq!(result.origin.x, 10.0);
+        assert_eq!(result.origin.y, 21.0);
+        assert_eq!(result.size.width, 101.0);
+        assert_eq!(result.size.height, 200.0);
+    }
+
+    #[test]
+    fn round_to_physical_preserves_pixel_aligned() {
+        let rect = ic::CGRect {
+            origin: ic::CGPoint { x: 10.0, y: 20.0 },
+            size: ic::CGSize { width: 100.0, height: 200.0 },
+        };
+        let result = round_to_physical(rect, 2.0);
+        assert_eq!(result.origin.x, 10.0);
+        assert_eq!(result.origin.y, 20.0);
+        assert_eq!(result.size.width, 100.0);
+        assert_eq!(result.size.height, 200.0);
     }
 }
