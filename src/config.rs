@@ -129,6 +129,7 @@ pub enum CenterMode {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ScrollConfig {
+    pub enable: bool,
     pub center_focused_column: CenterMode,
     pub visible_columns: u32,
     pub column_width_presets: Vec<f64>,
@@ -142,6 +143,7 @@ pub struct ScrollConfig {
 impl Default for ScrollConfig {
     fn default() -> Self {
         Self {
+            enable: false,
             center_focused_column: CenterMode::Always,
             visible_columns: 2,
             column_width_presets: vec![0.333, 0.5, 0.667, 1.0],
@@ -377,6 +379,8 @@ impl From<ValidationError> for SpannedError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actor::layout::LayoutCommand;
+    use crate::actor::reactor::Command as ReactorCommand;
 
     #[test]
     fn default_config_is_valid() {
@@ -386,6 +390,26 @@ mod tests {
     #[test]
     fn default_settings_match_unspecified_setting_values() {
         assert_eq!(Config::default().settings, Config::parse("").unwrap().settings);
+    }
+
+    #[test]
+    fn scroll_gate_is_disabled_by_default() {
+        assert!(!Config::default().settings.experimental.scroll.enable);
+    }
+
+    #[test]
+    fn default_keys_exclude_scroll_experimental_commands() {
+        let config = Config::default();
+        assert!(!config.keys.iter().any(|(_, cmd)| {
+            matches!(
+                cmd,
+                WmCommand::ReactorCommand(ReactorCommand::Layout(
+                    LayoutCommand::ChangeLayoutKind
+                        | LayoutCommand::ToggleColumnTabbed
+                        | LayoutCommand::CycleColumnWidth
+                ))
+            )
+        }));
     }
 
     #[test]

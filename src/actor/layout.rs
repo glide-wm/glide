@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::actor::app::{WindowId, pid_t};
 use crate::collections::{BTreeExt, BTreeSet, HashMap, HashSet};
@@ -198,6 +198,8 @@ pub struct LayoutManager {
     #[serde(skip)]
     scroll_cfg: ScrollConfig,
     #[serde(skip)]
+    scroll_enabled: bool,
+    #[serde(skip)]
     interactive_resize: Option<InteractiveScrollResize>,
     #[serde(skip)]
     interactive_move: Option<InteractiveScrollMove>,
@@ -250,14 +252,132 @@ impl LayoutManager {
             viewports: Default::default(),
             default_layout_kind: LayoutKind::default(),
             scroll_cfg: Config::default().settings.experimental.scroll.validated(),
+            scroll_enabled: false,
             interactive_resize: None,
             interactive_move: None,
         }
     }
 
     pub fn set_config(&mut self, config: &Config) {
-        self.default_layout_kind = config.settings.default_layout_kind;
         self.scroll_cfg = config.settings.experimental.scroll.clone().validated();
+        self.scroll_enabled = self.scroll_cfg.enable;
+        self.default_layout_kind = match (self.scroll_enabled, config.settings.default_layout_kind)
+        {
+            (false, LayoutKind::Scroll) => {
+                warn!(
+                    "Ignoring default_layout_kind=scroll because experimental.scroll.enable=false"
+                );
+                LayoutKind::Tree
+            }
+            (_, kind) => kind,
+        };
+        if !self.scroll_enabled {
+            self.convert_active_scroll_layouts_to_tree();
+        }
+    }
+
+    fn convert_active_scroll_layouts_to_tree(&mut self) {
+        for space in self.layout_mapping.keys().copied().collect::<Vec<_>>() {
+            self.ensure_layout_kind_allowed_for_space(space);
+        }
+    }
+
+    fn ensure_layout_kind_allowed_for_space(&mut self, space: SpaceId) {
+        if self.scroll_enabled {
+            return;
+        }
+        let Some(layout) = self.try_layout(space) else { return };
+        if !self.tree.is_scroll_layout(layout) {
+            return;
+        }
+        debug!(
+            ?space,
+            "Converting scroll layout to tree because scroll gate is disabled"
+        );
+        let new_layout = Self::convert_layout_kind(
+            &mut self.tree,
+            &self.scroll_cfg,
+            self.focused_window,
+            layout,
+            LayoutKind::Tree,
+        );
+        if let Some(mapping) = self.layout_mapping.get_mut(&space)
+            && mapping.active_layout() == layout
+        {
+            mapping.replace_active_layout(new_layout);
+        }
+        self.viewports.remove(&layout);
+    }
+
+    fn convert_layout_kind(
+        tree: &mut LayoutTree,
+        scroll_cfg: &ScrollConfig,
+        focused_window: Option<WindowId>,
+        layout: LayoutId,
+        new_kind: LayoutKind,
+    ) -> LayoutId {
+        if tree.layout_kind(layout) == new_kind {
+            return layout;
+        }
+
+        let selected_window = tree.window_at(tree.selection(layout));
+        let windows: Vec<WindowId> = tree
+            .root(layout)
+            .traverse_postorder(tree.map())
+            .filter_map(|n| tree.window_at(n))
+            .collect();
+
+        let new_layout = match new_kind {
+            LayoutKind::Tree => tree.create_layout(),
+            LayoutKind::Scroll => tree.create_scroll_layout(),
+        };
+
+        let visible_columns = scroll_cfg.visible_columns;
+        for wid in windows {
+            tree.remove_window(wid);
+            if new_kind == LayoutKind::Scroll {
+                tree.add_window_to_scroll_column_with_visible(
+                    new_layout,
+                    wid,
+                    true,
+                    visible_columns,
+                );
+            } else {
+                let sel = tree.selection(new_layout);
+                tree.add_window_after(new_layout, sel, wid);
+            }
+        }
+
+        if let Some(wid) = focused_window.or(selected_window)
+            && let Some(node) = tree.window_node(new_layout, wid)
+        {
+            tree.select(node);
+        }
+
+        new_layout
+    }
+
+    fn change_layout_index_filtered(
+        mapping: &mut SpaceLayoutMapping,
+        tree: &LayoutTree,
+        offset: i16,
+        allow_scroll: bool,
+    ) -> LayoutId {
+        let layouts: Vec<_> = mapping.layouts().collect();
+        let len = layouts.len();
+        if len <= 1 {
+            return mapping.active_layout();
+        }
+        let cur_idx = mapping.active_layout_index() as i16;
+        for step in 1..=len {
+            let idx = (cur_idx + offset * step as i16).rem_euclid(len as i16) as usize;
+            let candidate = layouts[idx];
+            if allow_scroll || !tree.is_scroll_layout(candidate) {
+                mapping.select_layout(candidate);
+                return candidate;
+            }
+        }
+        mapping.active_layout()
     }
 
     pub fn debug_tree(&self, space: SpaceId) {
@@ -291,10 +411,14 @@ impl LayoutManager {
             LayoutEvent::SpaceExposed(space, size) => {
                 self.debug_tree(space);
                 let kind = self.default_layout_kind;
-                self.layout_mapping
-                    .entry(space)
-                    .or_insert_with(|| SpaceLayoutMapping::new(size, &mut self.tree, kind))
-                    .activate_size(size, &mut self.tree);
+                {
+                    let mapping = self
+                        .layout_mapping
+                        .entry(space)
+                        .or_insert_with(|| SpaceLayoutMapping::new(size, &mut self.tree, kind));
+                    mapping.activate_size(size, &mut self.tree);
+                }
+                self.ensure_layout_kind_allowed_for_space(space);
             }
             LayoutEvent::WindowsOnScreenUpdated(space, pid, windows) => {
                 self.debug_tree(space);
@@ -520,7 +644,12 @@ impl LayoutManager {
                 "Could not find layout mapping for current space");
             return EventResponse::default();
         };
-        if command.modifies_layout() {
+        let scroll_command_disabled = !self.scroll_enabled
+            && matches!(
+                command,
+                LayoutCommand::CycleColumnWidth | LayoutCommand::ToggleColumnTabbed
+            );
+        if command.modifies_layout() && !scroll_command_disabled {
             mapping.prepare_modify(&mut self.tree);
         }
         let layout = mapping.active_layout();
@@ -576,7 +705,8 @@ impl LayoutManager {
 
             LayoutCommand::NextLayout => {
                 // FIXME: Update windows in the new layout.
-                let layout = mapping.change_layout_index(1);
+                let layout =
+                    Self::change_layout_index_filtered(mapping, &self.tree, 1, self.scroll_enabled);
                 if let Some(wid) = self.focused_window
                     && let Some(node) = self.tree.window_node(layout, wid)
                 {
@@ -586,7 +716,12 @@ impl LayoutManager {
             }
             LayoutCommand::PrevLayout => {
                 // FIXME: Update windows in the new layout.
-                let layout = mapping.change_layout_index(-1);
+                let layout = Self::change_layout_index_filtered(
+                    mapping,
+                    &self.tree,
+                    -1,
+                    self.scroll_enabled,
+                );
                 if let Some(wid) = self.focused_window
                     && let Some(node) = self.tree.window_node(layout, wid)
                 {
@@ -596,7 +731,8 @@ impl LayoutManager {
             }
             LayoutCommand::MoveFocus(direction) => {
                 let is_scroll = self.tree.is_scroll_layout(layout);
-                let use_wrapping = is_scroll
+                let use_wrapping = self.scroll_enabled
+                    && is_scroll
                     && self.scroll_config().infinite_loop
                     && matches!(direction, Direction::Left | Direction::Right);
                 let new_focus = if use_wrapping {
@@ -696,6 +832,10 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::CycleColumnWidth => {
+                if !self.scroll_enabled {
+                    debug!("Ignoring cycle_column_width because scroll gate is disabled");
+                    return EventResponse::default();
+                }
                 if !self.tree.is_scroll_layout(layout) {
                     return EventResponse::default();
                 }
@@ -720,6 +860,10 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::ToggleColumnTabbed => {
+                if !self.scroll_enabled {
+                    debug!("Ignoring toggle_column_tabbed because scroll gate is disabled");
+                    return EventResponse::default();
+                }
                 if !self.tree.is_scroll_layout(layout) {
                     return EventResponse::default();
                 }
@@ -735,50 +879,24 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::ChangeLayoutKind => {
+                if !self.scroll_enabled {
+                    debug!("Ignoring change_layout_kind because scroll gate is disabled");
+                    return EventResponse::default();
+                }
                 let old_kind = self.tree.layout_kind(layout);
                 let new_kind = match old_kind {
                     LayoutKind::Tree => LayoutKind::Scroll,
                     LayoutKind::Scroll => LayoutKind::Tree,
                 };
-
-                let windows: Vec<WindowId> = self
-                    .tree
-                    .root(layout)
-                    .traverse_postorder(self.tree.map())
-                    .filter_map(|n| self.tree.window_at(n))
-                    .collect();
-
-                let new_layout = match new_kind {
-                    LayoutKind::Tree => self.tree.create_layout(),
-                    LayoutKind::Scroll => self.tree.create_scroll_layout(),
-                };
-
-                let visible_columns = self.scroll_cfg.visible_columns;
-                for &wid in &windows {
-                    self.tree.remove_window(wid);
-                    if new_kind == LayoutKind::Scroll {
-                        self.tree.add_window_to_scroll_column_with_visible(
-                            new_layout,
-                            wid,
-                            true,
-                            visible_columns,
-                        );
-                    } else {
-                        let sel = self.tree.selection(new_layout);
-                        self.tree.add_window_after(new_layout, sel, wid);
-                    }
-                }
-
+                let new_layout = Self::convert_layout_kind(
+                    &mut self.tree,
+                    &self.scroll_cfg,
+                    self.focused_window,
+                    layout,
+                    new_kind,
+                );
                 mapping.replace_active_layout(new_layout);
-
-                if let Some(wid) = self.focused_window {
-                    if let Some(node) = self.tree.window_node(new_layout, wid) {
-                        self.tree.select(node);
-                    }
-                }
-
                 self.viewports.remove(&layout);
-
                 EventResponse::default()
             }
         }
@@ -829,7 +947,7 @@ impl LayoutManager {
         let layout = self.layout(space);
         //debug!("{}", self.tree.draw_tree(space));
         let frames = self.tree.calculate_layout(layout, screen, config);
-        if self.tree.is_scroll_layout(layout) {
+        if self.scroll_enabled && self.tree.is_scroll_layout(layout) {
             if let Some(vp) = self.viewports.get(&layout) {
                 return vp.apply_viewport_to_frames(screen, frames, Instant::now());
             }
@@ -851,7 +969,7 @@ impl LayoutManager {
                 group.is_on_top = false;
             }
         }
-        if self.tree.is_scroll_layout(layout) {
+        if self.scroll_enabled && self.tree.is_scroll_layout(layout) {
             if let Some(vp) = self.viewports.get(&layout) {
                 let transformed = vp.apply_viewport_to_frames(screen, sizes, Instant::now());
                 for group in &mut groups {
@@ -883,6 +1001,9 @@ impl LayoutManager {
     }
 
     pub fn update_viewport_for_focus(&mut self, space: SpaceId, screen: CGRect, config: &Config) {
+        if !self.scroll_enabled {
+            return;
+        }
         let layout = self.layout(space);
         if !self.tree.is_scroll_layout(layout) {
             return;
@@ -921,6 +1042,9 @@ impl LayoutManager {
     }
 
     pub fn has_active_scroll_animation(&self) -> bool {
+        if !self.scroll_enabled {
+            return false;
+        }
         self.viewports.values().any(|vp| vp.is_animating(Instant::now()))
     }
 
@@ -937,6 +1061,9 @@ impl LayoutManager {
         screen: &CGRect,
         config: &crate::config::ScrollConfig,
     ) -> EventResponse {
+        if !self.scroll_enabled {
+            return EventResponse::default();
+        }
         let layout = self.layout(space);
         if !self.tree.is_scroll_layout(layout) {
             return EventResponse::default();
@@ -1010,6 +1137,9 @@ impl LayoutManager {
         screen: CGRect,
         config: &Config,
     ) -> Option<(NodeId, NodeId, ResizeEdge)> {
+        if !self.scroll_enabled {
+            return None;
+        }
         let layout = self.try_layout(space)?;
         if !self.tree.is_scroll_layout(layout) {
             return None;
@@ -1033,6 +1163,9 @@ impl LayoutManager {
         screen: CGRect,
         config: &Config,
     ) -> Option<(WindowId, NodeId)> {
+        if !self.scroll_enabled {
+            return None;
+        }
         let layout = self.try_layout(space)?;
         if !self.tree.is_scroll_layout(layout) {
             return None;
@@ -1230,6 +1363,11 @@ impl LayoutManager {
         let layout = self.layout(space);
         self.tree.window_at(self.tree.selection(layout))
     }
+
+    #[cfg(test)]
+    pub(super) fn active_layout_kind(&self, space: SpaceId) -> LayoutKind {
+        self.tree.layout_kind(self.layout(space))
+    }
 }
 
 fn detect_edges(point: CGPoint, frame: CGRect) -> ResizeEdge {
@@ -1302,6 +1440,13 @@ mod tests {
             is_standard: true,
             is_resizable: true,
         }
+    }
+
+    fn config_with_scroll(enable: bool, default_layout_kind: LayoutKind) -> Config {
+        let mut config = Config::default();
+        config.settings.experimental.scroll.enable = enable;
+        config.settings.default_layout_kind = default_layout_kind;
+        config
     }
 
     impl LayoutManager {
@@ -1997,5 +2142,132 @@ mod tests {
             ],
             mgr.layout_sorted(space, screen),
         );
+    }
+
+    #[test]
+    fn space_exposed_forces_tree_when_scroll_gate_disabled() {
+        use LayoutEvent::*;
+        let mut mgr = LayoutManager::new();
+        let config = config_with_scroll(false, LayoutKind::Scroll);
+        mgr.set_config(&config);
+
+        let space = SpaceId::new(1);
+        _ = mgr.handle_event(SpaceExposed(space, rect(0, 0, 300, 200).size));
+
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+    }
+
+    #[test]
+    fn change_layout_kind_noops_when_scroll_gate_disabled() {
+        use LayoutCommand::*;
+        use LayoutEvent::*;
+
+        let mut mgr = LayoutManager::new();
+        let config = config_with_scroll(false, LayoutKind::Tree);
+        mgr.set_config(&config);
+
+        let space = SpaceId::new(1);
+        let pid = 1;
+        _ = mgr.handle_event(SpaceExposed(space, rect(0, 0, 400, 200).size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, make_windows(pid, 2)));
+        _ = mgr.handle_command(Some(space), &[space], ChangeLayoutKind);
+
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+    }
+
+    #[test]
+    fn active_scroll_layout_converts_to_tree_when_gate_disabled() {
+        use LayoutEvent::*;
+
+        let mut mgr = LayoutManager::new();
+        let config_on = config_with_scroll(true, LayoutKind::Scroll);
+        mgr.set_config(&config_on);
+
+        let space = SpaceId::new(1);
+        let pid = 1;
+        _ = mgr.handle_event(SpaceExposed(space, rect(0, 0, 500, 300).size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, make_windows(pid, 3)));
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Scroll);
+
+        let config_off = config_with_scroll(false, LayoutKind::Tree);
+        mgr.set_config(&config_off);
+
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+    }
+
+    #[test]
+    fn next_layout_skips_scroll_when_gate_disabled() {
+        use LayoutCommand::*;
+        use LayoutEvent::*;
+
+        let mut mgr = LayoutManager::new();
+        let config_on = config_with_scroll(true, LayoutKind::Scroll);
+        mgr.set_config(&config_on);
+
+        let space = SpaceId::new(1);
+        let pid = 1;
+        _ = mgr.handle_event(SpaceExposed(space, rect(0, 0, 500, 300).size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, make_windows(pid, 3)));
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Scroll);
+
+        _ = mgr.handle_command(Some(space), &[space], ChangeLayoutKind);
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+
+        let config_off = config_with_scroll(false, LayoutKind::Tree);
+        mgr.set_config(&config_off);
+        _ = mgr.handle_command(Some(space), &[space], NextLayout);
+
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+    }
+
+    #[test]
+    fn scroll_wheel_is_ignored_when_scroll_gate_disabled() {
+        use LayoutEvent::*;
+
+        let mut mgr = LayoutManager::new();
+        let config_on = config_with_scroll(true, LayoutKind::Scroll);
+        mgr.set_config(&config_on);
+
+        let space = SpaceId::new(1);
+        let screen = rect(0, 0, 900, 600);
+        let pid = 1;
+        _ = mgr.handle_event(SpaceExposed(space, screen.size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, make_windows(pid, 3)));
+        _ = mgr.handle_event(WindowFocused(vec![space], WindowId::new(pid, 1)));
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Scroll);
+
+        let config_off = config_with_scroll(false, LayoutKind::Tree);
+        mgr.set_config(&config_off);
+        let response =
+            mgr.handle_scroll_wheel(space, -1.0, &screen, &config_off.settings.experimental.scroll);
+        assert!(response.raise_windows.is_empty());
+        assert!(response.focus_window.is_none());
+    }
+
+    #[test]
+    fn scroll_only_commands_noop_when_gate_disabled() {
+        use LayoutCommand::*;
+        use LayoutEvent::*;
+
+        let mut mgr = LayoutManager::new();
+        let config_on = config_with_scroll(true, LayoutKind::Scroll);
+        mgr.set_config(&config_on);
+
+        let space = SpaceId::new(1);
+        let screen = rect(0, 0, 1000, 600);
+        let pid = 1;
+        _ = mgr.handle_event(SpaceExposed(space, screen.size));
+        _ = mgr.handle_event(WindowsOnScreenUpdated(space, pid, make_windows(pid, 3)));
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Scroll);
+
+        let config_off = config_with_scroll(false, LayoutKind::Tree);
+        mgr.set_config(&config_off);
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+
+        let before = mgr.layout_sorted(space, screen);
+        _ = mgr.handle_command(Some(space), &[space], CycleColumnWidth);
+        _ = mgr.handle_command(Some(space), &[space], ToggleColumnTabbed);
+        assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
+        assert_eq!(mgr.layout_sorted(space, screen), before);
     }
 }

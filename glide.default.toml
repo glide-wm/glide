@@ -27,6 +27,7 @@ outer_gap = 0
 inner_gap = 0
 
 # The default layout kind for new spaces: "tree" or "scroll".
+# Note: "scroll" requires settings.experimental.scroll.enable = true.
 default_layout_kind = "tree"
 
 # Visual bars for window groups (tabbed/stacked containers).
@@ -140,12 +141,14 @@ default_keys = false
 #
 
 # Print the current layout in the logs.
-# Switch between tree and scroll layout kinds.
-# TODO: Integrate into next_layout/prev_layout with a menu UI.
-"Alt + Shift + S" = "change_layout_kind"
-"Alt + Shift + T" = "toggle_column_tabbed"
-
 "Alt + Shift + D" = "debug"
+
+# Scroll layout commands are experimental and intentionally not bound by
+# default. If you enable settings.experimental.scroll.enable, add explicit
+# keybindings in your personal config under [keys], for example:
+# "Alt + Shift + S" = "change_layout_kind"
+# "Alt + Shift + T" = "toggle_column_tabbed"
+# "Alt + Shift + W" = "cycle_column_width"
 
 # WARNING:
 # This section contains experimental features that might break or be removed in
@@ -162,6 +165,9 @@ status_icon.color = false
 status_icon.enable = true
 
 # Scroll layout settings.
+
+# Enable the experimental scroll/niri layout and related commands.
+scroll.enable = false
 
 # When to center the focused column: "never", "always", or "on_overflow".
 scroll.center_focused_column = "never"

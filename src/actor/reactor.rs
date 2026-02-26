@@ -615,6 +615,9 @@ impl Reactor {
                 _ = self.raise_manager_tx.send((Span::current(), msg));
             }
             Event::ScrollWheel { delta_x, delta_y, alt_held } => {
+                if !self.config.settings.experimental.scroll.enable {
+                    return;
+                }
                 // TODO: Make the modifier key configurable.
                 if !alt_held {
                     return;
@@ -890,9 +893,22 @@ impl Reactor {
         let main_window = self.main_window();
         trace!(?main_window);
         let mut anim = Animation::new();
-        let Self { screens, layout, config, group_indicators_tx, windows, apps, .. } = self;
+        let Self {
+            screens,
+            layout,
+            config,
+            group_indicators_tx,
+            windows,
+            apps,
+            ..
+        } = self;
         Self::apply_layout(
-            screens, layout, config, group_indicators_tx, windows, apps,
+            screens,
+            layout,
+            config,
+            group_indicators_tx,
+            windows,
+            apps,
             LayoutMode::Animate { new_wid, anim: &mut anim },
             true,
         );
@@ -906,9 +922,22 @@ impl Reactor {
     }
 
     fn update_layout_no_anim(&mut self) {
-        let Self { screens, layout, config, group_indicators_tx, windows, apps, .. } = self;
+        let Self {
+            screens,
+            layout,
+            config,
+            group_indicators_tx,
+            windows,
+            apps,
+            ..
+        } = self;
         Self::apply_layout(
-            screens, layout, config, group_indicators_tx, windows, apps,
+            screens,
+            layout,
+            config,
+            group_indicators_tx,
+            windows,
+            apps,
             LayoutMode::Immediate,
             false,
         );
@@ -930,11 +959,9 @@ impl Reactor {
             if update_viewport {
                 layout.update_viewport_for_focus(space, screen.frame, config);
             }
-            let (result, groups) =
-                layout.calculate_layout_and_groups(space, screen.frame, config);
+            let (result, groups) = layout.calculate_layout_and_groups(space, screen.frame, config);
 
-            group_indicators_tx
-                .send(group_bars::Event::GroupsUpdated { space_id: space, groups });
+            group_indicators_tx.send(group_bars::Event::GroupsUpdated { space_id: space, groups });
 
             for &(wid, target_frame) in &result {
                 let Some(window) = windows.get_mut(&wid) else {
@@ -954,7 +981,14 @@ impl Reactor {
                     LayoutMode::Animate { new_wid, anim } => {
                         trace!(?wid, ?current_frame, ?target_frame);
                         let is_new = Some(wid) == *new_wid;
-                        anim.add_window(&app.handle, wid, current_frame, target_frame, is_new, txid);
+                        anim.add_window(
+                            &app.handle,
+                            wid,
+                            current_frame,
+                            target_frame,
+                            is_new,
+                            txid,
+                        );
                     }
                     LayoutMode::Immediate => {
                         let _ = app.handle.send(Request::SetWindowFrame(wid, target_frame, txid));
