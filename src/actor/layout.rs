@@ -604,6 +604,18 @@ impl LayoutManager {
         debug!(?self.floating_windows);
         debug!(?self.focused_window, ?self.last_floating_focus, ?is_floating);
 
+        if !self.scroll_enabled
+            && matches!(
+                command,
+                LayoutCommand::CycleColumnWidth
+                    | LayoutCommand::ToggleColumnTabbed
+                    | LayoutCommand::ChangeLayoutKind
+            )
+        {
+            warn!("Ignoring {command:?} because scroll layout is disabled");
+            return EventResponse::default();
+        }
+
         // ToggleWindowFloating is the only command that works when the space is
         // disabled.
         if let LayoutCommand::ToggleWindowFloating = &command {
@@ -630,12 +642,7 @@ impl LayoutManager {
                 "Could not find layout mapping for current space");
             return EventResponse::default();
         };
-        let scroll_command_disabled = !self.scroll_enabled
-            && matches!(
-                command,
-                LayoutCommand::CycleColumnWidth | LayoutCommand::ToggleColumnTabbed
-            );
-        if command.modifies_layout() && !scroll_command_disabled {
+        if command.modifies_layout() {
             mapping.prepare_modify(&mut self.tree);
         }
         let layout = mapping.active_layout();
@@ -818,10 +825,6 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::CycleColumnWidth => {
-                if !self.scroll_enabled {
-                    debug!("Ignoring cycle_column_width because scroll gate is disabled");
-                    return EventResponse::default();
-                }
                 if !self.tree.is_scroll_layout(layout) {
                     return EventResponse::default();
                 }
@@ -846,10 +849,6 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::ToggleColumnTabbed => {
-                if !self.scroll_enabled {
-                    debug!("Ignoring toggle_column_tabbed because scroll gate is disabled");
-                    return EventResponse::default();
-                }
                 if !self.tree.is_scroll_layout(layout) {
                     return EventResponse::default();
                 }
@@ -865,10 +864,6 @@ impl LayoutManager {
                 EventResponse::default()
             }
             LayoutCommand::ChangeLayoutKind => {
-                if !self.scroll_enabled {
-                    debug!("Ignoring change_layout_kind because scroll gate is disabled");
-                    return EventResponse::default();
-                }
                 let old_kind = self.tree.layout_kind(layout);
                 let new_kind = match old_kind {
                     LayoutKind::Tree => LayoutKind::Scroll,
