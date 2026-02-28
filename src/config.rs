@@ -1,6 +1,12 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// Design note: Config sub-types should generally not implement Default unless
+// delegating to Config::default(), which parses glide.default.toml. A manual
+// Default impl with hardcoded values can silently diverge from the TOML file,
+// causing different behavior in code paths that don't load the config file
+// (tests, first run, deserialization of saved state).
+
 #[macro_use]
 mod partial;
 use std::fs::File;
@@ -142,17 +148,7 @@ pub struct ScrollConfig {
 
 impl Default for ScrollConfig {
     fn default() -> Self {
-        Self {
-            enable: false,
-            center_focused_column: CenterMode::Always,
-            visible_columns: 2,
-            column_width_presets: vec![0.333, 0.5, 0.667, 1.0],
-            new_window_in_column: NewWindowPlacement::NewColumn,
-            scroll_sensitivity: 20.0,
-            invert_scroll_direction: false,
-            infinite_loop: false,
-            single_column_aspect_ratio: String::new(),
-        }
+        Config::default().settings.experimental.scroll
     }
 }
 
