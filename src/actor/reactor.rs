@@ -259,14 +259,6 @@ impl From<WindowInfo> for WindowState {
     }
 }
 
-enum LayoutMode<'m, 'a> {
-    Animate {
-        new_wid: Option<WindowId>,
-        anim: &'m mut Animation<'a>,
-    },
-    Immediate,
-}
-
 impl Reactor {
     pub fn spawn(
         config: Arc<Config>,
@@ -350,7 +342,7 @@ impl Reactor {
                 }
                 _ = tick_timer.next(), if animating => {
                     self.layout.tick_viewports();
-                    self.update_layout_no_anim();
+                    self.update_layout(None, true);
                     if self.layout.has_active_scroll_animation() {
                         tick_timer.set_next_fire(tick_interval);
                     }
@@ -888,82 +880,23 @@ impl Reactor {
     }
 
     #[instrument(skip(self), fields())]
-    pub fn update_layout(&mut self, new_wid: Option<WindowId>, is_resize: bool) {
+    pub fn update_layout(&mut self, new_wid: Option<WindowId>, skip_anim: bool) {
         let main_window = self.main_window();
         trace!(?main_window);
         let mut anim = Animation::new();
-        let Self {
-            screens,
-            layout,
-            config,
-            group_indicators_tx,
-            windows,
-            apps,
-            ..
-        } = self;
-        Self::apply_layout(
-            screens,
-            layout,
-            config,
-            group_indicators_tx,
-            windows,
-            apps,
-            LayoutMode::Animate { new_wid, anim: &mut anim },
-            true,
-        );
-        // If the user is doing something with the mouse we don't want to
-        // animate on top of that.
-        if is_resize || !config.settings.animate || layout.has_active_scroll_animation() {
-            anim.skip_to_end();
-        } else {
-            anim.run();
-        }
-    }
-
-    fn update_layout_no_anim(&mut self) {
-        let Self {
-            screens,
-            layout,
-            config,
-            group_indicators_tx,
-            windows,
-            apps,
-            ..
-        } = self;
-        Self::apply_layout(
-            screens,
-            layout,
-            config,
-            group_indicators_tx,
-            windows,
-            apps,
-            LayoutMode::Immediate,
-            false,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn apply_layout<'a>(
-        screens: &[Screen],
-        layout: &mut LayoutManager,
-        config: &Config,
-        group_indicators_tx: &group_bars::Sender,
-        windows: &mut HashMap<WindowId, WindowState>,
-        apps: &'a HashMap<pid_t, AppState>,
-        mut mode: LayoutMode<'_, 'a>,
-        update_viewport: bool,
-    ) {
-        for &screen in screens {
+        for &screen in &self.screens {
             let Some(space) = screen.space else { continue };
-            if update_viewport {
-                layout.update_viewport_for_focus(space, screen.frame, config);
+            if !skip_anim {
+                self.layout.update_viewport_for_focus(space, screen.frame, &self.config);
             }
-            let (result, groups) = layout.calculate_layout_and_groups(space, screen.frame, config);
+            let (result, groups) =
+                self.layout.calculate_layout_and_groups(space, screen.frame, &self.config);
 
-            group_indicators_tx.send(group_bars::Event::GroupsUpdated { space_id: space, groups });
+            self.group_indicators_tx
+                .send(group_bars::Event::GroupsUpdated { space_id: space, groups });
 
             for &(wid, target_frame) in &result {
-                let Some(window) = windows.get_mut(&wid) else {
+                let Some(window) = self.windows.get_mut(&wid) else {
                     // If we restored a saved state the window may not be available yet.
                     continue;
                 };
@@ -972,29 +905,22 @@ impl Reactor {
                 if target_frame.same_as(current_frame) {
                     continue;
                 }
-                let Some(app) = apps.get(&wid.pid) else {
+                let Some(app) = self.apps.get(&wid.pid) else {
                     continue;
                 };
                 let txid = window.next_txid();
-                match &mut mode {
-                    LayoutMode::Animate { new_wid, anim } => {
-                        trace!(?wid, ?current_frame, ?target_frame);
-                        let is_new = Some(wid) == *new_wid;
-                        anim.add_window(
-                            &app.handle,
-                            wid,
-                            current_frame,
-                            target_frame,
-                            is_new,
-                            txid,
-                        );
-                    }
-                    LayoutMode::Immediate => {
-                        let _ = app.handle.send(Request::SetWindowFrame(wid, target_frame, txid));
-                    }
-                }
+                trace!(?wid, ?current_frame, ?target_frame);
+                let is_new = Some(wid) == new_wid;
+                anim.add_window(&app.handle, wid, current_frame, target_frame, is_new, txid);
                 window.frame_monotonic = target_frame;
             }
+        }
+        // If the user is doing something with the mouse we don't want to
+        // animate on top of that.
+        if skip_anim || !self.config.settings.animate || self.layout.has_active_scroll_animation() {
+            anim.skip_to_end();
+        } else {
+            anim.run();
         }
     }
 }
