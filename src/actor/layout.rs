@@ -972,8 +972,7 @@ impl LayoutManager {
     }
 
     fn add_scroll_window(&mut self, layout: LayoutId, wid: WindowId) {
-        let new_column =
-            self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
+        let new_column = self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
         self.tree.add_window_to_scroll_column_with_visible(
             layout,
             wid,
@@ -1367,6 +1366,8 @@ impl LayoutManager {
     }
 }
 
+// TODO: detect_edges does not account for screen boundaries.
+// A window flush against a screen edge should not offer resize on that edge.
 fn detect_edges(point: CGPoint, frame: CGRect) -> ResizeEdge {
     let threshold = RESIZE_EDGE_THRESHOLD;
     let expanded = CGRect::new(
