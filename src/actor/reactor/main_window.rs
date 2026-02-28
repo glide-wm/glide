@@ -88,6 +88,9 @@ impl MainWindowTracker {
             | Event::MouseMovedOverWindow(..)
             | Event::RaiseCompleted { .. }
             | Event::RaiseTimeout { .. }
+            | Event::ScrollWheel { .. }
+            | Event::LeftMouseDown(_)
+            | Event::LeftMouseDragged(_)
             | Event::Command(..)
             | Event::ConfigChanged(_) => return None,
         };
@@ -149,6 +152,7 @@ mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
         assert_eq!(None, reactor.main_window());
 
@@ -212,6 +216,7 @@ mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_event(ApplicationGloballyActivated(1));
@@ -277,6 +282,7 @@ mod tests {
             vec![Some(space)],
             vec![],
             CoordinateConverter::default(),
+            vec![2.0],
         ));
 
         reactor.handle_events(apps.make_app_with_opts(

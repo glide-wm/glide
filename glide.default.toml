@@ -26,6 +26,10 @@ outer_gap = 0
 # Gap between adjacent windows (in pixels).
 inner_gap = 0
 
+# The default layout kind for new spaces: "tree" or "scroll".
+# Note: "scroll" requires settings.experimental.scroll.enable = true.
+default_layout_kind = "tree"
+
 # Visual bars for window groups (tabbed/stacked containers).
 group_bars.enable = true
 group_bars.thickness = 6
@@ -139,6 +143,15 @@ default_keys = false
 # Print the current layout in the logs.
 "Alt + Shift + D" = "debug"
 
+# Scroll layout commands are experimental and intentionally not bound by
+# default. If you enable settings.experimental.scroll.enable, add explicit
+# keybindings in your personal config under [keys], for example:
+# "Alt + Shift + S" = "change_layout_kind"
+# "Alt + Shift + T" = "toggle_column_tabbed"
+# "Alt + Shift + W" = "cycle_column_width"
+# "Alt + Shift + BracketLeft" = { consume_or_expel_window = "left" }
+# "Alt + Shift + BracketRight" = { consume_or_expel_window = "right" }
+
 # WARNING:
 # This section contains experimental features that might break or be removed in
 # the future. Use at your own risk!
@@ -152,3 +165,32 @@ status_icon.color = false
 
 # Ignored; kept for compatibility.
 status_icon.enable = true
+
+# Scroll layout settings.
+
+# Enable the experimental scroll/niri layout and related commands.
+scroll.enable = false
+
+# When to center the focused column: "never", "always", or "on_overflow".
+scroll.center_focused_column = "never"
+
+# Number of columns visible at once (1-5).
+scroll.visible_columns = 2
+
+# Preset column width proportions to cycle through with cycle_column_width.
+scroll.column_width_presets = [0.333, 0.5, 0.667, 1.0]
+
+# Where to place new windows: "new_column" or "same_column".
+scroll.new_window_in_column = "new_column"
+
+# Scroll sensitivity multiplier for trackpad/mouse wheel.
+scroll.scroll_sensitivity = 20.0
+
+# Invert the scroll direction (natural scrolling).
+scroll.invert_scroll_direction = false
+
+# Allow focus to wrap around from last column to first and vice versa.
+scroll.infinite_loop = false
+
+# Aspect ratio for single-column mode (e.g. "16:9"). Empty string disables.
+scroll.single_column_aspect_ratio = ""
