@@ -1368,11 +1368,10 @@ impl LayoutManager {
 }
 
 fn detect_edges(point: CGPoint, frame: CGRect) -> ResizeEdge {
-    use objc2_core_foundation::CGRect as R;
     let threshold = RESIZE_EDGE_THRESHOLD;
-    let expanded = R::new(
+    let expanded = CGRect::new(
         CGPoint::new(frame.origin.x - threshold, frame.origin.y - threshold),
-        objc2_core_foundation::CGSize::new(
+        CGSize::new(
             frame.size.width + threshold * 2.0,
             frame.size.height + threshold * 2.0,
         ),
@@ -1380,9 +1379,9 @@ fn detect_edges(point: CGPoint, frame: CGRect) -> ResizeEdge {
     if !expanded.contains(point) {
         return ResizeEdge(0);
     }
-    let inner = R::new(
+    let inner = CGRect::new(
         CGPoint::new(frame.origin.x + threshold, frame.origin.y + threshold),
-        objc2_core_foundation::CGSize::new(
+        CGSize::new(
             (frame.size.width - threshold * 2.0).max(0.0),
             (frame.size.height - threshold * 2.0).max(0.0),
         ),
