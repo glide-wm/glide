@@ -622,8 +622,7 @@ impl Reactor {
                 if !alt_held {
                     return;
                 }
-                if let Some(screen) = self.screens.get(self.active_screen_idx.unwrap_or(0) as usize)
-                {
+                if let Some(&screen) = self.active_screen() {
                     if let Some(space) = screen.space {
                         let scroll_config = &self.config.settings.experimental.scroll;
                         let delta = if delta_x != 0.0 { delta_x } else { delta_y };
