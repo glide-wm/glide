@@ -771,13 +771,6 @@ impl LayoutManager {
             LayoutCommand::Split(orientation) => {
                 // Don't mark as written yet, since merely splitting doesn't
                 // usually have a visible effect.
-                if self.tree.is_scroll_layout(layout) && orientation == Orientation::Horizontal {
-                    let selection = self.tree.selection(layout);
-                    let root = self.tree.root(layout);
-                    if selection == root || selection.parent(self.tree.map()) == Some(root) {
-                        return EventResponse::default();
-                    }
-                }
                 let selection = self.tree.selection(layout);
                 self.tree.nest_in_container(layout, selection, ContainerKind::from(orientation));
                 EventResponse::default()
