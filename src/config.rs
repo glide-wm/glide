@@ -1,6 +1,12 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// Design note: Config sub-types should generally not implement Default unless
+// delegating to Config::default(), which parses glide.default.toml. A manual
+// Default impl with hardcoded values can silently diverge from the TOML file,
+// causing different behavior in code paths that don't load the config file
+// (tests, first run, deserialization of saved state).
+
 #[macro_use]
 mod partial;
 use std::fs::File;
@@ -16,6 +22,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::actor::wm_controller::WmCommand;
+use crate::model::LayoutKind;
 
 pub fn data_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".glide")
@@ -87,6 +94,7 @@ pub struct Settings {
     pub outer_gap: f64,
     pub inner_gap: f64,
     pub default_keys: bool,
+    pub default_layout_kind: LayoutKind,
     #[derive_args(GroupBarsPartial)]
     pub group_bars: GroupBars,
     #[derive_args(StatusIconPartial)]
@@ -102,6 +110,93 @@ pub struct Settings {
 pub struct Experimental {
     #[derive_args(StatusIconExperimentalPartial)]
     pub status_icon: StatusIconExperimental,
+    #[derive_args(ScrollConfigPartial)]
+    pub scroll: ScrollConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum NewWindowPlacement {
+    NewColumn,
+    SameColumn,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Copy, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CenterMode {
+    #[default]
+    Never,
+    Always,
+    OnOverflow,
+}
+
+#[derive(PartialConfig!)]
+#[derive_args(ScrollConfigPartial)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ScrollConfig {
+    pub enable: bool,
+    pub center_focused_column: CenterMode,
+    pub visible_columns: u32,
+    pub column_width_presets: Vec<f64>,
+    pub new_window_in_column: NewWindowPlacement,
+    pub scroll_sensitivity: f64,
+    pub invert_scroll_direction: bool,
+    pub infinite_loop: bool,
+    pub single_column_aspect_ratio: String,
+}
+
+impl Default for ScrollConfig {
+    fn default() -> Self {
+        Config::default().settings.experimental.scroll
+    }
+}
+
+impl ScrollConfig {
+    pub fn validated(mut self) -> Self {
+        self.visible_columns = self.visible_columns.clamp(1, 5);
+        self.scroll_sensitivity = self.scroll_sensitivity.clamp(0.0, 100.0);
+        self.column_width_presets.retain(|&p| p > 0.0 && p <= 1.0);
+        self
+    }
+
+    pub fn aspect_ratio(&self) -> Option<AspectRatio> {
+        if self.single_column_aspect_ratio.is_empty() {
+            return None;
+        }
+        AspectRatio::from_str(&self.single_column_aspect_ratio).ok()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy, Serialize)]
+pub struct AspectRatio {
+    pub width: f64,
+    pub height: f64,
+}
+
+impl FromStr for AspectRatio {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (w, h) =
+            s.split_once(':').ok_or_else(|| format!("expected 'W:H' format, got {s:?}"))?;
+        let width: f64 = w.trim().parse().map_err(|_| format!("invalid width: {w:?}"))?;
+        let height: f64 = h.trim().parse().map_err(|_| format!("invalid height: {h:?}"))?;
+        if width <= 0.0 || height <= 0.0 {
+            return Err("aspect ratio values must be positive".into());
+        }
+        Ok(AspectRatio { width, height })
+    }
+}
+
+impl<'de> Deserialize<'de> for AspectRatio {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        AspectRatio::from_str(&s).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(PartialConfig!)]
@@ -280,6 +375,8 @@ impl From<ValidationError> for SpannedError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actor::layout::LayoutCommand;
+    use crate::actor::reactor::Command as ReactorCommand;
 
     #[test]
     fn default_config_is_valid() {
@@ -289,6 +386,26 @@ mod tests {
     #[test]
     fn default_settings_match_unspecified_setting_values() {
         assert_eq!(Config::default().settings, Config::parse("").unwrap().settings);
+    }
+
+    #[test]
+    fn scroll_gate_is_disabled_by_default() {
+        assert!(!Config::default().settings.experimental.scroll.enable);
+    }
+
+    #[test]
+    fn default_keys_exclude_scroll_experimental_commands() {
+        let config = Config::default();
+        assert!(!config.keys.iter().any(|(_, cmd)| {
+            matches!(
+                cmd,
+                WmCommand::ReactorCommand(ReactorCommand::Layout(
+                    LayoutCommand::ChangeLayoutKind
+                        | LayoutCommand::ToggleColumnTabbed
+                        | LayoutCommand::CycleColumnWidth
+                ))
+            )
+        }));
     }
 
     #[test]
@@ -375,6 +492,28 @@ mod tests {
         assert!(!config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyH"));
         // But other default keys should still be present
         assert!(config.keys.iter().any(|(hk, _)| hk.to_string() == "Alt + KeyJ"));
+    }
+
+    #[test]
+    fn aspect_ratio_from_str_valid() {
+        let ar = AspectRatio::from_str("16:9").unwrap();
+        assert_eq!(ar.width, 16.0);
+        assert_eq!(ar.height, 9.0);
+    }
+
+    #[test]
+    fn aspect_ratio_from_str_with_spaces() {
+        let ar = AspectRatio::from_str(" 4 : 3 ").unwrap();
+        assert_eq!(ar.width, 4.0);
+        assert_eq!(ar.height, 3.0);
+    }
+
+    #[test]
+    fn aspect_ratio_from_str_invalid() {
+        assert!(AspectRatio::from_str("16x9").is_err());
+        assert!(AspectRatio::from_str("0:9").is_err());
+        assert!(AspectRatio::from_str("16:-1").is_err());
+        assert!(AspectRatio::from_str("abc:def").is_err());
     }
 
     #[test]

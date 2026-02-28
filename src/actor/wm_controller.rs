@@ -47,6 +47,7 @@ pub enum WmEvent {
         Vec<ScreenId>,
         CoordinateConverter,
         Vec<Option<SpaceId>>,
+        Vec<f64>,
     ),
     ExposeEntered,
     ExposeExited,
@@ -212,7 +213,7 @@ impl WmController {
             AppTerminated(pid) => {
                 self.send_event(Event::ApplicationTerminated(pid));
             }
-            ScreenParametersChanged(frames, ids, converter, spaces) => {
+            ScreenParametersChanged(frames, ids, converter, spaces, scale_factors) => {
                 self.cur_screen_id = ids;
                 self.handle_space_changed(spaces.clone());
                 self.send_event(Event::ScreenParametersChanged(
@@ -220,6 +221,7 @@ impl WmController {
                     self.active_spaces(),
                     self.get_windows(),
                     converter,
+                    scale_factors,
                 ));
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
                 self.status_tx.send(status::Event::SpaceEnabledChanged(

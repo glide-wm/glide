@@ -206,12 +206,24 @@ impl Size {
         f64::from(self.info[node].total)
     }
 
+    pub(super) fn weight(&self, node: NodeId) -> f32 {
+        self.info[node].size
+    }
+
     pub(super) fn take_share(&mut self, map: &NodeMap, node: NodeId, from: NodeId, share: f32) {
         assert_eq!(node.parent(map), from.parent(map));
         let share = share.min(self.info[from].size);
         let share = share.max(-self.info[node].size);
         self.info[from].size -= share;
         self.info[node].size += share;
+    }
+
+    pub(super) fn set_weight(&mut self, node: NodeId, weight: f32, map: &NodeMap) {
+        let old = self.info[node].size;
+        self.info[node].size = weight;
+        if let Some(parent) = node.parent(map) {
+            self.info[parent].total += weight - old;
+        }
     }
 
     pub(super) fn set_fullscreen(&mut self, node: NodeId, is_fullscreen: bool) {
@@ -247,6 +259,7 @@ impl Size {
         config: &Config,
         root: NodeId,
         screen: CGRect,
+        is_scroll: bool,
     ) -> Vec<(WindowId, CGRect)> {
         let mut sizes = vec![];
         Visitor {
@@ -257,6 +270,7 @@ impl Size {
             fullscreen_nodes: &[],
             config,
             screen,
+            is_scroll,
             sizes: &mut sizes,
             groups: None,
         }
@@ -272,6 +286,7 @@ impl Size {
         config: &Config,
         root: NodeId,
         screen: CGRect,
+        is_scroll: bool,
     ) -> (Vec<(WindowId, CGRect)>, Vec<GroupBarInfo>) {
         let mut sizes = vec![];
         let mut groups = vec![];
@@ -287,6 +302,7 @@ impl Size {
             fullscreen_nodes,
             config,
             screen,
+            is_scroll,
             sizes: &mut sizes,
             groups: Some(&mut groups),
         }
@@ -303,6 +319,7 @@ struct Visitor<'a, 'out> {
     fullscreen_nodes: &'a [NodeId],
     config: &'a Config,
     screen: CGRect,
+    is_scroll: bool,
     sizes: &'out mut Vec<(WindowId, CGRect)>,
     groups: Option<&'out mut Vec<GroupBarInfo>>,
 }
@@ -390,19 +407,50 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 }
             }
             Horizontal => {
-                let mut x = rect.origin.x;
-                let total = self.size.info[node].total;
-                let local_selection = self.selection.local_selection(self.map, node);
                 let inner_gap = self.config.settings.inner_gap;
-                let width =
-                    rect.size.width - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+                let local_selection = self.selection.local_selection(self.map, node);
+                let children: Vec<NodeId> = node.children(self.map).collect();
 
-                for child in node.children(self.map) {
-                    let ratio = f64::from(self.size.info[child].size) / f64::from(total);
+                let aspect_max_width = if children.len() == 1 {
+                    self.config
+                        .settings
+                        .experimental
+                        .scroll
+                        .aspect_ratio()
+                        .map(|ar| rect.size.height * (ar.width / ar.height))
+                } else {
+                    None
+                };
+
+                let inputs: Vec<super::scroll_constraints::WindowInput> = children
+                    .iter()
+                    .map(|&child| super::scroll_constraints::WindowInput {
+                        weight: f64::from(self.size.info[child].size),
+                        min_size: if self.is_scroll {
+                            super::scroll_constraints::MIN_WINDOW_SIZE
+                        } else {
+                            1.0
+                        },
+                        max_size: aspect_max_width,
+                        fixed_size: None,
+                    })
+                    .collect();
+
+                let total_weight: f64 = inputs.iter().map(|i| i.weight).sum();
+                let virtual_width = if self.is_scroll {
+                    total_weight * rect.size.width
+                } else {
+                    rect.size.width
+                };
+                let outputs =
+                    super::scroll_constraints::solve_sizes(&inputs, virtual_width, inner_gap);
+
+                let mut x = rect.origin.x;
+                for (&child, output) in children.iter().zip(outputs.iter()) {
                     let rect = CGRect {
                         origin: CGPoint { x, y: rect.origin.y },
                         size: CGSize {
-                            width: width * ratio,
+                            width: output.size,
                             height: rect.size.height,
                         },
                     }
@@ -418,20 +466,34 @@ impl<'a, 'out> Visitor<'a, 'out> {
                 }
             }
             Vertical => {
-                let mut y = rect.origin.y;
-                let total = self.size.info[node].total;
-                let local_selection = self.selection.local_selection(self.map, node);
                 let inner_gap = self.config.settings.inner_gap;
-                let height =
-                    rect.size.height - inner_gap * (node.children(self.map).count() as f64 - 1.0);
+                let local_selection = self.selection.local_selection(self.map, node);
+                let children: Vec<NodeId> = node.children(self.map).collect();
 
-                for child in node.children(self.map) {
-                    let ratio = f64::from(self.size.info[child].size) / f64::from(total);
+                let inputs: Vec<super::scroll_constraints::WindowInput> = children
+                    .iter()
+                    .map(|&child| super::scroll_constraints::WindowInput {
+                        weight: f64::from(self.size.info[child].size),
+                        min_size: if self.is_scroll {
+                            super::scroll_constraints::MIN_WINDOW_SIZE
+                        } else {
+                            1.0
+                        },
+                        max_size: None,
+                        fixed_size: None,
+                    })
+                    .collect();
+
+                let outputs =
+                    super::scroll_constraints::solve_sizes(&inputs, rect.size.height, inner_gap);
+
+                let mut y = rect.origin.y;
+                for (&child, output) in children.iter().zip(outputs.iter()) {
                     let rect = CGRect {
                         origin: CGPoint { x: rect.origin.x, y },
                         size: CGSize {
                             width: rect.size.width,
-                            height: height * ratio,
+                            height: output.size,
                         },
                     }
                     .round();
