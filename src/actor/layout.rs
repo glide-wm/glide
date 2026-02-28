@@ -464,14 +464,7 @@ impl LayoutManager {
                     .collect();
                 self.tree.set_windows_for_app(self.layout(space), pid, tree_windows);
                 for wid in new_windows {
-                    let new_column =
-                        self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
-                    self.tree.add_window_to_scroll_column_with_visible(
-                        layout,
-                        wid,
-                        new_column,
-                        self.scroll_config().visible_columns,
-                    );
+                    self.add_scroll_window(layout, wid);
                 }
                 for wid in add_floating {
                     self.add_floating_window(wid, Some(space));
@@ -491,14 +484,7 @@ impl LayoutManager {
                     WindowClass::Regular => {
                         let layout = self.layout(space);
                         if self.tree.is_scroll_layout(layout) {
-                            let new_column = self.scroll_config().new_window_in_column
-                                == NewWindowPlacement::NewColumn;
-                            self.tree.add_window_to_scroll_column_with_visible(
-                                layout,
-                                wid,
-                                new_column,
-                                self.scroll_config().visible_columns,
-                            );
+                            self.add_scroll_window(layout, wid);
                         } else {
                             self.tree.add_window_after(layout, self.tree.selection(layout), wid);
                         }
@@ -983,6 +969,17 @@ impl LayoutManager {
 
     fn scroll_config(&self) -> &ScrollConfig {
         &self.scroll_cfg
+    }
+
+    fn add_scroll_window(&mut self, layout: LayoutId, wid: WindowId) {
+        let new_column =
+            self.scroll_config().new_window_in_column == NewWindowPlacement::NewColumn;
+        self.tree.add_window_to_scroll_column_with_visible(
+            layout,
+            wid,
+            new_column,
+            self.scroll_config().visible_columns,
+        );
     }
 
     pub fn viewport(&self, layout: LayoutId) -> Option<&ViewportState> {
