@@ -426,7 +426,11 @@ impl<'a, 'out> Visitor<'a, 'out> {
                     .iter()
                     .map(|&child| super::scroll_constraints::WindowInput {
                         weight: f64::from(self.size.info[child].size),
-                        min_size: if self.is_scroll { super::scroll_constraints::MIN_WINDOW_SIZE } else { 1.0 },
+                        min_size: if self.is_scroll {
+                            super::scroll_constraints::MIN_WINDOW_SIZE
+                        } else {
+                            1.0
+                        },
                         max_size: aspect_max_width,
                         fixed_size: None,
                     })
@@ -470,7 +474,11 @@ impl<'a, 'out> Visitor<'a, 'out> {
                     .iter()
                     .map(|&child| super::scroll_constraints::WindowInput {
                         weight: f64::from(self.size.info[child].size),
-                        min_size: if self.is_scroll { super::scroll_constraints::MIN_WINDOW_SIZE } else { 1.0 },
+                        min_size: if self.is_scroll {
+                            super::scroll_constraints::MIN_WINDOW_SIZE
+                        } else {
+                            1.0
+                        },
                         max_size: None,
                         fixed_size: None,
                     })
