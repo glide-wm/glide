@@ -1,3 +1,6 @@
+// Copyright The Glide Authors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 pub(crate) const MIN_WINDOW_SIZE: f64 = 50.0;
 
 pub(crate) struct WindowInput {
