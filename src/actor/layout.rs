@@ -989,8 +989,8 @@ impl LayoutManager {
         self.viewports.get(&layout)
     }
 
-    pub fn viewport_mut(&mut self, layout: LayoutId) -> &mut ViewportState {
-        self.viewports.entry(layout).or_insert_with(|| ViewportState::new(1920.0))
+    pub fn viewport_mut(&mut self, layout: LayoutId, screen_width: f64) -> &mut ViewportState {
+        self.viewports.entry(layout).or_insert_with(|| ViewportState::new(screen_width))
     }
 
     pub fn clear_user_scrolling(&mut self, space: SpaceId) {
@@ -1021,7 +1021,7 @@ impl LayoutManager {
         let center_mode = config.settings.experimental.scroll.center_focused_column;
         let gap = config.settings.inner_gap;
 
-        let vp = self.viewport_mut(layout);
+        let vp = self.viewport_mut(layout, screen.size.width);
         vp.set_screen_width(screen.size.width);
 
         if let Some(wid) = sel_wid {
@@ -1091,7 +1091,7 @@ impl LayoutManager {
             (scaled_delta, step_threshold)
         };
 
-        let vp = self.viewport_mut(layout);
+        let vp = self.viewport_mut(layout, screen.size.width);
         vp.set_screen_width(screen.size.width);
 
         let steps = match vp.accumulate_scroll(effective_delta, effective_threshold) {
