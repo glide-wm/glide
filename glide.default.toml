@@ -149,6 +149,8 @@ default_keys = false
 # "Alt + Shift + S" = "change_layout_kind"
 # "Alt + Shift + T" = "toggle_column_tabbed"
 # "Alt + Shift + W" = "cycle_column_width"
+# "Alt + Shift + BracketLeft" = { consume_or_expel_window = "left" }
+# "Alt + Shift + BracketRight" = { consume_or_expel_window = "right" }
 
 # WARNING:
 # This section contains experimental features that might break or be removed in

@@ -1,6 +1,7 @@
 // Copyright The Glide Authors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashSet;
 use std::{iter, mem};
 
 use objc2_core_foundation::CGRect;
@@ -61,17 +62,35 @@ impl LayoutTree {
         let id = self.layout_roots.insert(root);
         self.layout_kinds.insert(id, kind);
         if kind == LayoutKind::Scroll {
+            let root_id = self.layout_roots[id].id();
             self.tree
                 .data
                 .size
-                .set_kind(self.layout_roots[id].id(), ContainerKind::Horizontal);
+                .set_kind(root_id, ContainerKind::Horizontal);
+            self.tree.data.scroll_roots.insert(root_id);
         }
         id
     }
 
     pub fn remove_layout(&mut self, layout: LayoutId) {
-        self.layout_roots.remove(layout).unwrap().remove(&mut self.tree);
+        let mut root = self.layout_roots.remove(layout).unwrap();
+        self.tree.data.scroll_roots.remove(&root.id());
+        root.remove(&mut self.tree);
         self.layout_kinds.remove(layout);
+    }
+
+    pub fn rebuild_scroll_roots_from_layout_kinds(&mut self) {
+        let mut scroll_roots = Vec::new();
+        for (layout_id, root) in &self.layout_roots {
+            if self.layout_kind(layout_id) == LayoutKind::Scroll {
+                scroll_roots.push(root.id());
+            }
+        }
+        self.tree.data.scroll_roots.clear();
+        for root_id in scroll_roots {
+            self.tree.data.scroll_roots.insert(root_id);
+            self.tree.data.size.set_kind(root_id, ContainerKind::Horizontal);
+        }
     }
 
     pub fn layouts(&self) -> impl ExactSizeIterator<Item = LayoutId> {
@@ -92,14 +111,7 @@ impl LayoutTree {
 
     /// Returns true if `node` is the root node of a scroll layout.
     fn is_scroll_root(&self, node: NodeId) -> bool {
-        for (layout_id, &kind) in &self.layout_kinds {
-            if kind == LayoutKind::Scroll
-                && self.layout_roots.get(layout_id).map(|r| r.id()) == Some(node)
-            {
-                return true;
-            }
-        }
-        false
+        self.tree.data.scroll_roots.contains(&node)
     }
 
     pub fn add_window_to_scroll_column(
@@ -176,6 +188,9 @@ impl LayoutTree {
         let cloned_root = cloned.id();
         let dest_layout = self.layout_roots.insert(cloned);
         self.layout_kinds.insert(dest_layout, self.layout_kind(layout));
+        if self.is_scroll_layout(layout) {
+            self.tree.data.scroll_roots.insert(cloned_root);
+        }
         self.print_tree(layout);
         for (src, dest) in iter::zip(
             source_root.traverse_preorder(&self.tree.map),
@@ -603,6 +618,88 @@ impl LayoutTree {
         true
     }
 
+    pub fn move_column_in_scroll(&mut self, layout: LayoutId, direction: Direction) -> bool {
+        let selection = self.selection(layout);
+        let Some(column) = self.column_of(layout, selection) else {
+            return false;
+        };
+        let neighbor = match direction {
+            Direction::Left => column.prev_sibling(&self.tree.map),
+            Direction::Right => column.next_sibling(&self.tree.map),
+            _ => return false,
+        };
+        let Some(neighbor) = neighbor else {
+            return false;
+        };
+        let saved_weight = self.tree.data.size.weight(column);
+        match direction {
+            Direction::Left => column.detach(&mut self.tree).insert_before(neighbor),
+            Direction::Right => column.detach(&mut self.tree).insert_after(neighbor),
+            _ => unreachable!(),
+        };
+        self.tree.data.size.set_weight(column, saved_weight, &self.tree.map);
+        for node in selection.ancestors(&self.tree.map) {
+            self.tree.data.selection.select_locally(&self.tree.map, node);
+        }
+        true
+    }
+
+    pub fn consume_or_expel_in_scroll(
+        &mut self,
+        layout: LayoutId,
+        direction: Direction,
+        visible_columns: u32,
+    ) -> bool {
+        if !matches!(direction, Direction::Left | Direction::Right) {
+            return false;
+        }
+        let root = self.root(layout);
+        let selection = self.selection(layout);
+        let Some(column) = self.column_of(layout, selection) else {
+            return false;
+        };
+        let has_siblings = column.first_child(&self.tree.map) != column.last_child(&self.tree.map);
+        if has_siblings {
+            // Expel: move the selected window into a new column.
+            let window = selection;
+            if window == column {
+                return false;
+            }
+            let weight = 1.0 / visible_columns.max(1) as f32;
+            let new_column = match direction {
+                Direction::Left => self.tree.mk_node().insert_before(column),
+                Direction::Right => self.tree.mk_node().insert_after(column),
+                _ => unreachable!(),
+            };
+            self.tree.data.size.set_kind(new_column, ContainerKind::Vertical);
+            self.tree.data.size.set_weight(new_column, weight, &self.tree.map);
+            window.detach(&mut self.tree).push_back(new_column);
+            for node in window.ancestors(&self.tree.map) {
+                self.tree.data.selection.select_locally(&self.tree.map, node);
+            }
+            true
+        } else {
+            // Consume: move the single window into the adjacent column.
+            let neighbor = match direction {
+                Direction::Left => column.prev_sibling(&self.tree.map),
+                Direction::Right => column.next_sibling(&self.tree.map),
+                _ => unreachable!(),
+            };
+            let Some(target_column) = neighbor else {
+                return false;
+            };
+            let window = selection;
+            if window == root || window == column {
+                return false;
+            }
+            window.detach(&mut self.tree).push_back(target_column);
+            for node in window.ancestors(&self.tree.map) {
+                self.tree.data.selection.select_locally(&self.tree.map, node);
+            }
+            true
+        }
+    }
+
     pub fn map(&self) -> &NodeMap {
         &self.tree.map
     }
@@ -837,6 +934,8 @@ struct Components {
     #[serde(alias = "layout")]
     size: Size,
     window: Window,
+    #[serde(default)]
+    scroll_roots: HashSet<NodeId>,
 }
 
 #[derive(Copy, Clone)]
@@ -892,6 +991,11 @@ impl tree::Observer for Components {
         if parent.is_empty(&tree.map) {
             parent.detach(tree).remove();
         } else if parent.first_child(&tree.map) == parent.last_child(&tree.map) {
+            if let Some(grandparent) = parent.parent(&tree.map) {
+                if tree.data.scroll_roots.contains(&grandparent) {
+                    return;
+                }
+            }
             // Promote the only remaining child of the parent node.
             let child = parent.first_child(&tree.map).unwrap();
             child
@@ -1694,5 +1798,40 @@ mod tests {
 
         let result = tree.traverse_scroll_wrapping(layout, root, Direction::Right);
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn rebuild_scroll_roots_backfills_legacy_scroll_layouts() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_scroll_layout();
+        let root = tree.root(layout);
+
+        tree.tree.data.scroll_roots.clear();
+        assert!(!tree.tree.data.scroll_roots.contains(&root));
+
+        tree.rebuild_scroll_roots_from_layout_kinds();
+        assert!(tree.tree.data.scroll_roots.contains(&root));
+        assert_eq!(tree.container_kind(root), ContainerKind::Horizontal);
+    }
+
+    #[test]
+    fn rebuild_scroll_roots_preserves_single_window_scroll_columns_on_expel() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_scroll_layout();
+
+        let w1 = tree.add_window_to_scroll_column(layout, w(1, 1), true);
+        tree.select(w1);
+        let w2 = tree.add_window_to_scroll_column(layout, w(1, 2), false);
+        tree.select(w2);
+        let _w3 = tree.add_window_to_scroll_column(layout, w(1, 3), true);
+        let original_col = tree.column_of(layout, w1).unwrap();
+
+        // Simulate loading a legacy save where scroll_roots was absent.
+        tree.tree.data.scroll_roots.clear();
+        tree.rebuild_scroll_roots_from_layout_kinds();
+
+        tree.select(w2);
+        assert!(tree.consume_or_expel_in_scroll(layout, Direction::Right, 2));
+        assert_eq!(Some(original_col), w1.parent(tree.map()));
     }
 }

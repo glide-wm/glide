@@ -381,6 +381,7 @@ mod tests {
     use super::*;
     use crate::actor::layout::LayoutCommand;
     use crate::actor::reactor::Command as ReactorCommand;
+    use crate::model::Direction;
 
     #[test]
     fn default_config_is_valid() {
@@ -407,6 +408,30 @@ mod tests {
                     LayoutCommand::ChangeLayoutKind
                         | LayoutCommand::ToggleColumnTabbed
                         | LayoutCommand::CycleColumnWidth
+                        | LayoutCommand::ConsumeOrExpelWindow(_)
+                ))
+            )
+        }));
+    }
+
+    #[test]
+    fn consume_or_expel_window_key_parses() {
+        let config = Config::parse(
+            r#"
+            [settings]
+            default_keys = false
+
+            [keys]
+            "Alt + Shift + BracketLeft" = { consume_or_expel_window = "left" }
+            "#,
+        )
+        .unwrap();
+
+        assert!(config.keys.iter().any(|(_, cmd)| {
+            matches!(
+                cmd,
+                WmCommand::ReactorCommand(ReactorCommand::Layout(
+                    LayoutCommand::ConsumeOrExpelWindow(Direction::Left)
                 ))
             )
         }));

@@ -48,6 +48,7 @@ pub enum LayoutCommand {
     CycleColumnWidth,
     ChangeLayoutKind,
     ToggleColumnTabbed,
+    ConsumeOrExpelWindow(Direction),
 }
 
 fn default_resize_percent() -> f64 {
@@ -106,7 +107,8 @@ impl LayoutCommand {
             | Ungroup
             | Resize { .. }
             | CycleColumnWidth
-            | ToggleColumnTabbed => true,
+            | ToggleColumnTabbed
+            | ConsumeOrExpelWindow(_) => true,
 
             NextLayout | PrevLayout | MoveFocus(_) | Ascend | Descend | Split(_)
             | ToggleFocusFloating | ToggleWindowFloating | ToggleFullscreen | ChangeLayoutKind => {
@@ -647,7 +649,9 @@ impl LayoutManager {
         let scroll_command_disabled = !self.scroll_enabled
             && matches!(
                 command,
-                LayoutCommand::CycleColumnWidth | LayoutCommand::ToggleColumnTabbed
+                LayoutCommand::CycleColumnWidth
+                    | LayoutCommand::ToggleColumnTabbed
+                    | LayoutCommand::ConsumeOrExpelWindow(_)
             );
         if command.modifies_layout() && !scroll_command_disabled {
             mapping.prepare_modify(&mut self.tree);
@@ -767,7 +771,15 @@ impl LayoutManager {
             }
             LayoutCommand::MoveNode(direction) => {
                 let selection = self.tree.selection(layout);
-                if !self.tree.move_node(layout, selection, direction) {
+                let moved = if self.scroll_enabled
+                    && self.tree.is_scroll_layout(layout)
+                    && matches!(direction, Direction::Left | Direction::Right)
+                {
+                    self.tree.move_column_in_scroll(layout, direction)
+                } else {
+                    self.tree.move_node(layout, selection, direction)
+                };
+                if !moved {
                     if let Some(new_space) = next_space(direction) {
                         let new_layout = self.layout(new_space);
                         self.tree.move_node_after(self.tree.selection(new_layout), selection);
@@ -875,6 +887,20 @@ impl LayoutManager {
                         other => other,
                     };
                     self.tree.set_container_kind(col, new_kind);
+                }
+                EventResponse::default()
+            }
+            LayoutCommand::ConsumeOrExpelWindow(direction) => {
+                if !self.scroll_enabled {
+                    debug!("Ignoring consume_or_expel_window because scroll gate is disabled");
+                    return EventResponse::default();
+                }
+                if self.tree.is_scroll_layout(layout) {
+                    self.tree.consume_or_expel_in_scroll(
+                        layout,
+                        direction,
+                        self.scroll_config().visible_columns,
+                    );
                 }
                 EventResponse::default()
             }
@@ -1341,7 +1367,9 @@ impl LayoutManager {
     pub fn load(path: PathBuf) -> anyhow::Result<Self> {
         let mut buf = String::new();
         File::open(path)?.read_to_string(&mut buf)?;
-        Ok(ron::from_str(&buf)?)
+        let mut manager: Self = ron::from_str(&buf)?;
+        manager.tree.rebuild_scroll_roots_from_layout_kinds();
+        Ok(manager)
     }
 
     pub fn save(&self, path: PathBuf) -> std::io::Result<()> {
@@ -2267,6 +2295,7 @@ mod tests {
         let before = mgr.layout_sorted(space, screen);
         _ = mgr.handle_command(Some(space), &[space], CycleColumnWidth);
         _ = mgr.handle_command(Some(space), &[space], ToggleColumnTabbed);
+        _ = mgr.handle_command(Some(space), &[space], ConsumeOrExpelWindow(Direction::Right));
         assert_eq!(mgr.active_layout_kind(space), LayoutKind::Tree);
         assert_eq!(mgr.layout_sorted(space, screen), before);
     }
