@@ -81,6 +81,8 @@ enum ConfigSubcommand {
     Update(CmdUpdate),
     /// Check the config file for errors.
     Verify,
+    /// Dump current config.
+    Dump(CmdDump),
 }
 
 /// Updates the server config by parsing the config file on disk.
@@ -91,6 +93,14 @@ struct CmdUpdate {
     /// Watch for config changes, continuously updating the file.
     #[arg(long)]
     watch: bool,
+}
+
+/// Dumps current config to specified path or to default.
+#[derive(Parser, Clone)]
+struct CmdDump {
+    /// Path where to dump the config. Default - ~/.glide.toml
+    #[arg(long)]
+    path: Option<String>,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -176,6 +186,20 @@ fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
             eprintln!("config ok");
+        }
+        Command::Config(CmdConfig {
+            config,
+            action: ConfigSubcommand::Dump(CmdDump { path }),
+        }) => {
+            if !config.as_deref().unwrap_or(&config_path_default()).exists() {
+                bail!("Config file missing");
+            }
+            let config = Config::load(config.as_deref())?;
+            if let Err(e) = config.dump(path) {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+            eprintln!("config dumped");
         }
     }
 
