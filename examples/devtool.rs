@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::time::Instant;
 
-use accessibility::{AXUIElement, AXUIElementAttributes};
+use accessibility::{AXAttribute, AXUIElement, AXUIElementAttributes};
 use accessibility_sys::{AXUIElementCopyElementAtPosition, AXUIElementRef, pid_t};
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
@@ -354,7 +354,13 @@ async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
             println!("No window for element {element:#?}");
             continue;
         };
-        println!("{ax_window:#?}");
+        println!("AXWindow {{");
+        for attr in ax_window.attribute_names().unwrap().iter() {
+            if let Ok(value) = ax_window.attribute(&AXAttribute::new(&attr)) {
+                println!("    {}: {:?},", *attr, value);
+            }
+        }
+        println!("}}");
         let Some(info) =
             WindowServerId::try_from(&ax_window).ok().and_then(|wsid| get_window(wsid))
         else {
