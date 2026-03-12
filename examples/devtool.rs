@@ -368,6 +368,11 @@ async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
             continue;
         };
         println!("{info:#?}");
+        if let Some(app) = NSRunningApplication::with_process_id(info.pid)
+            && let Some(bundle_id) = app.bundleIdentifier()
+        {
+            println!("bundle_id: {:?}", bundle_id);
+        }
     }
 }
 
