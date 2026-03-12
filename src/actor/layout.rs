@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
+use redact::Secret;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, warn};
 
@@ -81,6 +82,7 @@ pub enum LayoutEvent {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LayoutWindowInfo {
     pub bundle_id: Option<String>,
+    pub title: Option<Secret<String>>,
     pub layer: Option<i32>,
     pub is_standard: bool,
     pub is_resizable: bool,
@@ -227,6 +229,20 @@ fn classify_window(info: &LayoutWindowInfo) -> WindowClass {
             bundle_id: Some(bundle_id),
             ..
         } if bundle_id == "com.apple.finder" => WindowClass::Untracked,
+
+        // Firefox picture-in-picture windows sometimes get observed at layer 0
+        // after they are created, even though the layer is later changed to 3.
+        // We don't have an event source for the layer change so special case
+        // them here. #154
+        Info {
+            title: Some(title),
+            bundle_id: Some(bundle_id),
+            ..
+        } if bundle_id == "org.mozilla.firefox"
+            && title.expose_secret() == "Picture-in-Picture" =>
+        {
+            WindowClass::Untracked
+        }
 
         Info { is_standard: false, .. } => WindowClass::FloatByDefault,
         Info { is_resizable: false, .. } => WindowClass::FloatByDefault,
@@ -1421,6 +1437,7 @@ mod tests {
     fn win_info() -> LayoutWindowInfo {
         LayoutWindowInfo {
             bundle_id: None,
+            title: None,
             layer: Some(0),
             is_standard: true,
             is_resizable: true,
