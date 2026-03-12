@@ -263,7 +263,7 @@ impl State {
                 .instrument(span)
                 .await
             {
-                debug!("Raise request failed: {e:?}");
+                debug!("Raise request failed: {e}");
             }
         }
     }
@@ -537,17 +537,13 @@ impl State {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 #[allow(dead_code, reason = "used by Debug impls")]
 enum RaiseError {
+    #[error("raise request cancelled")]
     RaiseCancelled,
-    AXError(accessibility::Error),
-}
-
-impl From<accessibility::Error> for RaiseError {
-    fn from(value: accessibility::Error) -> Self {
-        Self::AXError(value)
-    }
+    #[error("accessibility error: {0}")]
+    AXError(#[from] accessibility::Error),
 }
 
 impl State {
@@ -717,7 +713,7 @@ impl State {
         let elem = match trace("main_window", &self.app, || self.app.main_window()) {
             Ok(elem) => elem,
             Err(e) => {
-                error!("Failed to read main window: {e:?}");
+                error!("Failed to read main window: {e}");
                 return None;
             }
         };
@@ -845,15 +841,15 @@ impl State {
             return None;
         };
 
-        if !register_notifs(&elem, self) {
-            return None;
-        }
         let wsid = WindowServerId::try_from(&elem)
             .or_else(|e| {
                 info!("Could not get window server id for {elem:?}: {e}");
                 Err(e)
             })
             .ok();
+        if !register_notifs(&elem, self, wsid) {
+            return None;
+        }
         let idx = wsid
             .map(|id| NonZeroU32::new(id.as_u32()).expect("Window server id was 0"))
             .unwrap_or_else(|| {
@@ -881,7 +877,7 @@ impl State {
         }
         return Some((info, wid));
 
-        fn register_notifs(win: &AXUIElement, state: &State) -> bool {
+        fn register_notifs(win: &AXUIElement, state: &State, wsid: Option<WindowServerId>) -> bool {
             // Filter out elements that aren't regular windows.
             match win.role() {
                 Ok(role) if role == kAXWindowRole => (),
@@ -890,7 +886,7 @@ impl State {
             for notif in WINDOW_NOTIFICATIONS {
                 let res = state.observer.add_notification(win, notif);
                 if let Err(err) = res {
-                    trace!("Watching failed with error {err:?} on window {win:#?}");
+                    warn!(?wsid, ?win, "Watching window failed: {err}");
                     return false;
                 }
             }
