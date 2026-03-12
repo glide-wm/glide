@@ -424,6 +424,7 @@ impl Reactor {
                     animation_focus_wid = Some(wid);
                     let info = LayoutWindowInfo {
                         bundle_id: app.info.bundle_id.clone(),
+                        title: window.title.clone().into(),
                         layer: ws_info.map(|i| i.layer),
                         is_standard: window.is_standard,
                         is_resizable: window.is_resizable,
@@ -744,6 +745,7 @@ impl Reactor {
             };
             let layout_info = LayoutWindowInfo {
                 bundle_id: app.and_then(|a| a.info.bundle_id.clone()),
+                title: window.title.clone().into(),
                 layer: window
                     .window_server_id
                     .and_then(|wsid| self.window_server_info.get(&wsid))
