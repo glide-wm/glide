@@ -168,8 +168,10 @@ async fn main() -> anyhow::Result<()> {
             println!("NSScreen sizes: {frames:?}");
 
             println!();
-            let mut sc = ScreenCache::new(MainThreadMarker::new().unwrap());
-            println!("Frames: {:?}", sc.update_screen_config());
+            let mtm = MainThreadMarker::new().unwrap();
+            let mut sc = ScreenCache::new();
+            let ns_screens = screen::get_ns_screens(mtm);
+            println!("Frames: {:?}", sc.update_screen_config(ns_screens));
             println!("Spaces: {:?}", sc.get_screen_spaces());
         }
         Command::App(App::SetMainWindow { pid, window_server_id, wait }) => {
@@ -328,8 +330,9 @@ fn inspect(mtm: MainThreadMarker) {
 }
 
 async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
-    let mut screen_cache = ScreenCache::new(mtm);
-    let Some((_, converter)) = screen_cache.update_screen_config() else {
+    let mut screen_cache = ScreenCache::new();
+    let ns_screens = screen::get_ns_screens(mtm);
+    let Some((_, converter)) = screen_cache.update_screen_config(ns_screens) else {
         return;
     };
     while let Some(()) = rx.recv().await {
