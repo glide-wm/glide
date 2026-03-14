@@ -420,37 +420,7 @@ impl State {
                 return Ok(true);
             }
             Request::GetVisibleWindows => {
-                let window_elems = match self.app.windows() {
-                    Ok(elems) => elems,
-                    Err(e) => {
-                        // Send an empty event so that any previously known
-                        // windows for this app are cleared.
-                        self.send_event(Event::WindowsDiscovered {
-                            pid: self.pid,
-                            new: Default::default(),
-                            known_visible: Default::default(),
-                        });
-                        return Err(e);
-                    }
-                };
-                let mut new = Vec::with_capacity(window_elems.len() as usize);
-                let mut known_visible = Vec::with_capacity(window_elems.len() as usize);
-                for elem in window_elems.iter() {
-                    let elem = elem.clone();
-                    if let Ok(id) = self.id(&elem) {
-                        known_visible.push(id);
-                        continue;
-                    }
-                    let Some((info, wid)) = self.register_window(elem) else {
-                        continue;
-                    };
-                    new.push((wid, info));
-                }
-                self.send_event(Event::WindowsDiscovered {
-                    pid: self.pid,
-                    new,
-                    known_visible,
-                });
+                self.get_visible_windows()?;
             }
             &mut Request::SetWindowPos(wid, pos, txid) => {
                 let is_animating = self.is_animating;
@@ -783,6 +753,41 @@ impl State {
             }
         }
 
+        Ok(())
+    }
+
+    fn get_visible_windows(&mut self) -> Result<(), accessibility::Error> {
+        let window_elems = match self.app.windows() {
+            Ok(elems) => elems,
+            Err(e) => {
+                // Send an empty event so that any previously known
+                // windows for this app are cleared.
+                self.send_event(Event::WindowsDiscovered {
+                    pid: self.pid,
+                    new: Default::default(),
+                    known_visible: Default::default(),
+                });
+                return Err(e);
+            }
+        };
+        let mut new = Vec::with_capacity(window_elems.len() as usize);
+        let mut known_visible = Vec::with_capacity(window_elems.len() as usize);
+        for elem in window_elems.iter() {
+            let elem = elem.clone();
+            if let Ok(id) = self.id(&elem) {
+                known_visible.push(id);
+                continue;
+            }
+            let Some((info, wid)) = self.register_window(elem) else {
+                continue;
+            };
+            new.push((wid, info));
+        }
+        self.send_event(Event::WindowsDiscovered {
+            pid: self.pid,
+            new,
+            known_visible,
+        });
         Ok(())
     }
 
