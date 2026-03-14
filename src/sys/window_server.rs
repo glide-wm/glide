@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ffi::{c_int, c_void};
+use std::marker::PhantomData;
 
 use accessibility::AXUIElement;
 use accessibility_sys::{AXError, AXUIElementRef, kAXErrorSuccess, pid_t};
@@ -23,6 +24,7 @@ use objc2_core_foundation::{CGPoint, CGRect};
 use objc2_foundation::MainThreadMarker;
 use serde::{Deserialize, Serialize};
 use sorted_vec::SortedVec;
+use static_assertions::assert_not_impl_any;
 use tracing::warn;
 
 use super::geometry::{CGRectDef, ToICrate};
@@ -199,21 +201,21 @@ unsafe extern "C" {
     // safe fn SLSMainConnectionID() -> SLSConnectionID;
     safe fn SLSDefaultConnectionForThread() -> SLSConnectionID;
 
-    pub safe fn SLSRegisterConnectionNotifyProc(
+    safe fn SLSRegisterConnectionNotifyProc(
         cid: SLSConnectionID,
         callback: SkylightNotifierCallback,
         event: u32,
         context: *mut c_void,
     ) -> CGError;
 
-    pub safe fn SLSRemoveConnectionNotifyProc(
+    safe fn SLSRemoveConnectionNotifyProc(
         cid: SLSConnectionID,
         callback: SkylightNotifierCallback,
         event: u32,
         context: *mut c_void,
     ) -> CGError;
 
-    pub fn SLSRequestNotificationsForWindows(
+    fn SLSRequestNotificationsForWindows(
         cid: SLSConnectionID,
         window_list: *const CGWindowID,
         window_count: i32,
@@ -228,12 +230,57 @@ type SkylightNotifierCallback = extern "C-unwind" fn(
     cid: SLSConnectionID,
 );
 
-// TODO: The shape of this API is wrong. The only connection between the event
-// and window list is the connection, but we have to use the default connection
-// for the thread. So really there are two bits of state, one that manages the
-// event and callback which can be scoped, and one that manages the window list
-// and is thread-local.
-/// Subscribes to a Skylight event (private API).
+/// Manages a thread-local connection to the skylight server for subscribing to
+/// events. This usees private APIs.
+pub struct SkylightConnection {
+    cid: SLSConnectionID,
+    window_list: SortedVec<WindowServerId>,
+    _phantom: PhantomData<*mut ()>,
+}
+assert_not_impl_any!(SkylightConnection: Send, Sync);
+
+impl SkylightConnection {
+    pub fn default_for_thread() -> Self {
+        Self {
+            cid: SLSDefaultConnectionForThread(),
+            window_list: SortedVec::new(),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn add_window(&mut self, wsid: WindowServerId) -> Result<(), CGError> {
+        self.window_list.insert(wsid);
+        self.update_windows()
+    }
+
+    pub fn remove_window(&mut self, wsid: WindowServerId) -> Result<(), CGError> {
+        self.window_list.remove_item(&wsid);
+        self.update_windows()
+    }
+
+    pub fn on_window_destroyed(&mut self, wsid: WindowServerId) {
+        self.window_list.remove_item(&wsid);
+    }
+
+    fn update_windows(&mut self) -> Result<(), CGError> {
+        check(unsafe {
+            SLSRequestNotificationsForWindows(
+                self.cid,
+                self.window_list.as_ptr().cast(),
+                self.window_list.len() as i32,
+            )
+        })
+    }
+
+    pub fn on_event(
+        &self,
+        event: u32,
+        callback: impl Fn(u32, &[u8]) + 'static,
+    ) -> Result<SkylightNotifier, CGError> {
+        SkylightNotifier::new_for_event(self.cid, event, callback)
+    }
+}
+
 #[derive(Debug)]
 pub struct SkylightNotifier {
     cid: SLSConnectionID,
@@ -241,7 +288,6 @@ pub struct SkylightNotifier {
     internal_callback: SkylightNotifierCallback,
     callback: *mut (),
     dtor: unsafe fn(*mut ()),
-    window_list: SortedVec<WindowServerId>,
 }
 
 fn check(err: CGError) -> Result<(), CGError> {
@@ -253,7 +299,8 @@ unsafe fn destruct<T>(ptr: *mut ()) {
 }
 
 impl SkylightNotifier {
-    pub fn new_for_event<F: Fn(u32, &[u8]) + 'static>(
+    fn new_for_event<F: Fn(u32, &[u8]) + 'static>(
+        cid: SLSConnectionID,
         event: u32,
         callback: F,
     ) -> Result<Self, CGError> {
@@ -270,7 +317,6 @@ impl SkylightNotifier {
             let data = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), data_len) };
             callback(event, data)
         }
-        let cid = SLSDefaultConnectionForThread();
         let callback = Box::into_raw(Box::new(callback));
         check(SLSRegisterConnectionNotifyProc(
             cid,
@@ -284,7 +330,6 @@ impl SkylightNotifier {
             callback: callback.cast(),
             dtor: destruct::<F>,
             event,
-            window_list: SortedVec::new(),
         })
     }
 }
@@ -311,32 +356,6 @@ impl Drop for SkylightNotifier {
 
 #[expect(non_upper_case_globals)]
 pub const kCGSWindowIsTerminated: u32 = 804;
-
-impl SkylightNotifier {
-    pub fn add_window(&mut self, wsid: WindowServerId) -> Result<(), CGError> {
-        self.window_list.insert(wsid);
-        self.update_windows()
-    }
-
-    pub fn remove_window(&mut self, wsid: WindowServerId) -> Result<(), CGError> {
-        self.window_list.remove_item(&wsid);
-        self.update_windows()
-    }
-
-    pub fn on_window_destroyed(&mut self, wsid: WindowServerId) {
-        self.window_list.remove_item(&wsid);
-    }
-
-    fn update_windows(&mut self) -> Result<(), CGError> {
-        check(unsafe {
-            SLSRequestNotificationsForWindows(
-                self.cid,
-                self.window_list.as_ptr().cast(),
-                self.window_list.len() as i32,
-            )
-        })
-    }
-}
 
 /// This must be called to allow hiding the mouse from a background application.
 ///

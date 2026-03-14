@@ -10,13 +10,17 @@ use tracing::{debug, instrument, warn};
 use crate::actor::app::{self, AppThreadHandle, WindowId};
 use crate::actor::{self};
 use crate::collections::HashMap;
-use crate::sys::window_server::{SkylightNotifier, WindowServerId, kCGSWindowIsTerminated};
+use crate::sys::window_server::{
+    SkylightConnection, SkylightNotifier, WindowServerId, kCGSWindowIsTerminated,
+};
 
 pub struct WindowServer(Rc<RefCell<State>>);
 
 struct State {
     windows: HashMap<WindowServerId, (WindowId, AppThreadHandle)>,
-    notifier: SkylightNotifier,
+    connection: SkylightConnection,
+    weak_self: Weak<RefCell<Self>>,
+    notifiers: Vec<SkylightNotifier>,
     #[expect(unused)]
     mtm: MainThreadMarker,
 }
@@ -35,28 +39,16 @@ pub type Receiver = actor::Receiver<Request>;
 
 impl WindowServer {
     pub fn new(mtm: MainThreadMarker) -> Self {
-        Self(Rc::new_cyclic(|state: &Weak<RefCell<State>>| {
-            let state = state.clone();
-            let notifier =
-                SkylightNotifier::new_for_event(kCGSWindowIsTerminated, move |event, data| {
-                    if event != kCGSWindowIsTerminated {
-                        return;
-                    }
-                    let wsid = WindowServerId(u32::from_ne_bytes(
-                        data.try_into().expect("data should be a CGWindowID"),
-                    ));
-                    let Some(state) = state.upgrade() else {
-                        warn!("could not upgrade state in callback");
-                        return;
-                    };
-                    state.borrow_mut().on_window_destroyed(wsid);
-                })
-                .expect("Initializing SkylightNotifier");
-            RefCell::new(State {
+        Self(Rc::new_cyclic(|weak_self: &Weak<RefCell<State>>| {
+            let mut state = State {
                 windows: HashMap::default(),
-                notifier,
+                weak_self: weak_self.clone(),
+                connection: SkylightConnection::default_for_thread(),
+                notifiers: vec![],
                 mtm,
-            })
+            };
+            state.register_callbacks();
+            RefCell::new(state)
         }))
     }
 
@@ -69,14 +61,42 @@ impl WindowServer {
 }
 
 impl State {
+    fn register_callbacks(&mut self) {
+        self.register_callback(kCGSWindowIsTerminated, |this, wsid| {
+            this.on_window_destroyed(wsid)
+        });
+    }
+
+    fn register_callback(&mut self, event: u32, callback: fn(&mut Self, WindowServerId)) {
+        let weak_self = self.weak_self.clone();
+        let expected_event = event;
+        let notifier = self
+            .connection
+            .on_event(event, move |callback_event, data| {
+                if callback_event != expected_event {
+                    return;
+                }
+                let wsid = WindowServerId(u32::from_ne_bytes(
+                    data.try_into().expect("data should be a CGWindowID"),
+                ));
+                let Some(state) = weak_self.upgrade() else {
+                    warn!("could not upgrade state in callback");
+                    return;
+                };
+                callback(&mut state.borrow_mut(), wsid);
+            })
+            .expect("Initializing SkylightNotifier");
+        self.notifiers.push(notifier);
+    }
+
     #[instrument(skip(self))]
     fn on_request(&mut self, request: Request) {
         match request {
             Request::RegisterWindow(wsid, wid, tx) => {
                 debug!("Window registered: {wsid:?}");
                 self.windows.insert(wsid, (wid, tx));
-                if let Err(e) = self.notifier.add_window(wsid) {
-                    warn!("Failed to update SkylightNotifier window list: {e}");
+                if let Err(e) = self.connection.add_window(wsid) {
+                    warn!("Failed to update SkylightConnection window list: {e}");
                 }
             }
         }
@@ -87,7 +107,7 @@ impl State {
         let Some((wid, tx)) = self.windows.remove(&wsid) else {
             return;
         };
-        self.notifier.on_window_destroyed(wsid);
+        self.connection.on_window_destroyed(wsid);
         _ = tx.send(app::Request::WindowDestroyed(wid));
     }
 }
