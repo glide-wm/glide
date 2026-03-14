@@ -1,0 +1,19 @@
+{
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "procMacro": {
+          "ignored": {
+            // This macro disables some refactoring features like extract-to-
+            // function unless it is ignored.
+            "tracing-attributes": ["instrument"],
+          },
+        },
+        "diagnostics": {
+          // RA doesn't need to warn about something we disabled deliberately.
+          "disabled": ["proc-macro-disabled"],
+        },
+      },
+    },
+  },
+}
