@@ -11,7 +11,8 @@ use crate::actor::app::{self, AppThreadHandle, WindowId};
 use crate::actor::{self};
 use crate::collections::HashMap;
 use crate::sys::window_server::{
-    SkylightConnection, SkylightNotifier, WindowServerId, kCGSWindowIsTerminated,
+    SkylightConnection, SkylightNotifier, WindowServerId, get_window, kCGSWindowIsInvisible,
+    kCGSWindowIsTerminated, kCGSWindowIsVisible,
 };
 
 pub struct WindowServer(Rc<RefCell<State>>);
@@ -65,6 +66,20 @@ impl State {
         self.register_callback(kCGSWindowIsTerminated, |this, wsid| {
             this.on_window_destroyed(wsid)
         });
+        self.register_callback(kCGSWindowIsVisible, |_this, wsid| {
+            let info = get_window(wsid);
+            debug!("kCGSWindowIsVisible: {wsid:?}: {info:?}");
+        });
+        self.register_callback(kCGSWindowIsInvisible, |_this, wsid| {
+            let info = get_window(wsid);
+            debug!("kCGSWindowIsInvisible: {wsid:?}: {info:?}");
+        });
+        // NEXT STEPS:
+        // Track which windows are visible per app.
+        // When we get an event, notice which windows from an app disappeared
+        // and appeared at the same time, get their info using
+        // CGCopyWindowListInfo, and if they have the same frame, infer that
+        // they are tabs. Send an event.
     }
 
     fn register_callback(&mut self, event: u32, callback: fn(&mut Self, WindowServerId)) {

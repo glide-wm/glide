@@ -356,6 +356,10 @@ impl Drop for SkylightNotifier {
 
 #[expect(non_upper_case_globals)]
 pub const kCGSWindowIsTerminated: u32 = 804;
+#[expect(non_upper_case_globals)]
+pub const kCGSWindowIsVisible: u32 = 815;
+#[expect(non_upper_case_globals)]
+pub const kCGSWindowIsInvisible: u32 = 816;
 
 /// This must be called to allow hiding the mouse from a background application.
 ///
