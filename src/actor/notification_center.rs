@@ -18,7 +18,7 @@ use tracing::{Span, info_span, trace, warn};
 use super::wm_controller::{self, WmEvent};
 use crate::actor::app::AppInfo;
 use crate::sys::app::NSRunningApplicationExt;
-use crate::sys::screen::ScreenCache;
+use crate::sys::screen::{self, ScreenCache};
 
 #[repr(C)]
 struct Instance {
@@ -63,7 +63,7 @@ define_class! {
 impl NotificationCenterInner {
     fn new(events_tx: wm_controller::Sender) -> Retained<Self> {
         let instance = Instance {
-            screen_cache: RefCell::new(ScreenCache::new(MainThreadMarker::new().unwrap())),
+            screen_cache: RefCell::new(ScreenCache::new()),
             events_tx,
         };
         unsafe { msg_send![Self::alloc(), initWith: instance] }
@@ -84,8 +84,9 @@ impl NotificationCenterInner {
     }
 
     fn send_screen_parameters(&self) {
+        let ns_screens = screen::get_ns_screens(MainThreadMarker::new().unwrap());
         let mut screen_cache = self.ivars().screen_cache.borrow_mut();
-        let Some((screens, converter)) = screen_cache.update_screen_config() else {
+        let Some((screens, converter)) = screen_cache.update_screen_config(ns_screens) else {
             return;
         };
         let frames = screens.iter().map(|s| s.visible_frame).collect();

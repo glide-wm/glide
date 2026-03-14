@@ -37,8 +37,8 @@ pub struct ScreenCache<S: System = Actual> {
 }
 
 impl ScreenCache<Actual> {
-    pub fn new(mtm: MainThreadMarker) -> Self {
-        Self::new_with(Actual { mtm })
+    pub fn new() -> Self {
+        Self::new_with(Actual)
     }
 }
 
@@ -56,8 +56,10 @@ impl<S: System> ScreenCache<S> {
     /// The main screen (if any) is always first. Note that there may be no
     /// screens.
     #[forbid(unsafe_code)] // called from test
-    pub fn update_screen_config(&mut self) -> Option<(Vec<ScreenInfo>, CoordinateConverter)> {
-        let ns_screens = self.system.ns_screens();
+    pub fn update_screen_config(
+        &mut self,
+        ns_screens: Vec<NSScreenInfo>,
+    ) -> Option<(Vec<ScreenInfo>, CoordinateConverter)> {
         debug!("ns_screens={ns_screens:?}");
 
         let mut cg_screens = self.system.cg_screens().unwrap();
@@ -172,7 +174,6 @@ impl CoordinateConverter {
 pub trait System {
     fn cg_screens(&self) -> Result<Vec<CGScreenInfo>, CGError>;
     fn uuid_for_rect(&self, rect: CGRect) -> CFString;
-    fn ns_screens(&self) -> Vec<NSScreenInfo>;
 }
 
 #[derive(Debug, Clone)]
@@ -182,17 +183,29 @@ struct CGScreenInfo {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct NSScreenInfo {
-    frame: CGRect,
-    visible_frame: CGRect,
-    cg_id: ScreenId,
-    backing_scale_factor: f64,
+pub struct NSScreenInfo {
+    pub frame: CGRect,
+    pub visible_frame: CGRect,
+    pub cg_id: ScreenId,
+    pub backing_scale_factor: f64,
 }
 
-pub struct Actual {
-    mtm: MainThreadMarker,
+/// Gathers NSScreen information. Must be called on the main thread.
+pub fn get_ns_screens(mtm: MainThreadMarker) -> Vec<NSScreenInfo> {
+    NSScreen::screens(mtm)
+        .iter()
+        .flat_map(|s| {
+            Some(NSScreenInfo {
+                frame: s.frame(),
+                visible_frame: s.visibleFrame(),
+                cg_id: s.get_number().ok()?,
+                backing_scale_factor: s.backingScaleFactor(),
+            })
+        })
+        .collect()
 }
+
+pub struct Actual;
 #[allow(private_interfaces)]
 impl System for Actual {
     fn cg_screens(&self) -> Result<Vec<CGScreenInfo>, CGError> {
@@ -226,20 +239,6 @@ impl System for Actual {
                 rect,
             ))
         }
-    }
-
-    fn ns_screens(&self) -> Vec<NSScreenInfo> {
-        NSScreen::screens(self.mtm)
-            .iter()
-            .flat_map(|s| {
-                Some(NSScreenInfo {
-                    frame: s.frame(),
-                    visible_frame: s.visibleFrame(),
-                    cg_id: s.get_number().ok()?,
-                    backing_scale_factor: s.backingScaleFactor(),
-                })
-            })
-            .collect()
     }
 }
 
@@ -389,14 +388,10 @@ mod test {
 
     struct Stub {
         cg_screens: Vec<CGScreenInfo>,
-        ns_screens: Vec<NSScreenInfo>,
     }
     impl System for Stub {
         fn cg_screens(&self) -> Result<Vec<CGScreenInfo>, CGError> {
             Ok(self.cg_screens.clone())
-        }
-        fn ns_screens(&self) -> Vec<NSScreenInfo> {
-            self.ns_screens.clone()
         }
         fn uuid_for_rect(&self, _rect: CGRect) -> CFString {
             CFString::new("stub")
@@ -416,34 +411,34 @@ mod test {
                     bounds: CGRect::new(CGPoint::new(0.0, 0.0), CGSize::new(3840.0, 2160.0)),
                 },
             ],
-            ns_screens: vec![
-                NSScreenInfo {
-                    cg_id: ScreenId(3),
-                    frame: CGRect::new(CGPoint::new(0.0, 0.0), CGSize::new(3840.0, 2160.0)),
-                    visible_frame: CGRect::new(
-                        CGPoint::new(0.0, 76.0),
-                        CGSize::new(3840.0, 2059.0),
-                    ),
-                    backing_scale_factor: 2.0,
-                },
-                NSScreenInfo {
-                    cg_id: ScreenId(1),
-                    frame: CGRect::new(CGPoint::new(3840.0, 98.0), CGSize::new(1512.0, 982.0)),
-                    visible_frame: CGRect::new(
-                        CGPoint::new(3840.0, 98.0),
-                        CGSize::new(1512.0, 950.0),
-                    ),
-                    backing_scale_factor: 2.0,
-                },
-            ],
         };
+        let ns_screens = vec![
+            NSScreenInfo {
+                cg_id: ScreenId(3),
+                frame: CGRect::new(CGPoint::new(0.0, 0.0), CGSize::new(3840.0, 2160.0)),
+                visible_frame: CGRect::new(
+                    CGPoint::new(0.0, 76.0),
+                    CGSize::new(3840.0, 2059.0),
+                ),
+                backing_scale_factor: 2.0,
+            },
+            NSScreenInfo {
+                cg_id: ScreenId(1),
+                frame: CGRect::new(CGPoint::new(3840.0, 98.0), CGSize::new(1512.0, 982.0)),
+                visible_frame: CGRect::new(
+                    CGPoint::new(3840.0, 98.0),
+                    CGSize::new(1512.0, 950.0),
+                ),
+                backing_scale_factor: 2.0,
+            },
+        ];
         let mut sc = ScreenCache::new_with(stub);
         assert_eq!(
             vec![
                 CGRect::new(CGPoint::new(0.0, 25.0), CGSize::new(3840.0, 2059.0)),
                 CGRect::new(CGPoint::new(3840.0, 1112.0), CGSize::new(1512.0, 950.0)),
             ],
-            sc.update_screen_config()
+            sc.update_screen_config(ns_screens)
                 .unwrap()
                 .0
                 .iter()
