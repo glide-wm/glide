@@ -405,7 +405,6 @@ mod test {
 
     #[test]
     fn it_calculates_the_visible_frame() {
-        println!("test");
         let stub = Stub {
             cg_screens: vec![
                 CGScreenInfo {
