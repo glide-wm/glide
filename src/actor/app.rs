@@ -5,6 +5,13 @@
 //! accessibility APIs.
 //!
 //! These APIs support reading and writing window states like position and size.
+//!
+//! # Architecture
+//!
+//! This actor only contains code that requires fine-grained use of the
+//! accessibility APIs to modify and track window state. Logic that does not
+//! require this should go somewhere else, like the Reactor or one of its
+//! subcomponents, which are easier to test.
 
 use std::cell::{RefCell, RefMut};
 use std::fmt::Debug;
