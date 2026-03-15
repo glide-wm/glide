@@ -5,13 +5,15 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use objc2::MainThreadMarker;
-use tracing::{debug, instrument, warn};
+use tracing::{Span, debug, instrument, warn};
 
 use crate::actor::app::{self, AppThreadHandle, WindowId};
+use crate::actor::wm_controller::{self, WmEvent};
 use crate::actor::{self};
 use crate::collections::HashMap;
+use crate::sys::screen::{NSScreenInfo, ScreenCache};
 use crate::sys::window_server::{
-    SkylightConnection, SkylightNotifier, WindowServerId, kCGSWindowIsTerminated,
+    self as sys_ws, SkylightConnection, SkylightNotifier, WindowServerId, kCGSWindowIsTerminated,
 };
 
 pub struct WindowServer(Rc<RefCell<State>>);
@@ -21,6 +23,8 @@ struct State {
     connection: SkylightConnection,
     weak_self: Weak<RefCell<Self>>,
     notifiers: Vec<SkylightNotifier>,
+    screen_cache: ScreenCache,
+    wm_tx: wm_controller::Sender,
     #[expect(unused)]
     mtm: MainThreadMarker,
 }
@@ -32,19 +36,25 @@ pub enum Request {
     ///
     /// See https://github.com/glide-wm/glide/issues/10.
     RegisterWindow(WindowServerId, WindowId, AppThreadHandle),
+    /// Screen configuration changed. Carries NSScreenInfo gathered on the main thread.
+    ScreenParametersChanged(Vec<NSScreenInfo>),
+    /// The active space changed.
+    SpaceChanged,
 }
 
 pub type Sender = actor::Sender<Request>;
 pub type Receiver = actor::Receiver<Request>;
 
 impl WindowServer {
-    pub fn new(mtm: MainThreadMarker) -> Self {
+    pub fn new(mtm: MainThreadMarker, wm_tx: wm_controller::Sender) -> Self {
         Self(Rc::new_cyclic(|weak_self: &Weak<RefCell<State>>| {
             let mut state = State {
                 windows: HashMap::default(),
                 weak_self: weak_self.clone(),
                 connection: SkylightConnection::default_for_thread(),
                 notifiers: vec![],
+                screen_cache: ScreenCache::new(),
+                wm_tx,
                 mtm,
             };
             state.register_callbacks();
@@ -99,7 +109,40 @@ impl State {
                     warn!("Failed to update SkylightConnection window list: {e}");
                 }
             }
+            Request::ScreenParametersChanged(ns_screens) => {
+                let Some((screens, converter)) = self.screen_cache.update_screen_config(ns_screens)
+                else {
+                    return;
+                };
+                let frames = screens.iter().map(|s| s.visible_frame).collect();
+                let ids = screens.iter().map(|s| s.id).collect();
+                let scale_factors = screens.iter().map(|s| s.scale_factor).collect();
+                let spaces = self.screen_cache.get_screen_spaces();
+                let windows = self.get_visible_windows();
+                let event = WmEvent::ScreenParametersChanged(
+                    frames,
+                    ids,
+                    converter,
+                    spaces,
+                    scale_factors,
+                    windows,
+                );
+                self.send_wm_event(event);
+            }
+            Request::SpaceChanged => {
+                let spaces = self.screen_cache.get_screen_spaces();
+                let windows = self.get_visible_windows();
+                self.send_wm_event(WmEvent::SpaceChanged(spaces, windows));
+            }
         }
+    }
+
+    fn get_visible_windows(&self) -> Vec<sys_ws::WindowServerInfo> {
+        sys_ws::get_visible_windows_with_layer(None)
+    }
+
+    fn send_wm_event(&self, event: WmEvent) {
+        _ = self.wm_tx.send((Span::current().clone(), event));
     }
 
     fn on_window_destroyed(&mut self, wsid: WindowServerId) {
