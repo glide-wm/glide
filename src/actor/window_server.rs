@@ -20,14 +20,14 @@ use crate::sys::window_server::{
 pub struct WindowServer(Rc<RefCell<State>>);
 
 struct State {
-    windows: HashMap<WindowServerId, (WindowId, AppThreadHandle)>,
-    connection: SkylightConnection,
-    weak_self: Weak<RefCell<Self>>,
-    notifiers: Vec<SkylightNotifier>,
-    screen_cache: ScreenCache,
-    wm_tx: wm_controller::Sender,
     #[expect(unused)]
     mtm: MainThreadMarker,
+    connection: SkylightConnection,
+    notifiers: Vec<SkylightNotifier>,
+    weak_self: Weak<RefCell<Self>>,
+    screen_cache: ScreenCache,
+    windows: HashMap<WindowServerId, (WindowId, AppThreadHandle)>,
+    wm_tx: wm_controller::Sender,
 }
 
 #[derive(Debug)]
@@ -50,13 +50,13 @@ impl WindowServer {
     pub fn new(mtm: MainThreadMarker, wm_tx: wm_controller::Sender) -> Self {
         Self(Rc::new_cyclic(|weak_self: &Weak<RefCell<State>>| {
             let mut state = State {
-                windows: HashMap::default(),
-                weak_self: weak_self.clone(),
+                mtm,
                 connection: SkylightConnection::default_for_thread(),
                 notifiers: vec![],
+                weak_self: weak_self.clone(),
                 screen_cache: ScreenCache::new(),
+                windows: HashMap::default(),
                 wm_tx,
-                mtm,
             };
             state.register_callbacks();
             RefCell::new(state)
