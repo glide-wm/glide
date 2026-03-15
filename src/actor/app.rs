@@ -47,7 +47,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span, debug, error, info, instrument, trace, warn};
 
 use crate::actor::reactor::{self, Event, Requested, TransactionId};
-use crate::actor::{self, window_server, wm_controller};
+use crate::actor::{window_server, wm_controller};
 use crate::collections::HashMap;
 use crate::sys::app::{AXUIElementExt, NSRunningApplicationExt, ProcessInfo};
 pub use crate::sys::app::{AppInfo, WindowInfo, pid_t};
@@ -67,12 +67,35 @@ pub struct WindowId {
     idx: NonZeroU32,
 }
 
+const MANUAL_INDEX_MASK: u32 = 0x8000_0000;
+
 impl WindowId {
     #[cfg(test)]
     pub(crate) fn new(pid: pid_t, idx: u32) -> WindowId {
+        Self::with_manual_index(pid, idx)
+    }
+
+    fn with_manual_index(pid: pid_t, idx: u32) -> WindowId {
+        assert!(idx & MANUAL_INDEX_MASK == 0, "Window index out of range");
         WindowId {
             pid,
-            idx: NonZeroU32::new(idx).unwrap(),
+            idx: NonZeroU32::new(MANUAL_INDEX_MASK | idx).unwrap(),
+        }
+    }
+
+    pub fn with_wsid(pid: pid_t, wsid: WindowServerId) -> Self {
+        assert!(wsid.0 & MANUAL_INDEX_MASK == 0, "WindowServerId out of range");
+        WindowId {
+            pid,
+            idx: NonZeroU32::new(wsid.0).expect("WindowServerId was zero"),
+        }
+    }
+
+    pub fn wsid(&self) -> Option<WindowServerId> {
+        if self.idx.get() & MANUAL_INDEX_MASK != 0 {
+            None
+        } else {
+            Some(WindowServerId(self.idx.get()))
         }
     }
 }
@@ -948,13 +971,10 @@ impl State {
         if !register_notifs(&elem, self, wsid) {
             return None;
         }
-        let idx = wsid
-            .map(|id| NonZeroU32::new(id.as_u32()).expect("Window server id was 0"))
-            .unwrap_or_else(|| {
-                self.last_window_idx += 1;
-                NonZeroU32::new(self.last_window_idx).unwrap()
-            });
-        let wid = WindowId { pid: self.pid, idx };
+        let wid = wsid.map(|id| WindowId::with_wsid(self.pid, id)).unwrap_or_else(|| {
+            self.last_window_idx += 1;
+            WindowId::with_manual_index(self.pid, self.last_window_idx)
+        });
         let old = self.windows.insert(
             wid,
             WindowState {
