@@ -14,8 +14,8 @@ use objc2_app_kit::{
 use objc2_foundation::{MainThreadMarker, NSNotification, NSNotificationCenter, NSObject};
 use tracing::{Span, info_span, trace, warn};
 
-use super::wm_controller::{self, WmEvent};
 use super::window_server;
+use super::wm_controller::{self, WmEvent};
 use crate::actor::app::AppInfo;
 use crate::sys::app::NSRunningApplicationExt;
 use crate::sys::screen;
