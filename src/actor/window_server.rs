@@ -20,80 +20,57 @@ use crate::sys::window_server::{
 
 pub use crate::actor::app::pid_t;
 
-pub struct WindowServer(Rc<RefCell<State>>);
+// ---------------------------------------------------------------------------
+// SkylightWatcher – main thread only
+// ---------------------------------------------------------------------------
 
-struct State {
-    #[expect(unused)]
-    mtm: MainThreadMarker,
+/// Watches for Skylight window-server events. Requires the main thread because
+/// of `SkylightConnection`.
+pub struct SkylightWatcher(Rc<RefCell<SkylightWatcherState>>);
+
+struct SkylightWatcherState {
     connection: SkylightConnection,
     notifiers: Vec<SkylightNotifier>,
     weak_self: Weak<RefCell<Self>>,
-    screen_cache: ScreenCache,
     /// Registered windows (for SkyLight destruction tracking).
     registered_windows: HashMap<WindowServerId, (WindowId, AppThreadHandle)>,
-    /// Window server IDs currently visible on screen.
-    visible_window_ids: Vec<WindowServerId>,
-    wm_tx: wm_controller::Sender,
-    reactor_tx: reactor::Sender,
 }
 
+/// Commands sent from the reactor-thread `WindowServer` to the main-thread
+/// `SkylightWatcher`.
 #[derive(Debug)]
-pub enum Request {
-    // Sent by the NotificationCenter actor.
-    /// Screen configuration changed. Carries NSScreenInfo gathered on the main thread.
-    ScreenParametersChanged(Vec<NSScreenInfo>),
-    /// The active space changed.
-    SpaceChanged,
-
-    // Sent by the App actor.
-    /// This is to work around a bug introduced in macOS Sequoia where
-    /// kAXUIElementDestroyedNotification is not always sent correctly.
-    ///
-    /// See https://github.com/glide-wm/glide/issues/10.
-    RegisterWindow(WindowServerId, WindowId, AppThreadHandle),
-    /// A new window was created.
-    WindowCreated(WindowId, WindowInfo, MouseState),
-    /// The main window of an application changed.
-    ApplicationMainWindowChanged(pid_t, Option<WindowId>, Quiet),
-    /// A window was minimized or unminimized.
-    WindowVisibilityChanged(WindowId),
+pub enum SkylightCommand {
+    TrackWindow(WindowServerId, WindowId, AppThreadHandle),
 }
 
-pub type Sender = actor::Sender<Request>;
-pub type Receiver = actor::Receiver<Request>;
+pub type SkylightCommandSender = actor::Sender<SkylightCommand>;
+pub type SkylightCommandReceiver = actor::Receiver<SkylightCommand>;
 
-impl WindowServer {
-    pub fn new(
-        mtm: MainThreadMarker,
-        wm_tx: wm_controller::Sender,
-        reactor_tx: reactor::Sender,
-    ) -> Self {
-        Self(Rc::new_cyclic(|weak_self: &Weak<RefCell<State>>| {
-            let mut state = State {
-                mtm,
-                connection: SkylightConnection::default_for_thread(),
-                notifiers: vec![],
-                weak_self: weak_self.clone(),
-                screen_cache: ScreenCache::new(),
-                registered_windows: HashMap::default(),
-                visible_window_ids: vec![],
-                wm_tx,
-                reactor_tx,
-            };
-            state.register_callbacks();
-            RefCell::new(state)
-        }))
+impl SkylightWatcher {
+    pub fn new(mtm: MainThreadMarker) -> Self {
+        Self(Rc::new_cyclic(
+            |weak_self: &Weak<RefCell<SkylightWatcherState>>| {
+                let mut state = SkylightWatcherState {
+                    connection: SkylightConnection::new(mtm),
+                    notifiers: vec![],
+                    weak_self: weak_self.clone(),
+                    registered_windows: HashMap::default(),
+                };
+                state.register_callbacks();
+                RefCell::new(state)
+            },
+        ))
     }
 
-    pub async fn run(self, mut requests_rx: Receiver) {
-        while let Some((_span, request)) = requests_rx.recv().await {
+    pub async fn run(self, mut commands_rx: SkylightCommandReceiver) {
+        while let Some((_span, command)) = commands_rx.recv().await {
             let mut state = self.0.borrow_mut();
-            state.on_request(request);
+            state.on_command(command);
         }
     }
 }
 
-impl State {
+impl SkylightWatcherState {
     fn register_callbacks(&mut self) {
         self.register_callback(kCGSWindowIsTerminated, |this, wsid| {
             this.on_window_destroyed(wsid)
@@ -136,15 +113,94 @@ impl State {
         self.notifiers.push(notifier);
     }
 
-    #[instrument(skip(self))]
-    fn on_request(&mut self, request: Request) {
-        match request {
-            Request::RegisterWindow(wsid, wid, tx) => {
+    fn on_command(&mut self, command: SkylightCommand) {
+        match command {
+            SkylightCommand::TrackWindow(wsid, wid, tx) => {
                 debug!("Window registered: {wsid:?}");
                 self.registered_windows.insert(wsid, (wid, tx));
                 if let Err(e) = self.connection.add_window(wsid) {
                     warn!("Failed to update SkylightConnection window list: {e}");
                 }
+            }
+        }
+    }
+
+    fn on_window_destroyed(&mut self, wsid: WindowServerId) {
+        debug!("Window destroyed: {wsid:?}");
+        let Some((wid, tx)) = self.registered_windows.remove(&wsid) else {
+            return;
+        };
+        self.connection.on_window_destroyed(wsid);
+        _ = tx.send(app::Request::WindowDestroyed(wid));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WindowServer – off main thread
+// ---------------------------------------------------------------------------
+
+/// Actor that takes events from app actors and adds information from the window
+/// server before sending them on to the Reactor.
+pub struct WindowServer {
+    screen_cache: ScreenCache,
+    /// Window server IDs currently visible on screen.
+    visible_window_ids: Vec<WindowServerId>,
+    wm_tx: wm_controller::Sender,
+    reactor_tx: reactor::Sender,
+    skylight_tx: SkylightCommandSender,
+}
+
+#[derive(Debug)]
+pub enum Request {
+    // Sent by the NotificationCenter actor.
+    /// Screen configuration changed. Carries NSScreenInfo gathered on the main thread.
+    ScreenParametersChanged(Vec<NSScreenInfo>),
+    /// The active space changed.
+    SpaceChanged,
+
+    // Sent by the App actor.
+    /// This is to work around a bug introduced in macOS Sequoia where
+    /// kAXUIElementDestroyedNotification is not always sent correctly.
+    ///
+    /// See https://github.com/glide-wm/glide/issues/10.
+    RegisterWindow(WindowServerId, WindowId, AppThreadHandle),
+    /// A new window was created.
+    WindowCreated(WindowId, WindowInfo, MouseState),
+    /// The main window of an application changed.
+    ApplicationMainWindowChanged(pid_t, Option<WindowId>, Quiet),
+    /// A window was minimized or unminimized.
+    WindowVisibilityChanged(WindowId),
+}
+
+pub type Sender = actor::Sender<Request>;
+pub type Receiver = actor::Receiver<Request>;
+
+impl WindowServer {
+    pub fn new(
+        wm_tx: wm_controller::Sender,
+        reactor_tx: reactor::Sender,
+        skylight_tx: SkylightCommandSender,
+    ) -> Self {
+        Self {
+            screen_cache: ScreenCache::new(),
+            visible_window_ids: vec![],
+            wm_tx,
+            reactor_tx,
+            skylight_tx,
+        }
+    }
+
+    pub async fn run(mut self, mut requests_rx: Receiver) {
+        while let Some((_span, request)) = requests_rx.recv().await {
+            self.on_request(request);
+        }
+    }
+
+    #[instrument(skip(self))]
+    fn on_request(&mut self, request: Request) {
+        match request {
+            Request::RegisterWindow(wsid, wid, tx) => {
+                self.skylight_tx.send(SkylightCommand::TrackWindow(wsid, wid, tx));
             }
             Request::ScreenParametersChanged(ns_screens) => {
                 let Some((screens, converter)) = self.screen_cache.update_screen_config(ns_screens)
@@ -196,15 +252,5 @@ impl State {
 
     fn send_wm_event(&self, event: WmEvent) {
         _ = self.wm_tx.send((Span::current().clone(), event));
-    }
-
-    fn on_window_destroyed(&mut self, wsid: WindowServerId) {
-        debug!("Window destroyed: {wsid:?}");
-        self.update_visible_window_ids();
-        let Some((wid, tx)) = self.registered_windows.remove(&wsid) else {
-            return;
-        };
-        self.connection.on_window_destroyed(wsid);
-        _ = tx.send(app::Request::WindowDestroyed(wid));
     }
 }
