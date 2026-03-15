@@ -94,6 +94,8 @@ Each window has a `TransactionId` that tracks the last write. When the Reactor s
 
 The LayoutManager is embedded in the Reactor, not a separate actor. It sits between the Reactor and the `LayoutTree` model: it receives cleaned-up events and commands, converts them into tree operations, and calculates the desired position and size of each window. It also manages floating windows.
 
+Window management policy belongs here. New exceptions for special-case windows should generally go through the LayoutManager's classification path instead of being scattered across the Reactor or app threads. Nonstandard, nonresizable, layered, or app-specific special cases often float or remain untracked.
+
 ## The layout tree
 
 The `LayoutTree` is the central data structure. It wraps a generic `Tree<Components>` where `Components` bundles three data observers:
@@ -133,6 +135,8 @@ Configuration uses a layered merge system:
 A `partial_config!` macro generates a "partial" version of each config struct where all fields are `Option<T>`. This enables merging: `merge(low, high)` takes `high` when present and falls back to `low`. Validation then ensures all required fields are present and values are in range.
 
 Config is wrapped in `Arc<Config>` and flows to all actors at startup. Config changes propagate via `ConfigChanged` events.
+
+Defaults should come from `glide.default.toml`, not handwritten `Default` implementations with duplicated literal values. When a config type needs `Default`, it should delegate to `Config::default()` so code paths like tests, first run, and saved-state deserialization stay aligned with the embedded defaults.
 
 ## Testing
 
