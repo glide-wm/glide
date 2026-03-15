@@ -72,19 +72,17 @@ After processing most events, the Reactor calls into the LayoutManager to comput
 Events flow inward to the Reactor from all sources, and requests flow outward to app threads:
 
 ```
-NSWorkspace ──→ NotificationCenter ─(focused/terminated app)───→ WmController ──→ Reactor
-                                    ─(launched app)─→ spawn App thread ──→ Reactor
-                                    ─(screen/space)─→ WindowServer ──→ WmController ──→ Reactor
-Dock ──────────────────────────────────────────────→ WmController ──→ Reactor
-Mouse (CGEventTap) ──────────────────────────────────────────────→ Reactor
-App threads (per-process) ───────────────────────────────────────→ Reactor
+NotificationCenter ─(focused/terminated app)───→ WmController ──→ Reactor
+                   ─(launched app)─→ spawn App thread
+                   ─(screen/space)─→ WindowServer ─→ WmController ──→ Reactor
+Dock ───────────────────────────────────────────────→ WmController ──→ Reactor
+Mouse (CGEventTap) ───────────────────────────────────────────────────→ Reactor
+App threads (per-process) ──────────→ WindowServer ──────────────────→ Reactor
 Hotkeys ────────────────────────────────────────────→ WmController ──→ Reactor
 CLI (CFMessagePort) ──→ Server ────────────────────→ WmController ──→ Reactor
 ```
 
-The Reactor produces a cleaned up stream of events for the LayoutManager, which tracks windows and layouts in a `LayoutTree`. It returns LayoutManager is a list of windows and their desired 
-
-The Reactor produces side effects by sending requests to app threads (set window frame, raise, begin/end animation), the RaiseManager, GroupBars, and Status actors.
+The Reactor produces a cleaned up stream of events for the LayoutManager, which returns desired window positions, raises, and UI state. The reactor turns these into requests for the App threads app threads (set window frame, raise, begin/end animation), the RaiseManager, GroupBars, and Status actors.
 
 #### Transaction-based consistency between Reactor and App threads
 
