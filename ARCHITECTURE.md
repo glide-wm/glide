@@ -39,8 +39,6 @@ Native AppKit UI components: group indicator bars, the status bar icon, and the 
 
 ## Actors
 
-Actors communicate via unbounded MPSC channels from tokio. A custom `Sender<Event>` wrapper attaches a `tracing::Span` to every message for distributed trace correlation across actor boundaries. Send errors are silently ignored – they only happen during shutdown.
-
 The main actors are:
 
 | Actor | Thread | Role |
@@ -48,10 +46,18 @@ The main actors are:
 | **WmController** | main | Top-level orchestrator. Handles space enable/disable, hotkey registration, app thread spawning, config changes. |
 | **Reactor** | dedicated | Central event processor. Maintains coherence between system and model state. |
 | **App** (per-process) | dedicated | Manages one application via accessibility APIs. Reads and writes window frames, observes AX notifications. |
+| **WindowServer** | main | Mirrors the macOS window server. Owns the `ScreenCache`, computes screen/space configuration, snapshots visible windows, and detects window destruction via SkyLight. |
+| **NotificationCenter** | main | Mirrors `NSNotificationCenter`. Observes NSWorkspace events and gathers `NSScreenInfo` on the main thread. Routes screen/space events to `WindowServer` and app lifecycle events to `WmController`. |
+| **Dock** | main | Mirrors the Dock process. Detects Mission Control (Exposé) entry and exit via accessibility observations on the Dock. |
 | **Mouse** | main | CGEvent tap for mouse events: focus-follows-mouse, cursor warping and hiding, scroll wheel. |
 | **RaiseManager** | inline task | Sequences window raise requests with correct ordering and timeouts. |
+| **Status** | main | Menu bar status icon. |
+| **GroupBars** | main | Tab/stack indicator overlay windows. |
+| **MessageServer** | main | CLI IPC via CFMessagePort. |
 
-Several other actors handle specific concerns: `NotificationCenter` (NSWorkspace events), `WindowServer` (window destruction via SkyLight), `Dock` (Mission Control detection), `Status` (menu bar icon), `GroupBars` (tab/stack indicator overlays), and `MessageServer` (CLI IPC via CFMessagePort).
+Several of these actors – `App`, `WindowServer`, `Dock` – correspond to external macOS processes or subsystems that have their own internal state and operate concurrently. Reflecting the operating system architecture in these actors allows us to reason more effectively about how data and events flow through the system.
+
+Actors communicate via unbounded MPSC channels from tokio. A custom `Sender<Event>` wrapper attaches a `tracing::Span` to every message for distributed trace correlation across actor boundaries. Send errors are silently ignored – they only happen during shutdown.
 
 ### The Reactor
 
@@ -61,28 +67,32 @@ The Reactor is the central hub. Its doc comment captures its role well:
 
 After processing most events, the Reactor calls into the LayoutManager to compute window frames and sends the results to app threads.
 
-### LayoutManager
-
-The LayoutManager is embedded in the Reactor, not a separate actor. It sits between the Reactor and the `LayoutTree` model: it receives cleaned-up events and commands, converts them into tree operations, and calculates the desired position and size of each window. It also manages floating windows.
-
 ### Event flow
 
 Events flow inward to the Reactor from all sources, and requests flow outward to app threads:
 
 ```
-NSWorkspace ──→ NotificationCenter ──→ WmController ──→ Reactor
-Dock ──────────────────────────────→ WmController ──→ Reactor
-Mouse (CGEventTap) ────────────────────────────────→ Reactor
-App threads (per-process) ─────────────────────────→ Reactor
-Hotkeys ──────────────────────────→ WmController ──→ Reactor
-CLI (CFMessagePort) ──→ Server ──→ WmController ──→ Reactor
+NSWorkspace ──→ NotificationCenter ─(focused/terminated app)───→ WmController ──→ Reactor
+                                    ─(launched app)─→ spawn App thread ──→ Reactor
+                                    ─(screen/space)─→ WindowServer ──→ WmController ──→ Reactor
+Dock ──────────────────────────────────────────────→ WmController ──→ Reactor
+Mouse (CGEventTap) ──────────────────────────────────────────────→ Reactor
+App threads (per-process) ───────────────────────────────────────→ Reactor
+Hotkeys ────────────────────────────────────────────→ WmController ──→ Reactor
+CLI (CFMessagePort) ──→ Server ────────────────────→ WmController ──→ Reactor
 ```
+
+The Reactor produces a cleaned up stream of events for the LayoutManager, which tracks windows and layouts in a `LayoutTree`. It returns LayoutManager is a list of windows and their desired 
 
 The Reactor produces side effects by sending requests to app threads (set window frame, raise, begin/end animation), the RaiseManager, GroupBars, and Status actors.
 
-### Transaction-based consistency
+#### Transaction-based consistency between Reactor and App threads
 
 Each window has a `TransactionId` that tracks the last write. When the Reactor sends a frame update, it increments the transaction. Events from app threads carry the last transaction the app saw. Stale reads – events that arrived before the app processed our last write – are ignored. This prevents feedback loops caused by accessibility API delays.
+
+### LayoutManager
+
+The LayoutManager is embedded in the Reactor, not a separate actor. It sits between the Reactor and the `LayoutTree` model: it receives cleaned-up events and commands, converts them into tree operations, and calculates the desired position and size of each window. It also manages floating windows.
 
 ## The layout tree
 
