@@ -47,7 +47,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span, debug, error, info, instrument, trace, warn};
 
 use crate::actor::reactor::{self, Event, Requested, TransactionId};
-use crate::actor::{self, wm_controller};
+use crate::actor::{self, window_server, wm_controller};
 use crate::collections::HashMap;
 use crate::sys::app::{AXUIElementExt, NSRunningApplicationExt, ProcessInfo};
 pub use crate::sys::app::{AppInfo, WindowInfo, pid_t};
@@ -55,7 +55,7 @@ use crate::sys::event;
 use crate::sys::executor::Executor;
 use crate::sys::geometry::{ToCGType, ToICrate};
 use crate::sys::observer::Observer;
-use crate::sys::window_server::{self, WindowServerId};
+use crate::sys::window_server::WindowServerId;
 
 /// An identifier representing a window.
 ///
@@ -140,7 +140,7 @@ pub fn spawn_app_thread(
     pid: pid_t,
     info: AppInfo,
     events_tx: reactor::Sender,
-    ws_tx: actor::window_server::Sender,
+    ws_tx: window_server::Sender,
     startup: Option<wm_controller::StartupToken>,
 ) {
     thread::Builder::new()
@@ -156,7 +156,7 @@ struct State {
     app: AXUIElement,
     observer: Observer,
     events_tx: reactor::Sender,
-    ws_tx: actor::window_server::Sender,
+    ws_tx: window_server::Sender,
     requests_tx: WeakUnboundedSender<(Span, Request)>,
     windows: HashMap<WindowId, WindowState>,
     last_window_idx: u32,
@@ -313,7 +313,7 @@ impl State {
             }
             windows.push((wid, info));
         }
-        let window_server_info = window_server::get_windows(&wsids);
+        let window_server_info = crate::sys::window_server::get_windows(&wsids);
 
         self.main_window = self.app.main_window().ok().and_then(|w| self.id(&w).ok());
         self.is_frontmost = self.app.frontmost().map(|b| b.into()).unwrap_or(false);
@@ -566,11 +566,9 @@ impl State {
                 let Some((window, wid)) = self.register_window(elem) else {
                     return;
                 };
-                let window_server_info = window_server::get_window(WindowServerId(wid.idx.into()));
-                self.send_event(Event::WindowCreated(
+                self.send_ws_request(window_server::Request::WindowCreated(
                     wid,
                     window,
-                    window_server_info,
                     event::get_mouse_state(),
                 ));
             }
@@ -600,10 +598,14 @@ impl State {
                     Some(event::get_mouse_state()),
                 ));
             }
-            // TODO: Handle all of these.
-            kAXWindowMiniaturizedNotification => {}
-            kAXWindowDeminiaturizedNotification => {}
-            kAXTitleChangedNotification => {}
+            kAXWindowMiniaturizedNotification | kAXWindowDeminiaturizedNotification => {
+                if let Ok(wid) = self.id(&elem) {
+                    self.send_ws_request(window_server::Request::WindowVisibilityChanged(wid));
+                }
+            }
+            kAXTitleChangedNotification => {
+                // TODO
+            }
             _ => {
                 error!("Unhandled notification {notif:?} on {elem:#?}");
             }
@@ -701,7 +703,7 @@ impl State {
         // make_key_window, but try to avoid that because we would not have the
         // same guarantees with NSRunningApplication, which dispatches a request
         // to the application and does not wait for it to complete.
-        let make_key_result = window_server::make_key_window(
+        let make_key_result = crate::sys::window_server::make_key_window(
             this.pid,
             WindowServerId::try_from(&this.window(first)?.elem)?,
         );
@@ -810,11 +812,9 @@ impl State {
                     warn!(?self.pid, "Got MainWindowChanged on unknown window");
                     return None;
                 };
-                let window_server_info = window_server::get_window(WindowServerId(wid.idx.into()));
-                self.send_event(Event::WindowCreated(
+                self.send_ws_request(window_server::Request::WindowCreated(
                     wid,
                     info,
-                    window_server_info,
                     event::get_mouse_state(),
                 ));
                 wid
@@ -830,7 +830,11 @@ impl State {
             Some(id) if id == wid => Quiet::Yes,
             _ => Quiet::No,
         };
-        self.send_event(Event::ApplicationMainWindowChanged(self.pid, Some(wid), quiet));
+        self.send_ws_request(window_server::Request::ApplicationMainWindowChanged(
+            self.pid,
+            Some(wid),
+            quiet,
+        ));
         Some(wid)
     }
 
@@ -958,7 +962,7 @@ impl State {
         if let Some(wsid) = wsid
             && let Some(requests_tx) = self.requests_tx.upgrade()
         {
-            _ = self.ws_tx.send(actor::window_server::Request::RegisterWindow(
+            _ = self.ws_tx.send(window_server::Request::RegisterWindow(
                 wsid,
                 wid,
                 AppThreadHandle { requests_tx },
@@ -985,6 +989,10 @@ impl State {
 
     fn send_event(&self, event: Event) {
         self.events_tx.send(event);
+    }
+
+    fn send_ws_request(&self, request: window_server::Request) {
+        _ = self.ws_tx.send(request);
     }
 
     fn window(&self, wid: WindowId) -> Result<&WindowState, accessibility::Error> {
@@ -1037,7 +1045,7 @@ fn app_thread_main(
     pid: pid_t,
     info: AppInfo,
     events_tx: reactor::Sender,
-    ws_tx: actor::window_server::Sender,
+    ws_tx: window_server::Sender,
     startup: Option<wm_controller::StartupToken>,
 ) {
     let app = AXUIElement::application(pid);
