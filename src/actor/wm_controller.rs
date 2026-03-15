@@ -41,13 +41,14 @@ pub enum WmEvent {
     AppGloballyActivated(pid_t),
     AppGloballyDeactivated(pid_t),
     AppTerminated(pid_t),
-    SpaceChanged(Vec<Option<SpaceId>>),
+    SpaceChanged(Vec<Option<SpaceId>>, Vec<WindowServerInfo>),
     ScreenParametersChanged(
         Vec<CGRect>,
         Vec<ScreenId>,
         CoordinateConverter,
         Vec<Option<SpaceId>>,
         Vec<f64>,
+        Vec<WindowServerInfo>,
     ),
     ExposeEntered,
     ExposeExited,
@@ -213,13 +214,13 @@ impl WmController {
             AppTerminated(pid) => {
                 self.send_event(Event::ApplicationTerminated(pid));
             }
-            ScreenParametersChanged(frames, ids, converter, spaces, scale_factors) => {
+            ScreenParametersChanged(frames, ids, converter, spaces, scale_factors, windows) => {
                 self.cur_screen_id = ids;
                 self.handle_space_changed(spaces.clone());
                 self.send_event(Event::ScreenParametersChanged(
                     frames.clone(),
                     self.active_spaces(),
-                    self.get_windows(),
+                    windows,
                     converter,
                     scale_factors,
                 ));
@@ -229,7 +230,7 @@ impl WmController {
                 ));
                 self.mouse_tx.send(mouse::Request::ScreenParametersChanged(frames, converter));
             }
-            SpaceChanged(spaces) => {
+            SpaceChanged(spaces, windows) => {
                 self.handle_space_changed(spaces.clone());
                 if !self.expose_active {
                     // During expose windows from all spaces are returned to
@@ -237,7 +238,7 @@ impl WmController {
                     // reactor. This will be corrected when we get the
                     // ExposeExited event or switch back to the space again, but
                     // it adds visual noise so we try to avoid it.
-                    self.send_event(Event::SpaceChanged(self.active_spaces(), self.get_windows()));
+                    self.send_event(Event::SpaceChanged(self.active_spaces(), windows));
                 }
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
                 self.status_tx.send(status::Event::SpaceEnabledChanged(

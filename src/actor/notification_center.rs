@@ -4,7 +4,6 @@
 //! This actor manages the global notification queue, which tells us when an
 //! application is launched or focused or the screen state changes.
 
-use std::cell::RefCell;
 use std::{future, mem};
 
 use objc2::rc::{Allocated, Retained};
@@ -16,14 +15,15 @@ use objc2_foundation::{MainThreadMarker, NSNotification, NSNotificationCenter, N
 use tracing::{Span, info_span, trace, warn};
 
 use super::wm_controller::{self, WmEvent};
+use super::window_server;
 use crate::actor::app::AppInfo;
 use crate::sys::app::NSRunningApplicationExt;
-use crate::sys::screen::{self, ScreenCache};
+use crate::sys::screen;
 
 #[repr(C)]
 struct Instance {
-    screen_cache: RefCell<ScreenCache>,
-    events_tx: wm_controller::Sender,
+    wm_tx: wm_controller::Sender,
+    ws_tx: window_server::Sender,
 }
 
 unsafe impl Encode for Instance {
@@ -61,11 +61,8 @@ define_class! {
 }
 
 impl NotificationCenterInner {
-    fn new(events_tx: wm_controller::Sender) -> Retained<Self> {
-        let instance = Instance {
-            screen_cache: RefCell::new(ScreenCache::new()),
-            events_tx,
-        };
+    fn new(wm_tx: wm_controller::Sender, ws_tx: window_server::Sender) -> Retained<Self> {
+        let instance = Instance { wm_tx, ws_tx };
         unsafe { msg_send![Self::alloc(), initWith: instance] }
     }
 
@@ -75,7 +72,7 @@ impl NotificationCenterInner {
         let span = info_span!("notification_center::handle_screen_changed_event", ?name);
         let _s = span.enter();
         if unsafe { NSWorkspaceActiveSpaceDidChangeNotification } == name {
-            self.send_current_space();
+            self.send_space_changed();
         } else if unsafe { NSApplicationDidChangeScreenParametersNotification } == name {
             self.send_screen_parameters();
         } else {
@@ -85,26 +82,11 @@ impl NotificationCenterInner {
 
     fn send_screen_parameters(&self) {
         let ns_screens = screen::get_ns_screens(MainThreadMarker::new().unwrap());
-        let mut screen_cache = self.ivars().screen_cache.borrow_mut();
-        let Some((screens, converter)) = screen_cache.update_screen_config(ns_screens) else {
-            return;
-        };
-        let frames = screens.iter().map(|s| s.visible_frame).collect();
-        let ids = screens.iter().map(|s| s.id).collect();
-        let scale_factors = screens.iter().map(|s| s.scale_factor).collect();
-        let spaces = screen_cache.get_screen_spaces();
-        self.send_event(WmEvent::ScreenParametersChanged(
-            frames,
-            ids,
-            converter,
-            spaces,
-            scale_factors,
-        ));
+        self.send_ws_request(window_server::Request::ScreenParametersChanged(ns_screens));
     }
 
-    fn send_current_space(&self) {
-        let spaces = self.ivars().screen_cache.borrow().get_screen_spaces();
-        self.send_event(WmEvent::SpaceChanged(spaces));
+    fn send_space_changed(&self) {
+        self.send_ws_request(window_server::Request::SpaceChanged);
     }
 
     fn handle_app_event(&self, notif: &NSNotification) {
@@ -117,23 +99,27 @@ impl NotificationCenterInner {
         let span = info_span!("notification_center::handle_app_event", ?name);
         let _guard = span.enter();
         if unsafe { NSWorkspaceDidLaunchApplicationNotification } == name {
-            self.send_event(WmEvent::AppLaunch(pid, AppInfo::from(&*app)));
+            self.send_wm_event(WmEvent::AppLaunch(pid, AppInfo::from(&*app)));
         } else if unsafe { NSWorkspaceDidActivateApplicationNotification } == name {
-            self.send_event(WmEvent::AppGloballyActivated(pid));
+            self.send_wm_event(WmEvent::AppGloballyActivated(pid));
         } else if unsafe { NSWorkspaceDidDeactivateApplicationNotification } == name {
-            self.send_event(WmEvent::AppGloballyDeactivated(pid));
+            self.send_wm_event(WmEvent::AppGloballyDeactivated(pid));
         } else if unsafe { NSWorkspaceDidTerminateApplicationNotification } == name {
-            self.send_event(WmEvent::AppTerminated(pid));
+            self.send_wm_event(WmEvent::AppTerminated(pid));
         } else if unsafe { NSWorkspaceActiveSpaceDidChangeNotification } == name {
-            self.send_current_space();
+            self.send_space_changed();
         } else {
             panic!("Unexpected application event: {notif:?}");
         }
     }
 
-    fn send_event(&self, event: WmEvent) {
+    fn send_wm_event(&self, event: WmEvent) {
         // Errors only happen during shutdown, so we can ignore them.
-        _ = self.ivars().events_tx.send((Span::current().clone(), event));
+        _ = self.ivars().wm_tx.send((Span::current().clone(), event));
+    }
+
+    fn send_ws_request(&self, request: window_server::Request) {
+        self.ivars().ws_tx.send(request);
     }
 
     fn running_application(
@@ -162,8 +148,8 @@ pub struct NotificationCenter {
 }
 
 impl NotificationCenter {
-    pub fn new(events_tx: wm_controller::Sender) -> Self {
-        let handler = NotificationCenterInner::new(events_tx);
+    pub fn new(wm_tx: wm_controller::Sender, ws_tx: window_server::Sender) -> Self {
+        let handler = NotificationCenterInner::new(wm_tx, ws_tx);
 
         // SAFETY: Selector must have signature fn(&self, &NSNotification)
         let register_unsafe =
@@ -227,9 +213,9 @@ impl NotificationCenter {
         let workspace = &NSWorkspace::sharedWorkspace();
 
         self.inner.send_screen_parameters();
-        self.inner.send_event(WmEvent::AppEventsRegistered);
+        self.inner.send_wm_event(WmEvent::AppEventsRegistered);
         if let Some(app) = workspace.frontmostApplication() {
-            self.inner.send_event(WmEvent::AppGloballyActivated(app.pid()));
+            self.inner.send_wm_event(WmEvent::AppGloballyActivated(app.pid()));
         }
 
         // All the work is done in callbacks dispatched by the run loop, which

@@ -136,6 +136,7 @@ fn main() {
         config: config.clone(),
     };
     let (ws_tx, ws_rx) = glide_wm::actor::channel();
+    let notification_center_ws_tx = ws_tx.clone();
     let (wm_controller, wm_controller_tx) = WmController::new(
         wm_config,
         events_tx.clone(),
@@ -144,7 +145,9 @@ fn main() {
         ws_tx,
         group_indicators_tx,
     );
-    let notification_center = NotificationCenter::new(wm_controller_tx.clone());
+    let window_server = WindowServer::new(mtm, wm_controller_tx.clone());
+    let notification_center =
+        NotificationCenter::new(wm_controller_tx.clone(), notification_center_ws_tx);
     let mouse = Mouse::new(config.clone(), events_tx.clone(), mouse_rx);
     let status = Status::new(
         config.clone(),
@@ -154,7 +157,6 @@ fn main() {
         wm_controller_tx.clone(),
     );
     let group_bars = GroupBars::new(config.clone(), group_indicators_rx, mtm);
-    let window_server = WindowServer::new(mtm);
     let dock = Dock::new(wm_controller_tx.clone());
 
     // TODO: Run on another thread so we don't tie up the main thread.

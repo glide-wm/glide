@@ -416,19 +416,13 @@ mod test {
             NSScreenInfo {
                 cg_id: ScreenId(3),
                 frame: CGRect::new(CGPoint::new(0.0, 0.0), CGSize::new(3840.0, 2160.0)),
-                visible_frame: CGRect::new(
-                    CGPoint::new(0.0, 76.0),
-                    CGSize::new(3840.0, 2059.0),
-                ),
+                visible_frame: CGRect::new(CGPoint::new(0.0, 76.0), CGSize::new(3840.0, 2059.0)),
                 backing_scale_factor: 2.0,
             },
             NSScreenInfo {
                 cg_id: ScreenId(1),
                 frame: CGRect::new(CGPoint::new(3840.0, 98.0), CGSize::new(1512.0, 982.0)),
-                visible_frame: CGRect::new(
-                    CGPoint::new(3840.0, 98.0),
-                    CGSize::new(1512.0, 950.0),
-                ),
+                visible_frame: CGRect::new(CGPoint::new(3840.0, 98.0), CGSize::new(1512.0, 950.0)),
                 backing_scale_factor: 2.0,
             },
         ];
