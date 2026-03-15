@@ -42,14 +42,14 @@ pub enum WmEvent {
     AppGloballyDeactivated(pid_t),
     AppTerminated(pid_t),
     SpaceChanged(Vec<Option<SpaceId>>, Vec<WindowServerInfo>),
-    ScreenParametersChanged(
-        Vec<CGRect>,
-        Vec<ScreenId>,
-        CoordinateConverter,
-        Vec<Option<SpaceId>>,
-        Vec<f64>,
-        Vec<WindowServerInfo>,
-    ),
+    ScreenParametersChanged {
+        screens: Vec<ScreenId>,
+        frames: Vec<CGRect>,
+        spaces: Vec<Option<SpaceId>>,
+        scale_factors: Vec<f64>,
+        converter: CoordinateConverter,
+        windows: Vec<WindowServerInfo>,
+    },
     ExposeEntered,
     ExposeExited,
     Command(WmCommand),
@@ -214,16 +214,23 @@ impl WmController {
             AppTerminated(pid) => {
                 self.send_event(Event::ApplicationTerminated(pid));
             }
-            ScreenParametersChanged(frames, ids, converter, spaces, scale_factors, windows) => {
+            ScreenParametersChanged {
+                screens: ids,
+                frames,
+                scale_factors,
+                spaces,
+                converter,
+                windows,
+            } => {
                 self.cur_screen_id = ids;
                 self.handle_space_changed(spaces.clone());
-                self.send_event(Event::ScreenParametersChanged(
-                    frames.clone(),
-                    self.active_spaces(),
+                self.send_event(Event::ScreenParametersChanged {
+                    frames: frames.clone(),
+                    spaces: self.active_spaces(),
                     windows,
                     converter,
                     scale_factors,
-                ));
+                });
                 self.status_tx.send(status::Event::SpaceChanged(spaces));
                 self.status_tx.send(status::Event::SpaceEnabledChanged(
                     self.is_current_space_enabled(),

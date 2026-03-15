@@ -57,13 +57,14 @@ pub enum Event {
     /// first in the list.
     ///
     /// See the `SpaceChanged` event for an explanation of the other parameters.
-    ScreenParametersChanged(
-        #[serde_as(as = "Vec<CGRectDef>")] Vec<CGRect>,
-        Vec<Option<SpaceId>>,
-        Vec<WindowServerInfo>,
-        CoordinateConverter,
-        Vec<f64>,
-    ),
+    ScreenParametersChanged {
+        #[serde_as(as = "Vec<CGRectDef>")]
+        frames: Vec<CGRect>,
+        spaces: Vec<Option<SpaceId>>,
+        scale_factors: Vec<f64>,
+        converter: CoordinateConverter,
+        windows: Vec<WindowServerInfo>,
+    },
 
     /// The current space changed.
     ///
@@ -483,7 +484,13 @@ impl Reactor {
                     self.in_drag = true;
                 }
             }
-            Event::ScreenParametersChanged(frames, spaces, ws_info, converter, scale_factors) => {
+            Event::ScreenParametersChanged {
+                frames,
+                spaces,
+                windows,
+                converter,
+                scale_factors,
+            } => {
                 info!("screen parameters changed");
                 self.screens = frames
                     .into_iter()
@@ -496,7 +503,7 @@ impl Reactor {
                     let Some(space) = screen.space else { continue };
                     self.send_layout_event(LayoutEvent::SpaceExposed(space, screen.frame.size));
                 }
-                self.update_complete_window_server_info(ws_info);
+                self.update_complete_window_server_info(windows);
                 self.update_active_screen();
                 // FIXME: Update visible windows if space changed.
                 // Forward the event to group_indicators. We serialize these
@@ -944,13 +951,13 @@ pub mod tests {
     fn it_ignores_stale_resize_events() {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
-            vec![Some(SpaceId::new(1))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
         reactor.handle_event(Event::StartupComplete);
@@ -975,13 +982,13 @@ pub mod tests {
     fn it_sends_writes_when_stale_read_state_looks_same_as_written_state() {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
-            vec![Some(SpaceId::new(1))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
         reactor.handle_event(Event::StartupComplete);
@@ -1014,13 +1021,13 @@ pub mod tests {
     fn sends_writes_same_as_last_written_state_if_changed_externally() {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
-            vec![Some(SpaceId::new(1))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
         reactor.handle_event(Event::StartupComplete);
@@ -1057,13 +1064,13 @@ pub mod tests {
     fn it_responds_to_resizes() {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
-            vec![Some(SpaceId::new(1))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.))],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(3)));
         reactor.handle_event(Event::StartupComplete);
@@ -1107,13 +1114,13 @@ pub mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let full_screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(SpaceId::new(1))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
         reactor.handle_event(Event::StartupComplete);
@@ -1138,13 +1145,13 @@ pub mod tests {
                 frame: CGRect::ZERO,
             })
             .collect::<Vec<_>>();
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![None],
-            ws_info.clone(),
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![None],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: ws_info.clone(),
+        });
 
         reactor.handle_events(apps.make_app_with_opts(
             1,
@@ -1170,13 +1177,13 @@ pub mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let full_screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![None],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![None],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
 
@@ -1201,13 +1208,13 @@ pub mod tests {
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let screen1 = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
         let screen2 = CGRect::new(CGPoint::new(1000., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![screen1, screen2],
-            vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0, 2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![screen1, screen2],
+            spaces: vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
+            scale_factors: vec![2.0, 2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         let mut windows = make_windows(2);
         windows[1].frame.origin = CGPoint::new(1100., 100.);
@@ -1229,18 +1236,18 @@ pub mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let full_screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(SpaceId::new(1))],
-            vec![WindowServerInfo {
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![WindowServerInfo {
                 id: WindowServerId::new(1),
                 pid: 1,
                 layer: 10,
                 frame: CGRect::ZERO,
             }],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        });
 
         reactor.handle_events(apps.make_app_with_opts(1, make_windows(1), None, true, false));
 
@@ -1268,13 +1275,13 @@ pub mod tests {
 
         let screen1 = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
         let screen2 = CGRect::new(CGPoint::new(1000., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![screen1, screen2],
-            vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0, 2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![screen1, screen2],
+            spaces: vec![Some(SpaceId::new(1)), Some(SpaceId::new(2))],
+            scale_factors: vec![2.0, 2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(2)));
 
@@ -1349,13 +1356,13 @@ pub mod tests {
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let space = SpaceId::new(1);
         let full_screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(space)],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app_with_opts(
             1,
@@ -1377,17 +1384,19 @@ pub mod tests {
         let modified = reactor.layout.calculate_layout(space, full_screen, &reactor.config);
         assert_ne!(default, modified);
 
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![CGRect::ZERO],
-            vec![None],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(space)],
-            (1..=3)
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![CGRect::ZERO],
+            spaces: vec![None],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(space)],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: (1..=3)
                 .map(|n| WindowServerInfo {
                     pid: 1,
                     id: WindowServerId::new(n),
@@ -1395,9 +1404,7 @@ pub mod tests {
                     frame: CGRect::ZERO,
                 })
                 .collect(),
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        });
         let requests = apps.requests();
         for request in requests {
             match request {
@@ -1432,13 +1439,13 @@ pub mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let full_screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(SpaceId::new(1))],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(SpaceId::new(1))],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         reactor.handle_events(apps.make_app(1, make_windows(1)));
         reactor.handle_event(Event::StartupComplete);
@@ -1451,21 +1458,21 @@ pub mod tests {
 
         // Simulate the system resizing a window after it recognizes an old
         // configurations. Resize events are not sent in this case.
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![
                 full_screen,
                 CGRect::new(CGPoint::new(1000., 0.), CGSize::new(1000., 1000.)),
             ],
-            vec![Some(SpaceId::new(1)), None],
-            vec![WindowServerInfo {
+            spaces: vec![Some(SpaceId::new(1)), None],
+            scale_factors: vec![2.0, 2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![WindowServerInfo {
                 id: WindowServerId::new(1),
                 pid: 1,
                 layer: 0,
                 frame: CGRect::new(CGPoint::new(500., 0.), CGSize::new(500., 500.)),
             }],
-            CoordinateConverter::default(),
-            vec![2.0, 2.0],
-        ));
+        });
 
         let _events = apps.simulate_events();
         assert_eq!(
@@ -1485,13 +1492,13 @@ pub mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let space = SpaceId::new(1);
-        reactor.handle_event(ScreenParametersChanged(
-            vec![CGRect::ZERO],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(ScreenParametersChanged {
+            frames: vec![CGRect::ZERO],
+            spaces: vec![Some(space)],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
         assert_eq!(None, reactor.main_window());
 
         reactor.handle_event(ApplicationGloballyActivated(1));
@@ -1517,13 +1524,13 @@ pub mod tests {
 
         // First reactor: simulate the state before shutdown with three apps running
         let mut reactor1 = Reactor::new_for_test(LayoutManager::new());
-        reactor1.handle_event(ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor1.handle_event(ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(space)],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
         reactor1.handle_events(apps.make_app(1, make_windows(2)));
         reactor1.handle_events(apps.make_app(2, make_windows(2)));
         reactor1.handle_events(apps.make_app(3, make_windows(1)));
@@ -1541,13 +1548,13 @@ pub mod tests {
         let restored_layout: LayoutManager = ron::de::from_str(&serialized_layout).unwrap();
         let mut apps2 = Apps::new();
         let mut reactor2 = Reactor::new_for_test(restored_layout);
-        reactor2.handle_event(ScreenParametersChanged(
-            vec![full_screen],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor2.handle_event(ScreenParametersChanged {
+            frames: vec![full_screen],
+            spaces: vec![Some(space)],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
         // Only apps 1 and 3 launch during restore (app 2 was terminated between save and restore)
         reactor2.handle_events(apps2.make_app(1, make_windows(2)));
         reactor2.handle_events(apps2.make_app(3, make_windows(1)));
@@ -1586,13 +1593,13 @@ pub mod tests {
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let space = SpaceId::new(1);
         let screen = CGRect::new(CGPoint::new(0., 0.), CGSize::new(1000., 1000.));
-        reactor.handle_event(Event::ScreenParametersChanged(
-            vec![screen],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(Event::ScreenParametersChanged {
+            frames: vec![screen],
+            spaces: vec![Some(space)],
+            scale_factors: vec![2.0],
+            converter: CoordinateConverter::default(),
+            windows: vec![],
+        });
 
         let mut apps = Apps::new();
         reactor.handle_events(apps.make_app(1, make_windows(2)));

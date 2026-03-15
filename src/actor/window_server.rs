@@ -114,19 +114,14 @@ impl State {
                 else {
                     return;
                 };
-                let frames = screens.iter().map(|s| s.visible_frame).collect();
-                let ids = screens.iter().map(|s| s.id).collect();
-                let scale_factors = screens.iter().map(|s| s.scale_factor).collect();
-                let spaces = self.screen_cache.get_screen_spaces();
-                let windows = self.get_visible_windows();
-                let event = WmEvent::ScreenParametersChanged(
-                    frames,
-                    ids,
+                let event = WmEvent::ScreenParametersChanged {
+                    screens: screens.iter().map(|s| s.id).collect(),
+                    frames: screens.iter().map(|s| s.visible_frame).collect(),
                     converter,
-                    spaces,
-                    scale_factors,
-                    windows,
-                );
+                    spaces: self.screen_cache.get_screen_spaces(),
+                    scale_factors: screens.iter().map(|s| s.scale_factor).collect(),
+                    windows: self.get_visible_windows(),
+                };
                 self.send_wm_event(event);
             }
             Request::SpaceChanged => {
