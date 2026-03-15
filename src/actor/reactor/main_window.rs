@@ -82,7 +82,7 @@ impl MainWindowTracker {
             | Event::WindowCreated(..)
             | Event::WindowDestroyed(..)
             | Event::WindowFrameChanged(..)
-            | Event::ScreenParametersChanged(..)
+            | Event::ScreenParametersChanged { .. }
             | Event::SpaceChanged(..)
             | Event::MouseUp
             | Event::MouseMovedOverWindow(..)
@@ -147,13 +147,13 @@ mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let space = SpaceId::new(1);
-        reactor.handle_event(ScreenParametersChanged(
-            vec![CGRect::ZERO],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(ScreenParametersChanged {
+            frames: vec![CGRect::ZERO],
+            spaces: vec![Some(space)],
+            windows: vec![],
+            converter: CoordinateConverter::default(),
+            scale_factors: vec![2.0],
+        });
         assert_eq!(None, reactor.main_window());
 
         reactor.handle_event(ApplicationGloballyActivated(1));
@@ -211,13 +211,13 @@ mod tests {
         let mut apps = Apps::new();
         let mut reactor = Reactor::new_for_test(LayoutManager::new());
         let space = SpaceId::new(1);
-        reactor.handle_event(ScreenParametersChanged(
-            vec![CGRect::ZERO],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(ScreenParametersChanged {
+            frames: vec![CGRect::ZERO],
+            spaces: vec![Some(space)],
+            windows: vec![],
+            converter: CoordinateConverter::default(),
+            scale_factors: vec![2.0],
+        });
 
         reactor.handle_event(ApplicationGloballyActivated(1));
         reactor.handle_events(apps.make_app_with_opts(
@@ -277,13 +277,13 @@ mod tests {
         let pid = 3;
         let windows = make_windows(2);
         let space = SpaceId::new(1);
-        reactor.handle_event(ScreenParametersChanged(
-            vec![CGRect::ZERO],
-            vec![Some(space)],
-            vec![],
-            CoordinateConverter::default(),
-            vec![2.0],
-        ));
+        reactor.handle_event(ScreenParametersChanged {
+            frames: vec![CGRect::ZERO],
+            spaces: vec![Some(space)],
+            windows: vec![],
+            converter: CoordinateConverter::default(),
+            scale_factors: vec![2.0],
+        });
 
         reactor.handle_events(apps.make_app_with_opts(
             pid,
