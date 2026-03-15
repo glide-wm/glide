@@ -7,15 +7,18 @@ use std::rc::{Rc, Weak};
 use objc2::MainThreadMarker;
 use tracing::{Span, debug, instrument, warn};
 
-use crate::actor::app::{self, AppThreadHandle, WindowId};
+use crate::actor::app::{self, AppThreadHandle, Quiet, WindowId, WindowInfo};
 use crate::actor::wm_controller::{self, WmEvent};
-use crate::actor::{self};
+use crate::actor::{self, reactor};
 use crate::collections::HashMap;
+use crate::sys::event::MouseState;
 use crate::sys::screen::{NSScreenInfo, ScreenCache};
 use crate::sys::window_server::{
     self as sys_ws, SkylightConnection, SkylightNotifier, WindowServerId, get_window,
     kCGSWindowIsInvisible, kCGSWindowIsTerminated, kCGSWindowIsVisible,
 };
+
+pub use crate::actor::app::pid_t;
 
 pub struct WindowServer(Rc<RefCell<State>>);
 
@@ -26,28 +29,45 @@ struct State {
     notifiers: Vec<SkylightNotifier>,
     weak_self: Weak<RefCell<Self>>,
     screen_cache: ScreenCache,
-    windows: HashMap<WindowServerId, (WindowId, AppThreadHandle)>,
+    /// Registered windows (for SkyLight destruction tracking).
+    registered_windows: HashMap<WindowServerId, (WindowId, AppThreadHandle)>,
+    /// Window server IDs currently visible on screen.
+    visible_window_ids: Vec<WindowServerId>,
     wm_tx: wm_controller::Sender,
+    reactor_tx: reactor::Sender,
 }
 
 #[derive(Debug)]
 pub enum Request {
+    // Sent by the NotificationCenter actor.
+    /// Screen configuration changed. Carries NSScreenInfo gathered on the main thread.
+    ScreenParametersChanged(Vec<NSScreenInfo>),
+    /// The active space changed.
+    SpaceChanged,
+
+    // Sent by the App actor.
     /// This is to work around a bug introduced in macOS Sequoia where
     /// kAXUIElementDestroyedNotification is not always sent correctly.
     ///
     /// See https://github.com/glide-wm/glide/issues/10.
     RegisterWindow(WindowServerId, WindowId, AppThreadHandle),
-    /// Screen configuration changed. Carries NSScreenInfo gathered on the main thread.
-    ScreenParametersChanged(Vec<NSScreenInfo>),
-    /// The active space changed.
-    SpaceChanged,
+    /// A new window was created.
+    WindowCreated(WindowId, WindowInfo, MouseState),
+    /// The main window of an application changed.
+    ApplicationMainWindowChanged(pid_t, Option<WindowId>, Quiet),
+    /// A window was minimized or unminimized.
+    WindowVisibilityChanged(WindowId),
 }
 
 pub type Sender = actor::Sender<Request>;
 pub type Receiver = actor::Receiver<Request>;
 
 impl WindowServer {
-    pub fn new(mtm: MainThreadMarker, wm_tx: wm_controller::Sender) -> Self {
+    pub fn new(
+        mtm: MainThreadMarker,
+        wm_tx: wm_controller::Sender,
+        reactor_tx: reactor::Sender,
+    ) -> Self {
         Self(Rc::new_cyclic(|weak_self: &Weak<RefCell<State>>| {
             let mut state = State {
                 mtm,
@@ -55,8 +75,10 @@ impl WindowServer {
                 notifiers: vec![],
                 weak_self: weak_self.clone(),
                 screen_cache: ScreenCache::new(),
-                windows: HashMap::default(),
+                registered_windows: HashMap::default(),
+                visible_window_ids: vec![],
                 wm_tx,
+                reactor_tx,
             };
             state.register_callbacks();
             RefCell::new(state)
@@ -119,7 +141,7 @@ impl State {
         match request {
             Request::RegisterWindow(wsid, wid, tx) => {
                 debug!("Window registered: {wsid:?}");
-                self.windows.insert(wsid, (wid, tx));
+                self.registered_windows.insert(wsid, (wid, tx));
                 if let Err(e) = self.connection.add_window(wsid) {
                     warn!("Failed to update SkylightConnection window list: {e}");
                 }
@@ -129,26 +151,47 @@ impl State {
                 else {
                     return;
                 };
+                let windows = sys_ws::get_visible_windows_with_layer(None);
+                self.visible_window_ids = windows.iter().map(|w| w.id).collect();
                 let event = WmEvent::ScreenParametersChanged {
                     screens: screens.iter().map(|s| s.id).collect(),
                     frames: screens.iter().map(|s| s.visible_frame).collect(),
                     converter,
                     spaces: self.screen_cache.get_screen_spaces(),
                     scale_factors: screens.iter().map(|s| s.scale_factor).collect(),
-                    windows: self.get_visible_windows(),
+                    windows,
                 };
                 self.send_wm_event(event);
             }
             Request::SpaceChanged => {
                 let spaces = self.screen_cache.get_screen_spaces();
-                let windows = self.get_visible_windows();
+                let windows = sys_ws::get_visible_windows_with_layer(None);
+                self.visible_window_ids = windows.iter().map(|w| w.id).collect();
                 self.send_wm_event(WmEvent::SpaceChanged(spaces, windows));
+            }
+            Request::WindowCreated(wid, info, mouse_state) => {
+                self.update_visible_window_ids();
+                let ws_info = info.sys_id.and_then(sys_ws::get_window);
+                self.reactor_tx.send(reactor::Event::WindowCreated(
+                    wid,
+                    info,
+                    ws_info,
+                    mouse_state,
+                ));
+            }
+            Request::ApplicationMainWindowChanged(pid, wid, quiet) => {
+                self.update_visible_window_ids();
+                self.reactor_tx
+                    .send(reactor::Event::ApplicationMainWindowChanged(pid, wid, quiet));
+            }
+            Request::WindowVisibilityChanged(_window_id) => {
+                self.update_visible_window_ids();
             }
         }
     }
 
-    fn get_visible_windows(&self) -> Vec<sys_ws::WindowServerInfo> {
-        sys_ws::get_visible_windows_with_layer(None)
+    fn update_visible_window_ids(&mut self) {
+        self.visible_window_ids = sys_ws::get_visible_window_ids();
     }
 
     fn send_wm_event(&self, event: WmEvent) {
@@ -157,7 +200,8 @@ impl State {
 
     fn on_window_destroyed(&mut self, wsid: WindowServerId) {
         debug!("Window destroyed: {wsid:?}");
-        let Some((wid, tx)) = self.windows.remove(&wsid) else {
+        self.update_visible_window_ids();
+        let Some((wid, tx)) = self.registered_windows.remove(&wsid) else {
             return;
         };
         self.connection.on_window_destroyed(wsid);

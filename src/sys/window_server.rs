@@ -86,6 +86,19 @@ pub fn get_visible_windows_with_layer(layer: Option<i32>) -> Vec<WindowServerInf
         .collect::<Vec<_>>()
 }
 
+/// Returns only the window server IDs of windows visible on the screen.
+/// This is cheaper than `get_visible_windows_with_layer` when you don't need
+/// the full `WindowServerInfo`.
+pub fn get_visible_window_ids() -> Vec<WindowServerId> {
+    get_visible_windows_raw()
+        .iter()
+        .filter_map(|win| {
+            let id: u32 = get_num(&win, unsafe { kCGWindowNumber })?.try_into().ok()?;
+            Some(WindowServerId(id))
+        })
+        .collect()
+}
+
 /// Returns a list of windows visible on the screen, in order starting with the
 /// frontmost.
 pub fn get_visible_windows_raw() -> CFArray<CFDictionary<CFString, CFType>> {

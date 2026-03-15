@@ -145,7 +145,7 @@ fn main() {
         ws_tx,
         group_indicators_tx,
     );
-    let window_server = WindowServer::new(mtm, wm_controller_tx.clone());
+    let window_server = WindowServer::new(mtm, wm_controller_tx.clone(), events_tx.clone());
     let notification_center =
         NotificationCenter::new(wm_controller_tx.clone(), notification_center_ws_tx);
     let mouse = Mouse::new(config.clone(), events_tx.clone(), mouse_rx);
