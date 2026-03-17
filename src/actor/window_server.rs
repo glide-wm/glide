@@ -26,7 +26,7 @@ pub use crate::actor::app::pid_t;
 // ---------------------------------------------------------------------------
 
 /// Watches for Skylight window-server events. Requires the main thread because
-/// `SkylightConnection` is thread-local and callbacks fire on the CFRunLoop.
+/// of `SkylightConnection`.
 pub struct SkylightWatcher(Rc<RefCell<SkylightWatcherState>>);
 
 struct SkylightWatcherState {
@@ -139,9 +139,8 @@ impl SkylightWatcherState {
 // WindowServer – off main thread
 // ---------------------------------------------------------------------------
 
-/// Handles window-server request messages. Runs on the reactor thread (shares
-/// a thread with the `Reactor`). Does not interact with Skylight directly;
-/// window-tracking commands are forwarded to `SkylightWatcher` via a channel.
+/// Actor that takes events from app actors and adds information from the window
+/// server before sending them on to the Reactor.
 pub struct WindowServer {
     screen_cache: ScreenCache,
     /// Window server IDs currently visible on screen.
@@ -236,6 +235,7 @@ impl WindowServer {
                 self.update_visible_window_ids();
                 let ws_info = info.sys_id.and_then(sys_ws::get_window);
                 self.reactor_tx.send(Event::WindowCreated(wid, info, ws_info, mouse_state));
+                self.reactor_tx.send(Event::WindowBecameVisible(wid));
             }
             Request::ApplicationMainWindowChanged(pid, wid, quiet) => {
                 self.update_visible_window_ids();
