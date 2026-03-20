@@ -343,9 +343,15 @@ impl State {
     fn register_app_notifs(&mut self, info: &AppInfo) -> bool {
         // Some apps do not respond to AX requests on startup. For these we
         // implement exponential backoff with a timeout.
+        let extended_timeout_prefixes = ["com.jetbrains.", "org.gnu.Emacs"];
         let timeout = Instant::now()
             + match info.bundle_id.as_deref() {
-                Some(id) if id.starts_with("com.jetbrains.") => Duration::from_secs(60),
+                Some(id)
+                    if extended_timeout_prefixes.iter().any(|prefix| id.starts_with(prefix)) =>
+                {
+                    Duration::from_secs(60)
+                }
+
                 _ => Duration::ZERO,
             };
         let mut sleep_dur = Duration::from_millis(20);
