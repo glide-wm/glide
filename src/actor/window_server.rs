@@ -42,9 +42,9 @@ impl WindowServer {
                     if event != kCGSWindowIsTerminated {
                         return;
                     }
-                    assert_eq!(data.len(), size_of::<WindowServerId>());
-                    // SAFETY: We just asserted the correct size.
-                    let wsid: WindowServerId = unsafe { *data.as_ptr().cast() };
+                    let wsid = WindowServerId(u32::from_ne_bytes(
+                        data.try_into().expect("data should be a CGWindowID"),
+                    ));
                     let Some(state) = state.upgrade() else {
                         warn!("could not upgrade state in callback");
                         return;
