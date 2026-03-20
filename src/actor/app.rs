@@ -16,8 +16,9 @@ use std::time::{Duration, Instant};
 use accessibility::{AXUIElement, AXUIElementActions, AXUIElementAttributes};
 use accessibility_sys::{
     kAXApplicationActivatedNotification, kAXApplicationDeactivatedNotification,
-    kAXErrorCannotComplete, kAXMainWindowChangedNotification, kAXStandardWindowSubrole,
-    kAXTitleChangedNotification, kAXUIElementDestroyedNotification, kAXWindowCreatedNotification,
+    kAXErrorCannotComplete, kAXErrorNotificationAlreadyRegistered,
+    kAXMainWindowChangedNotification, kAXStandardWindowSubrole, kAXTitleChangedNotification,
+    kAXUIElementDestroyedNotification, kAXWindowCreatedNotification,
     kAXWindowDeminiaturizedNotification, kAXWindowMiniaturizedNotification,
     kAXWindowMovedNotification, kAXWindowResizedNotification, kAXWindowRole,
 };
@@ -354,10 +355,23 @@ impl State {
             true
         };
         for notif in APP_NOTIFICATIONS {
-            while let Err(err) = self.observer.add_notification(&self.app, notif) {
-                debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
-                if !sleep() {
-                    return false;
+            loop {
+                match self.observer.add_notification(&self.app, notif) {
+                    Ok(()) => break,
+                    #[allow(non_upper_case_globals)]
+                    Err(accessibility::Error::Ax(kAXErrorNotificationAlreadyRegistered)) => {
+                        debug!(
+                            pid = ?self.pid,
+                            "Watching app for {notif} was already registered; continuing"
+                        );
+                        break;
+                    }
+                    Err(err) => {
+                        debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
+                        if !sleep() {
+                            return false;
+                        }
+                    }
                 }
             }
         }
