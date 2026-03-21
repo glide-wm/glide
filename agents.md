@@ -7,7 +7,7 @@ Glide is a Rust workspace centered on the `glide-wm` crate. The default binary i
 Primary commands from the repository root:
 
 ```bash
-cargo fmt --check --verbose
+cargo +nightly fmt --verbose
 cargo check --verbose --locked --target aarch64-apple-darwin
 cargo build --verbose --locked
 cargo test --verbose --locked
@@ -28,7 +28,7 @@ cargo run --example devtool -- list ax
 RUST_LOG=info,glide_wm::actor::layout=debug cargo run --example devtool -- replay traces/trace.ron
 ```
 
-For automation and Copilot sessions, do not run `cargo run`, `cargo run --release`, or `glide launch` because they start the live window manager. If you need runtime investigation, prefer tests, record/replay artifacts supplied by the user, or `devtool`.
+For automation and agent sessions, do not run `cargo run`, `cargo run --release`, or `glide launch` because they start the live window manager. If you need runtime investigation, prefer tests, record/replay artifacts supplied by the user, or `devtool`.
 
 Packaging is macOS-specific and follows CI:
 
@@ -62,6 +62,8 @@ Layouts are tracked per space and per screen size through `SpaceLayoutMapping`. 
 
 The `sys` layer wraps macOS APIs and infrastructure: accessibility, window server integration, screens and spaces, event taps, timers, and a single-threaded executor integrated with `CFRunLoop`. Many tests can still run without live macOS interaction because the stateful logic is pushed up into `model` and `actor` test harnesses.
 
+More architectural details are in `ARCHITECTURE.md`.
+
 ## Key conventions
 
 Configuration defaults come from `glide.default.toml`, not handwritten `Default` implementations. When adding config types, follow the `PartialConfig!` pattern so defaults, merge behavior, and validation stay aligned with the TOML source of truth.
@@ -83,3 +85,23 @@ Reactor tests automatically record and replay event traces on drop. If you chang
 `LayoutManager` classifies windows before managing them. Nonstandard, nonresizable, layered, or app-specific special cases often float or remain untracked. Reuse that classification path instead of introducing one-off exceptions elsewhere.
 
 Config reload is expected to preserve user-modified layout state. Treat config as defaults and behavior settings, not as an authoritative replacement for interactively modified layout data.
+
+## Commits
+
+Break changes into small and atomic commits. When a feature requires a refactor, do the refactor first in a commit that builds with passing tests. Always run the formatter before making a commit. Do NOT list changes that were made in commit messages, unless the commit is complex and cannot be split into smaller commits.
+
+Use Github-flavored Markdown and Github conventions to refer to issues and other PRs in commit messages.
+
+When applicable, use Conventional Commits, especially when a change is user-facing and deserves to go in the changelog. For example:
+
+* feat: Recover space from minimized windows
+* fix: Fix a bug where floating windows were forgotten on space change
+* docs: Add guide describing common use cases
+* improve: Make moves between screens behave more intuitively
+* perf: Optimize animations when multiple apps update at the same time
+
+The canonical list of prefixes is in `release-please-config.json` in the `changelog-sections` key.
+
+For these user-facing commits, add a paragraph or code snippet summarizing the user-facing change below the message. If there are internal details to note in the message, include them below a `---` line.
+
+Non user-facing changes can optionally use `refactor`, `internal`, `chore`, `build`, `ci`, `style`, or `test`. Non user-facing commits that do not fit into one of these categories can skip the convention altogether. These commit messages should generally be short and to the point. Only use the extended message to explain why the commit is necessary in cases where it does not independently add value.
