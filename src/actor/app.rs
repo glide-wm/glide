@@ -81,7 +81,7 @@ impl WindowId {
         }
     }
 
-    fn with_wsid(pid: pid_t, wsid: WindowServerId) -> Self {
+    pub fn with_wsid(pid: pid_t, wsid: WindowServerId) -> Self {
         assert!(wsid.0 & MANUAL_INDEX_MASK == 0, "WindowServerId out of range");
         WindowId {
             pid,
