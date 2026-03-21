@@ -67,7 +67,9 @@ The Reactor is the central hub. Its doc comment captures its role well:
 
 After processing most events, the Reactor calls into the LayoutManager to compute window frames and sends the results to app threads.
 
-### Event flow
+The name "reactor" is a play on "reactive". It is responsible for synchronizing an event stream on one side with a model state, owned by the LayoutManager, on the other. In reality there are elements of events and stateful on both sides of the reactor, but the picture is substantially cleaned up by the time it gets to the LayoutManager. The Reactor and the system-level actors feeding into it are responsible for managing the messy reality of our limited knowledge and lack of direct control. The LayoutManager gets to see a cleaned up picture and say precisely what it wants to happen: a list of desired window frames, top-level windows, and a focused window.
+
+#### Event flow
 
 Events flow inward to the Reactor from all sources, and requests flow outward to app threads:
 
@@ -90,7 +92,7 @@ Each window has a `TransactionId` that tracks the last write. When the Reactor s
 
 ### LayoutManager
 
-The LayoutManager is embedded in the Reactor, not a separate actor. It sits between the Reactor and the `LayoutTree` model: it receives cleaned-up events and commands, converts them into tree operations, and calculates the desired position and size of each window. It also manages floating windows.
+The LayoutManager is embedded in the Reactor, not a separate actor. This is only because it _responds_ to each event, and the actor pattern used in the rest of the application does not support that. It sits between the Reactor and the `LayoutTree` model: it receives cleaned-up events and commands, converts them into tree operations, and calculates the desired position and size of each window. It also manages floating windows.
 
 Window management policy belongs here. New exceptions for special-case windows should generally go through the LayoutManager's classification path instead of being scattered across the Reactor or app threads. Nonstandard, nonresizable, layered, or app-specific special cases often float or remain untracked.
 
