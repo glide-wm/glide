@@ -74,7 +74,7 @@ pub enum Event {
     /// There is one SpaceId per screen in the last ScreenParametersChanged
     /// event. `None` in the SpaceId vec disables managing windows on that
     /// screen until the next space change.
-    SpaceChanged(Vec<Option<SpaceId>>),
+    SpaceChanged(Vec<Option<SpaceId>>, WindowsOnScreen),
 
     /// All running apps at launch have been registered.
     StartupComplete,
@@ -531,7 +531,8 @@ impl Reactor {
                 self.group_indicators_tx
                     .send(group_bars::Event::ScreenParametersChanged(spaces, converter));
             }
-            Event::SpaceChanged(spaces) => {
+            Event::SpaceChanged(spaces, on_screen) => {
+                self.update_complete_window_server_info(on_screen);
                 if spaces.len() != self.screens.len() {
                     warn!(
                         "Ignoring space change event: we have {} spaces, but {} screens",
@@ -1182,11 +1183,10 @@ pub mod tests {
         reactor.handle_event(Event::ApplicationGloballyActivated(1));
         reactor.handle_events(apps.simulate_events());
 
-        reactor.handle_event(Event::SpaceChanged(vec![Some(SpaceId::new(1))]));
-        reactor.handle_event(Event::WindowsOnScreenUpdated {
-            pid: None,
-            on_screen: WindowsOnScreen::new(ws_info),
-        });
+        reactor.handle_event(Event::SpaceChanged(
+            vec![Some(SpaceId::new(1))],
+            WindowsOnScreen::new(ws_info),
+        ));
         reactor.handle_events(apps.simulate_events());
         assert_eq!(
             reactor.layout.selected_window(SpaceId::new(1)),
