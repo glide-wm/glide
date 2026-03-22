@@ -52,6 +52,11 @@ default_keys = false
 # Note: Modifier and key names must be capitalized.
 # On Mac keyboards, "Alt" refers to the Option (⌥) key.
 #
+# Key names refer to physical key positions on a standard QWERTY keyboard,
+# not the characters produced by your keyboard layout. If you use an
+# alternative layout (e.g., Dvorak, Colemak), use the QWERTY name for the
+# physical key you want to bind.
+#
 # Arrow keys use the names: ArrowLeft, ArrowDown, ArrowUp, ArrowRight
 # Example: "Alt + ArrowDown" = { move_focus = "down" }
 #
