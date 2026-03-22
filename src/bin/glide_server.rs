@@ -131,17 +131,18 @@ fn main() {
     };
     let (ws_tx, ws_rx) = glide_wm::actor::channel();
     let notification_center_ws_tx = ws_tx.clone();
+    let (sm_tx, sm_rx) = glide_wm::actor::channel();
     let (wm_controller, wm_controller_tx) = WmController::new(
         wm_config,
-        events_tx.clone(),
+        sm_tx.clone(),
         mouse_tx.clone(),
         status_tx.clone(),
-        ws_tx,
-        group_indicators_tx.clone(),
+        ws_tx.clone(),
     );
     let skylight_watcher = SkylightWatcher::new(mtm);
     Reactor::spawn(
         config.clone(),
+        opt.one,
         layout,
         reactor::Record::new(opt.record.as_deref()),
         mouse_tx.clone(),
@@ -150,7 +151,10 @@ fn main() {
         events_tx.clone(),
         events_rx,
         wm_controller_tx.clone(),
+        ws_tx,
         ws_rx,
+        sm_tx,
+        sm_rx,
         skylight_tx,
     );
 
