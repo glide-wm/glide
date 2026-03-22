@@ -139,6 +139,7 @@ fn main() {
         status_tx.clone(),
         ws_tx.clone(),
     );
+    let dock_sm_tx = sm_tx.clone();
     let skylight_watcher = SkylightWatcher::new(mtm);
     Reactor::spawn(
         config.clone(),
@@ -161,15 +162,9 @@ fn main() {
     let notification_center =
         NotificationCenter::new(wm_controller_tx.clone(), notification_center_ws_tx);
     let mouse = Mouse::new(config.clone(), events_tx.clone(), mouse_rx);
-    let status = Status::new(
-        config.clone(),
-        status_rx,
-        mtm,
-        events_tx.clone(),
-        wm_controller_tx.clone(),
-    );
+    let status = Status::new(config.clone(), status_rx, mtm, wm_controller_tx.clone());
     let group_bars = GroupBars::new(config.clone(), group_indicators_rx, mtm);
-    let dock = Dock::new(wm_controller_tx.clone());
+    let dock = Dock::new(dock_sm_tx);
 
     // TODO: Run on another thread so we don't tie up the main thread.
     let message_server = MessageServer::new(server::PORT_NAME, wm_controller_tx)
