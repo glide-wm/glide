@@ -37,8 +37,6 @@ pub enum WmEvent {
     AppGloballyActivated(pid_t),
     AppGloballyDeactivated(pid_t),
     AppTerminated(pid_t),
-    ExposeEntered,
-    ExposeExited,
     Command(WmCommand),
     ConfigUpdated(Arc<crate::config::Config>),
     /// Sent by SpaceManager to register or unregister hotkeys.
@@ -173,12 +171,6 @@ impl WmController {
             }
             AppTerminated(pid) => {
                 self.send_reactor_event(reactor::Event::ApplicationTerminated(pid));
-            }
-            ExposeEntered => {
-                self.sm_tx.send(space_manager::Event::ExposeActive(true));
-            }
-            ExposeExited => {
-                self.sm_tx.send(space_manager::Event::ExposeActive(false));
             }
             Command(Wm(ToggleSpaceActivated)) => {
                 let Some(screen_id) = self.get_focused_screen() else {
