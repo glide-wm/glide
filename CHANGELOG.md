@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.12](https://github.com/glide-wm/glide/compare/v0.2.11...v0.2.12) (2026-03-22)
+
+
+### Bug Fixes
+
+* Don't track Firefox picture-in-picture windows ([adaad2f](https://github.com/glide-wm/glide/commit/adaad2fb724df1f73ade42fbee3870c99b33fb37))
+
+
+### Experimental Features
+
+* Scrolling layout, inspired by niri ([#129](https://github.com/glide-wm/glide/issues/129)) ([d39b04b](https://github.com/glide-wm/glide/commit/d39b04bf1f80ae22fbf742b858dd231873896e16))
+
 ## [0.2.11](https://github.com/glide-wm/glide/compare/v0.2.10...v0.2.11) (2026-02-19)
 
 
