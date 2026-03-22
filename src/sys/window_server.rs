@@ -231,7 +231,7 @@ type SkylightNotifierCallback = extern "C-unwind" fn(
 );
 
 /// Manages a thread-local connection to the skylight server for subscribing to
-/// events. This usees private APIs.
+/// events. This uses private APIs.
 pub struct SkylightConnection {
     cid: SLSConnectionID,
     window_list: SortedVec<WindowServerId>,
