@@ -78,7 +78,7 @@ pub struct WindowServerInfo {
 }
 
 /// A snapshot of windows currently visible on screen from the window server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WindowsOnScreen {
     pub visible: Vec<WindowServerId>,
     pub info: Vec<WindowServerInfo>,
