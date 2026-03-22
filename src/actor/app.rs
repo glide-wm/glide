@@ -342,23 +342,28 @@ impl State {
         self.main_window = self.app.main_window().ok().and_then(|w| self.id(&w).ok());
         self.is_frontmost = self.app.frontmost().map(|b| b.into()).unwrap_or(false);
 
-        // Send the ApplicationLaunched event.
+        // Send WindowsOnScreenUpdated before ApplicationLaunched so that the
+        // reactor's visible_windows list is populated when on_windows_discovered
+        // runs during ApplicationLaunched processing.
+        let pid = self.pid;
+        _ = self.ws_tx.try_send(window_server::Request::ReactorEvent(
+            Event::WindowsOnScreenUpdated { pid: Some(pid), on_screen },
+        ));
         if self
             .ws_tx
             .try_send(window_server::Request::ReactorEvent(
                 Event::ApplicationLaunched {
-                    pid: self.pid,
+                    pid,
                     handle,
                     info,
                     is_frontmost: self.is_frontmost,
                     main_window: self.main_window,
                     visible_windows: windows,
-                    on_screen,
                 },
             ))
             .is_err()
         {
-            debug!(pid = ?self.pid, "Failed to send ApplicationLaunched event, exiting thread");
+            debug!(?pid, "Failed to send ApplicationLaunched event, exiting thread");
             return false;
         };
 
