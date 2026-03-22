@@ -574,10 +574,7 @@ impl LayoutManager {
                 over: (new_space, new_wid),
                 current_main,
             } => {
-                // We want to allow mouse drag to switch between floating
-                // windows and between tiled windows, but not from a floating to
-                // a tiled window or vice versa. We also don't allow switching
-                // to or from untracked windows.
+                // Only follow the mouse between tiled windows.
 
                 // If either window isn't in the layout at all, ignore.
                 let Some((cur_space, cur_wid)) = current_main else {
@@ -586,13 +583,6 @@ impl LayoutManager {
                 if self.tree.window_node(self.layout(cur_space), cur_wid).is_none()
                     || self.tree.window_node(self.layout(new_space), new_wid).is_none()
                 {
-                    return EventResponse::default();
-                }
-
-                // Only go from a floating window to other floating windows.
-                let cur_floating = self.floating_windows.contains(&cur_wid);
-                let new_floating = self.floating_windows.contains(&new_wid);
-                if cur_floating != new_floating {
                     return EventResponse::default();
                 }
 
