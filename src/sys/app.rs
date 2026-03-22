@@ -6,6 +6,9 @@
 use accessibility::{AXAttribute, AXUIElement, AXUIElementAttributes};
 pub use accessibility_sys::pid_t;
 use accessibility_sys::{kAXStandardWindowSubrole, kAXWindowRole};
+use core_foundation::base::{CFType, TCFType};
+use core_foundation::boolean::CFBoolean;
+use core_foundation::string::CFString;
 use objc2::rc::Retained;
 use objc2::{class, msg_send};
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
@@ -97,6 +100,37 @@ impl TryFrom<&AXUIElement> for WindowInfo {
             is_resizable: element.is_settable(&AXAttribute::size())?,
         })
     }
+}
+
+pub trait AXUIElementExt {
+    /// "Enhanced user interface" mode for screen readers and other accessibility apps.
+    ///
+    /// For most apps this is disabled unless a screen reader is running.
+    /// One exception is Firefox, which seems to enable it automatically as soon
+    /// as we do anything with accessibility
+    /// (https://bugzilla.mozilla.org/show_bug.cgi?id=1845364).
+    ///
+    /// It seems to do two things:
+    ///
+    /// * Allows full access to UI elements through the API.
+    /// * Animates window moves and resizes. These interfere with Glide animations.
+    ///
+    /// Other window managers disable this before moving or resizing a window;
+    /// see https://issues.chromium.org/issues/40865608.
+    fn enhanced_user_interface(&self) -> Result<bool, accessibility::Error>;
+    fn set_enhanced_user_interface(&self, enabled: bool) -> Result<(), accessibility::Error>;
+}
+impl AXUIElementExt for AXUIElement {
+    fn enhanced_user_interface(&self) -> Result<bool, accessibility::Error> {
+        Ok(self.attribute(&enhanced_ui())?.downcast() == Some(CFBoolean::true_value()))
+    }
+    fn set_enhanced_user_interface(&self, enabled: bool) -> Result<(), accessibility::Error> {
+        self.set_attribute(&enhanced_ui(), CFBoolean::from(enabled).as_CFType())
+    }
+}
+
+fn enhanced_ui() -> AXAttribute<CFType> {
+    AXAttribute::new(&CFString::from_static_string("AXEnhancedUserInterface"))
 }
 
 pub struct ProcessInfo {

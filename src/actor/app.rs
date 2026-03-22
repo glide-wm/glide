@@ -47,8 +47,8 @@ use tracing::{Instrument, Span, debug, error, info, instrument, trace, warn};
 use crate::actor::reactor::{self, Event, Requested, TransactionId};
 use crate::actor::{self, wm_controller};
 use crate::collections::HashMap;
+use crate::sys::app::{AXUIElementExt, NSRunningApplicationExt, ProcessInfo};
 pub use crate::sys::app::{AppInfo, WindowInfo, pid_t};
-use crate::sys::app::{NSRunningApplicationExt, ProcessInfo};
 use crate::sys::event;
 use crate::sys::executor::Executor;
 use crate::sys::geometry::{ToCGType, ToICrate};
@@ -162,6 +162,8 @@ struct State {
     last_activated: Option<(Instant, Quiet, Option<WindowId>, oneshot::Sender<()>)>,
     is_frontmost: bool,
     raises_tx: Sender<(Span, RaiseRequest)>,
+    is_animating: bool,
+    enable_enhanced_ui_after_animating: bool,
 }
 
 struct WindowState {
@@ -368,6 +370,28 @@ impl State {
     /// Handles a request. Returns whether the actor should terminate.
     #[instrument(skip_all, fields(app = ?self.app, ?request))]
     fn handle_request(&mut self, request: &mut Request) -> Result<bool, accessibility::Error> {
+        /// Disables enhanced ui on the window's app element, if enabled, while
+        /// calling `f`.
+        ///
+        /// See docs for [`AXUIElementExt::enhanced_user_interface`].
+        fn without_enhanced<R>(
+            is_animating: bool,
+            app: &AXUIElement,
+            f: impl FnOnce() -> Result<R, accessibility::Error>,
+        ) -> Result<R, accessibility::Error> {
+            if !is_animating && let Ok(true) = app.enhanced_user_interface() {
+                _ = trace("set_enhanced_user_interface(false)", app, || {
+                    app.set_enhanced_user_interface(false)
+                });
+                let result = f();
+                _ = trace("set_enhanced_user_interface(true)", app, || {
+                    app.set_enhanced_user_interface(true)
+                });
+                return result;
+            } else {
+                f()
+            }
+        }
         match request {
             Request::Terminate => {
                 CFRunLoop::get_current().stop();
@@ -408,10 +432,14 @@ impl State {
                 });
             }
             &mut Request::SetWindowPos(wid, pos, txid) => {
+                let is_animating = self.is_animating;
+                let app_elem = &self.app.clone();
                 let window = self.window_mut(wid)?;
                 window.last_seen_txid = txid;
-                trace("set_position", &window.elem, || {
-                    window.elem.set_position(pos.to_cgtype())
+                without_enhanced(is_animating, app_elem, || {
+                    trace("set_position", &window.elem, || {
+                        window.elem.set_position(pos.to_cgtype())
+                    })
                 })?;
                 let frame = trace("frame", &window.elem, || window.elem.frame())?;
                 self.send_event(Event::WindowFrameChanged(
@@ -425,13 +453,18 @@ impl State {
                 ));
             }
             &mut Request::SetWindowFrame(wid, frame, txid) => {
+                let is_animating = self.is_animating;
+                let app_elem = &self.app.clone();
                 let window = self.window_mut(wid)?;
                 window.last_seen_txid = txid;
-                trace("set_position", &window.elem, || {
-                    window.elem.set_position(frame.origin.to_cgtype())
-                })?;
-                trace("set_size", &window.elem, || {
-                    window.elem.set_size(frame.size.to_cgtype())
+                without_enhanced(is_animating, app_elem, || {
+                    trace("set_position", &window.elem, || {
+                        window.elem.set_position(frame.origin.to_cgtype())
+                    })?;
+                    trace("set_size", &window.elem, || {
+                        window.elem.set_size(frame.size.to_cgtype())
+                    })?;
+                    Ok(())
                 })?;
                 let frame = trace("frame", &window.elem, || window.elem.frame())?;
                 self.send_event(Event::WindowFrameChanged(
@@ -443,10 +476,28 @@ impl State {
                 ));
             }
             &mut Request::BeginWindowAnimation(wid) => {
+                self.enable_enhanced_ui_after_animating =
+                    match trace("enhanced_user_interface", &self.app, || {
+                        self.app.enhanced_user_interface()
+                    }) {
+                        Ok(enabled) => enabled,
+                        Err(_) => false,
+                    };
+                if self.enable_enhanced_ui_after_animating {
+                    _ = trace("set_enhanced_user_interface", &self.app, || {
+                        self.app.set_enhanced_user_interface(false)
+                    });
+                }
                 let window = self.window(wid)?;
                 self.stop_notifications_for_animation(&window.elem);
+                self.is_animating = true;
             }
             &mut Request::EndWindowAnimation(wid) => {
+                if self.enable_enhanced_ui_after_animating {
+                    _ = trace("set_enhanced_user_interface", &self.app, || {
+                        self.app.set_enhanced_user_interface(true)
+                    });
+                }
                 let &WindowState { ref elem, last_seen_txid, .. } = self.window(wid)?;
                 self.restart_notifications_after_animation(elem);
                 let frame = trace("frame", elem, || elem.frame())?;
@@ -457,6 +508,7 @@ impl State {
                     Requested(true),
                     None,
                 ));
+                self.is_animating = false;
             }
             &mut Request::Raise(ref wids, ref token, sequence_id, quiet) => {
                 self.raises_tx
@@ -1005,6 +1057,8 @@ fn app_thread_main(
         last_activated: None,
         is_frontmost: false,
         raises_tx,
+        is_animating: false,
+        enable_enhanced_ui_after_animating: false,
     };
 
     Executor::run(state.run(
