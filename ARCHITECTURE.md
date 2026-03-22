@@ -170,6 +170,16 @@ Even after validation, code that iterates based on external values should have c
 
 When computing resize edges, drag thresholds, or hit testing, consider degenerate geometry. A window narrower than twice the resize threshold can have overlapping left and right edges.
 
+## Log levels and panics
+
+Logging decisions depend on whether a condition is expected as part of normal operation:
+
+- **Panic**: If this happens, it is a bug. Panics should be reserved for fundamental assumptions being violated that can't easily be recovered from.
+- **Error**: An unexpected condition that might represent a bug, but that we can recover from, possibly with some misbehavior localized in a particular area, application, or time period. Eventually we should report these to the user so they can file a bug.
+- **Warn**: Unexpected behavior or expected but "extreme" condition that could lead to misbehavior. Examples: An application that is normally responsive becoming unresponsive or a timeout firing. Warning logs add clues about why the window manager is behaving as it is. Logs that fire often or on common macOS installations should be downgraded.
+- **Info**: Notable expected events that can assist in debugging the behavior of the window manager on a person's system. This includes apps being excluded from window tracking based on heuristics. Info logs help developers and users understand what the system is doing without implying a problem.
+- **Debug**: Implementation details and fine-grained state changes useful for debugging the internals of Glide and understanding event flow.
+
 ## Scroll layout
 
 The scroll layout is an alternative to the default tree layout, inspired by niri and PaperWM. Instead of subdividing the screen into tiles, columns extend in a horizontal strip and the user scrolls a viewport across them.
