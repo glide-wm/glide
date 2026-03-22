@@ -5,12 +5,11 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use objc2::MainThreadMarker;
-use tracing::{Span, debug, instrument, warn};
+use tracing::{debug, instrument, warn};
 
 pub use crate::actor::app::pid_t;
 use crate::actor::app::{self, AppThreadHandle, Quiet, WindowId, WindowInfo};
 use crate::actor::reactor::Event;
-use crate::actor::wm_controller::{self, WmEvent};
 use crate::actor::{self, space_manager};
 use crate::collections::HashMap;
 use crate::sys::event::MouseState;
@@ -139,7 +138,6 @@ pub struct WindowServer {
     visible_window_ids: Vec<WindowServerId>,
     /// Last sent visible window IDs, for deduplication.
     last_sent_window_ids: Vec<WindowServerId>,
-    wm_tx: wm_controller::Sender,
     sm_tx: space_manager::Sender,
     skylight_tx: SkylightCommandSender,
 }
@@ -169,22 +167,20 @@ pub enum Request {
     /// All reactor events go through us so they reach the reactor in the
     /// correct order with respect to the other events above.
     ReactorEvent(Event),
+    /// Sent by SpaceManager when it needs a fresh window list (e.g. after
+    /// toggling a space or exiting expose).
+    RequestSpaceRefresh,
 }
 
 pub type Sender = actor::Sender<Request>;
 pub type Receiver = actor::Receiver<Request>;
 
 impl WindowServer {
-    pub fn new(
-        wm_tx: wm_controller::Sender,
-        sm_tx: space_manager::Sender,
-        skylight_tx: SkylightCommandSender,
-    ) -> Self {
+    pub fn new(sm_tx: space_manager::Sender, skylight_tx: SkylightCommandSender) -> Self {
         Self {
             screen_cache: ScreenCache::new(),
             visible_window_ids: vec![],
             last_sent_window_ids: vec![],
-            wm_tx,
             sm_tx,
             skylight_tx,
         }
@@ -208,20 +204,22 @@ impl WindowServer {
                 else {
                     return;
                 };
-                let event = WmEvent::ScreenParametersChanged {
+                let on_screen = self.get_windows_on_screen();
+                self.last_sent_window_ids = self.visible_window_ids.clone();
+                self.sm_tx.send(space_manager::Event::ScreenParametersChanged {
                     screens: screens.iter().map(|s| s.id).collect(),
                     frames: screens.iter().map(|s| s.visible_frame).collect(),
                     converter,
                     spaces: self.screen_cache.get_screen_spaces(),
                     scale_factors: screens.iter().map(|s| s.scale_factor).collect(),
-                };
-                self.send_wm_event(event);
-                self.send_windows_on_screen_if_changed(None);
+                    on_screen,
+                });
             }
-            Request::SpaceChanged => {
+            Request::SpaceChanged | Request::RequestSpaceRefresh => {
                 let spaces = self.screen_cache.get_screen_spaces();
-                self.send_wm_event(WmEvent::SpaceChanged(spaces));
-                self.send_windows_on_screen_if_changed(None);
+                let on_screen = self.get_windows_on_screen();
+                self.last_sent_window_ids = self.visible_window_ids.clone();
+                self.sm_tx.send(space_manager::Event::SpaceChanged(spaces, on_screen));
             }
             Request::WindowCreated(wid, info, mouse_state) => {
                 let pid = wid.pid;
@@ -265,9 +263,5 @@ impl WindowServer {
 
     fn send_reactor_event(&self, event: Event) {
         self.sm_tx.send(space_manager::Event::ReactorEvent(event));
-    }
-
-    fn send_wm_event(&self, event: WmEvent) {
-        _ = self.wm_tx.send((Span::current().clone(), event));
     }
 }
