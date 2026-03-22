@@ -482,6 +482,18 @@ impl LayoutTree {
         windows
     }
 
+    pub fn is_visible(&self, node: NodeId) -> bool {
+        for (node, parent) in node.ancestors_with_parent(self.map()) {
+            let Some(parent) = parent else { break };
+            if self.container_kind(parent).is_group()
+                && self.tree.data.selection.local_selection(self.map(), parent) != Some(node)
+            {
+                return false;
+            }
+        }
+        true
+    }
+
     fn move_over(&self, from: NodeId, direction: Direction) -> Option<NodeId> {
         let Some(parent) = from.parent(&self.tree.map) else {
             return None;
@@ -1694,5 +1706,61 @@ mod tests {
 
         let result = tree.traverse_scroll_wrapping(layout, root, Direction::Right);
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn is_visible_without_groups() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+        let a1 = tree.add_window_under(layout, root, w(1, 1));
+        let a2 = tree.add_window_under(layout, root, w(1, 2));
+
+        assert!(tree.is_visible(root));
+        assert!(tree.is_visible(a1));
+        assert!(tree.is_visible(a2));
+    }
+
+    #[test]
+    fn is_visible_with_group() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+        let group = tree.add_container(root, ContainerKind::Stacked);
+        let tab1 = tree.add_window_under(layout, group, w(1, 1));
+        let tab2 = tree.add_window_under(layout, group, w(1, 2));
+        let tab3 = tree.add_window_under(layout, group, w(1, 3));
+
+        tree.select(tab2);
+
+        assert!(tree.is_visible(root));
+        assert!(tree.is_visible(group));
+        assert!(!tree.is_visible(tab1));
+        assert!(tree.is_visible(tab2));
+        assert!(!tree.is_visible(tab3));
+    }
+
+    #[test]
+    fn is_visible_nested_groups() {
+        let mut tree = LayoutTree::new();
+        let layout = tree.create_layout();
+        let root = tree.root(layout);
+        let outer_group = tree.add_container(root, ContainerKind::Stacked);
+        let inner_group = tree.add_container(outer_group, ContainerKind::Tabbed);
+        let tab1 = tree.add_window_under(layout, inner_group, w(1, 1));
+        let tab2 = tree.add_window_under(layout, inner_group, w(1, 2));
+        let outer_tab = tree.add_window_under(layout, outer_group, w(2, 1));
+
+        // Select tab1: inner_group selects tab1, outer_group selects inner_group.
+        tree.select(tab1);
+        assert!(tree.is_visible(tab1));
+        assert!(!tree.is_visible(tab2));
+        assert!(!tree.is_visible(outer_tab));
+
+        // Select outer_tab: outer_group no longer selects inner_group.
+        tree.select(outer_tab);
+        assert!(!tree.is_visible(tab1));
+        assert!(!tree.is_visible(tab2));
+        assert!(tree.is_visible(outer_tab));
     }
 }

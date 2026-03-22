@@ -574,22 +574,23 @@ impl LayoutManager {
                 over: (new_space, new_wid),
                 current_main,
             } => {
-                // Only follow the mouse between tiled windows.
-
-                // If either window isn't in the layout at all, ignore.
-                let Some((cur_space, cur_wid)) = current_main else {
-                    return EventResponse::default();
-                };
-                if self.tree.window_node(self.layout(cur_space), cur_wid).is_none()
-                    || self.tree.window_node(self.layout(new_space), new_wid).is_none()
+                if let Some((cur_space, cur_wid)) = current_main
+                    // If either window isn't in the layout at all, ignore. Only
+                    // follow the mouse between tiled windows.
+                    && let Some(_) = self.tree.window_node(self.layout(cur_space), cur_wid)
+                    && let Some(new_node) =
+                        self.tree.window_node(self.layout(new_space), new_wid)
+                    // Don't follow the mouse to windows that aren't visible
+                    // according to the layout. This can happen if there are gaps
+                    // between windows or the occluding windows have different
+                    // border shapes.
+                    && self.tree.is_visible(new_node)
                 {
-                    return EventResponse::default();
+                    return EventResponse {
+                        raise_windows: vec![],
+                        focus_window: Some(new_wid),
+                    };
                 }
-
-                return EventResponse {
-                    raise_windows: vec![],
-                    focus_window: Some(new_wid),
-                };
             }
         }
         EventResponse::default()
