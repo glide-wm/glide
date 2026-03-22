@@ -33,7 +33,8 @@ use super::mouse;
 use crate::actor::app::{AppInfo, AppThreadHandle, Quiet, Request, WindowId, WindowInfo, pid_t};
 use crate::actor::layout::{self, LayoutCommand, LayoutEvent, LayoutManager, LayoutWindowInfo};
 use crate::actor::raise::{self, RaiseRequest};
-use crate::actor::{group_bars, status, window_server, wm_controller};
+use crate::actor::space_manager::SpaceManager;
+use crate::actor::{group_bars, space_manager, status, window_server, wm_controller};
 use crate::collections::{HashMap, HashSet};
 use crate::config::Config;
 use crate::log::{self, MetricsCommand};
@@ -290,10 +291,15 @@ impl Reactor {
                 let mut reactor = Reactor::new(config, layout, record, group_indicators_tx);
                 reactor.mouse_tx.replace(mouse_tx);
                 reactor.status_tx.replace(status_tx);
-                let window_server =
-                    window_server::WindowServer::new(wm_tx, reactor_tx.clone(), skylight_tx);
+                let (sm_tx, sm_rx) = space_manager::channel();
+                let space_manager = SpaceManager::new(reactor_tx.clone());
+                let window_server = window_server::WindowServer::new(wm_tx, sm_tx, skylight_tx);
                 Executor::run(async move {
-                    tokio::join!(reactor.run(events, reactor_tx), window_server.run(ws_rx),);
+                    tokio::join!(
+                        reactor.run(events, reactor_tx),
+                        space_manager.run(sm_rx),
+                        window_server.run(ws_rx),
+                    );
                 });
             })
             .unwrap();
