@@ -3,6 +3,8 @@
 
 //! Interfaces to macOS APIs for interacting with other applications.
 
+use std::fmt::{Debug, Formatter};
+
 use accessibility::{AXAttribute, AXUIElement, AXUIElementAttributes};
 pub use accessibility_sys::pid_t;
 use accessibility_sys::{kAXStandardWindowSubrole, kAXWindowRole};
@@ -119,7 +121,10 @@ pub trait AXUIElementExt {
     /// see https://issues.chromium.org/issues/40865608.
     fn enhanced_user_interface(&self) -> Result<bool, accessibility::Error>;
     fn set_enhanced_user_interface(&self, enabled: bool) -> Result<(), accessibility::Error>;
+
+    fn privacy_sensitive_inspect(&self) -> Inspect<'_>;
 }
+
 impl AXUIElementExt for AXUIElement {
     fn enhanced_user_interface(&self) -> Result<bool, accessibility::Error> {
         Ok(self.attribute(&enhanced_ui())?.downcast() == Some(CFBoolean::true_value()))
@@ -127,10 +132,28 @@ impl AXUIElementExt for AXUIElement {
     fn set_enhanced_user_interface(&self, enabled: bool) -> Result<(), accessibility::Error> {
         self.set_attribute(&enhanced_ui(), CFBoolean::from(enabled).as_CFType())
     }
+
+    fn privacy_sensitive_inspect(&self) -> Inspect<'_> {
+        Inspect(self)
+    }
 }
 
 fn enhanced_ui() -> AXAttribute<CFType> {
     AXAttribute::new(&CFString::from_static_string("AXEnhancedUserInterface"))
+}
+
+pub struct Inspect<'a>(&'a AXUIElement);
+
+impl Debug for Inspect<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let mut st = f.debug_struct("AXWindow");
+        for attr in self.0.attribute_names().unwrap().iter() {
+            if let Ok(value) = self.0.attribute(&AXAttribute::new(&attr)) {
+                st.field(&attr.to_string(), &value);
+            }
+        }
+        st.finish()
+    }
 }
 
 pub struct ProcessInfo {

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::time::Instant;
 
-use accessibility::{AXAttribute, AXUIElement, AXUIElementAttributes};
+use accessibility::{AXUIElement, AXUIElementAttributes};
 use accessibility_sys::{AXUIElementCopyElementAtPosition, AXUIElementRef, pid_t};
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
@@ -21,7 +21,7 @@ use core_graphics::window::{
     CGWindowID, CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListOptionOnScreenOnly,
 };
 use glide_wm::actor::{self, reactor};
-use glide_wm::sys::app::{AppInfo, NSRunningApplicationExt, WindowInfo};
+use glide_wm::sys::app::{AXUIElementExt, AppInfo, NSRunningApplicationExt, WindowInfo};
 use glide_wm::sys::event::{self, get_mouse_pos};
 use glide_wm::sys::executor::Executor;
 use glide_wm::sys::screen::{self, ScreenCache};
@@ -336,6 +336,7 @@ async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
         return;
     };
     while let Some(()) = rx.recv().await {
+        println!();
         let Some(pos) = get_mouse_pos(converter) else { continue };
         // This API doesn't always work, but for some reason get_window_at_point
         // *never* works from devtool.
@@ -352,18 +353,17 @@ async fn inspect_inner(mut rx: UnboundedReceiver<()>, mtm: MainThreadMarker) {
             println!("Failed to get element under cursor: {err:?}");
             continue;
         }
-        let Ok(ax_window) = unsafe { AXUIElement::from_mut_void(element as *mut _) }.window()
-        else {
-            println!("No window for element {element:#?}");
-            continue;
-        };
-        println!("AXWindow {{");
-        for attr in ax_window.attribute_names().unwrap().iter() {
-            if let Ok(value) = ax_window.attribute(&AXAttribute::new(&attr)) {
-                println!("    {}: {:?},", *attr, value);
+        let elem = unsafe { AXUIElement::from_mut_void(element as *mut _) };
+        let ax_window = match elem.window() {
+            Ok(win) => win,
+            Err(e) => {
+                println!(
+                    "Warning: no window for element {element:#?} ({e}); inspecting the element"
+                );
+                elem.clone()
             }
-        }
-        println!("}}");
+        };
+        println!("{:#?}", ax_window.privacy_sensitive_inspect());
         let Some(info) =
             WindowServerId::try_from(&ax_window).ok().and_then(|wsid| get_window(wsid))
         else {
