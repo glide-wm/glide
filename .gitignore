@@ -9,3 +9,7 @@
 
 # macOS
 .DS_Store/
+
+# Agents
+.claude/settings.local.json
+/agents.local.md
