@@ -1083,7 +1083,7 @@ fn app_thread_main(
 }
 
 fn trace<T>(
-    desc: &str,
+    desc: &'static str,
     elem: &AXUIElement,
     f: impl FnOnce() -> Result<T, accessibility::Error>,
 ) -> Result<T, accessibility::Error> {
@@ -1095,9 +1095,19 @@ fn trace<T>(
     trace!(time = ?(end - start), /*?elem,*/ "{desc:12}");
     if let Err(err) = &out {
         let app = elem.parent();
-        warn!("{desc} failed with {err} for element {elem:#?} with parent {app:#?}");
+        WARNINGS_SEEN.with_borrow_mut(|seen| {
+            // TODO: Optimize this once upstream implements PartialEq, Hash.
+            let err_str = err.to_string();
+            if seen.insert((desc, err_str)) {
+                warn!("{desc} failed with {err} for element {elem:?} with parent {app:?}. Future warnings will be surpressed.");
+            }
+        });
     }
     out
+}
+
+thread_local! {
+    static WARNINGS_SEEN: RefCell<crate::collections::HashSet<(&'static str, String)>> = RefCell::new(Default::default());
 }
 
 /// Converts kAXErrorNoValue to None.
