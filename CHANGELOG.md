@@ -5,16 +5,14 @@
 
 ### Bug Fixes
 
-* Don't track Firefox picture-in-picture windows ([adaad2f](https://github.com/glide-wm/glide/commit/adaad2fb724df1f73ade42fbee3870c99b33fb37))
-* Emacs Mac windows should now be correctly managed ([#162](https://github.com/glide-wm/glide/issues/162)) ([eb3bf6a](https://github.com/glide-wm/glide/commit/eb3bf6a47dda9c47cdcdd1726ba80932d478b10c))
 * Fix an issue where focus-follows-mouse would sometimes focus windows underneath the current tab ([2b1360f](https://github.com/glide-wm/glide/commit/2b1360febd068fbf93d69400220e744a8fa60881))
 * Fix an issue where Firefox windows and some others would not move correctly, or would animate even when animations were disabled ([6f70a2d](https://github.com/glide-wm/glide/commit/6f70a2db1f896d246fd7eba9cfa15eb41154468c))
-
+* Don't manage Firefox picture-in-picture windows ([adaad2f](https://github.com/glide-wm/glide/commit/adaad2fb724df1f73ade42fbee3870c99b33fb37))
+* Emacs Mac windows should now be correctly managed ([#162](https://github.com/glide-wm/glide/issues/162)) ([eb3bf6a](https://github.com/glide-wm/glide/commit/eb3bf6a47dda9c47cdcdd1726ba80932d478b10c))
 
 ### Experimental Features
 
 * Scrolling layout, inspired by niri ([#129](https://github.com/glide-wm/glide/issues/129)) ([d39b04b](https://github.com/glide-wm/glide/commit/d39b04bf1f80ae22fbf742b858dd231873896e16))
-
 
 ### Documentation
 
