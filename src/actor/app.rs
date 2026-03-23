@@ -23,10 +23,11 @@ use std::time::{Duration, Instant};
 use accessibility::{AXUIElement, AXUIElementActions, AXUIElementAttributes};
 use accessibility_sys::{
     kAXApplicationActivatedNotification, kAXApplicationDeactivatedNotification,
-    kAXErrorCannotComplete, kAXMainWindowChangedNotification, kAXStandardWindowSubrole,
-    kAXTitleChangedNotification, kAXUIElementDestroyedNotification, kAXWindowCreatedNotification,
-    kAXWindowDeminiaturizedNotification, kAXWindowMiniaturizedNotification,
-    kAXWindowMovedNotification, kAXWindowResizedNotification, kAXWindowRole,
+    kAXErrorCannotComplete, kAXErrorNoValue, kAXMainWindowChangedNotification,
+    kAXStandardWindowSubrole, kAXTitleChangedNotification, kAXUIElementDestroyedNotification,
+    kAXWindowCreatedNotification, kAXWindowDeminiaturizedNotification,
+    kAXWindowMiniaturizedNotification, kAXWindowMovedNotification, kAXWindowResizedNotification,
+    kAXWindowRole,
 };
 use core_foundation::runloop::CFRunLoop;
 use objc2::rc::Retained;
@@ -769,8 +770,9 @@ impl State {
         // Always read back the main window instead of getting it from an event,
         // in case the event is stale. This is necessary because we sometimes
         // manufacture events and don't want them to be incorrectly interleaved.
-        let elem = match trace("main_window", &self.app, || self.app.main_window()) {
-            Ok(elem) => elem,
+        let elem = match trace("main_window", &self.app, || optional(self.app.main_window())) {
+            Ok(Some(elem)) => elem,
+            Ok(None) => return None,
             Err(e) => {
                 error!("Failed to read main window: {e}");
                 return None;
@@ -1087,4 +1089,13 @@ fn trace<T>(
         warn!("{desc} failed with {err} for element {elem:#?} with parent {app:#?}");
     }
     out
+}
+
+/// Converts kAXErrorNoValue to None.
+fn optional<T>(val: Result<T, accessibility::Error>) -> Result<Option<T>, accessibility::Error> {
+    #[expect(non_upper_case_globals)]
+    if let Err(accessibility::Error::Ax(kAXErrorNoValue)) = val {
+        return Ok(None);
+    }
+    val.map(Some)
 }
