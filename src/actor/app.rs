@@ -30,6 +30,7 @@ use accessibility_sys::{
     kAXWindowRole,
 };
 use core_foundation::runloop::CFRunLoop;
+use core_foundation::string::CFString;
 use objc2::rc::Retained;
 use objc2_app_kit::NSRunningApplication;
 use objc2_core_foundation::{CGPoint, CGRect};
@@ -904,8 +905,16 @@ impl State {
 
         let wsid = WindowServerId::try_from(&elem)
             .or_else(|e| {
-                info!("Could not get window server id for {elem:?}: {e}");
-                Err(e)
+                if self.bundle_id.as_deref() == Some("com.apple.finder")
+                    && let Ok(role) = elem.role()
+                    && role == CFString::from_static_string("AXScrollArea")
+                {
+                    // Finder has a weird window like this; maybe the desktop.
+                    Err(e)
+                } else {
+                    info!("Could not get window server id for {elem:?}: {e}");
+                    Err(e)
+                }
             })
             .ok();
         if !register_notifs(&elem, self, wsid) {
