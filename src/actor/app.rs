@@ -1094,12 +1094,11 @@ fn trace<T>(
     // to the app.
     trace!(time = ?(end - start), /*?elem,*/ "{desc:12}");
     if let Err(err) = &out {
-        let app = elem.parent();
         WARNINGS_SEEN.with_borrow_mut(|seen| {
             // TODO: Optimize this once upstream implements PartialEq, Hash.
             let err_str = err.to_string();
             if seen.insert((desc, err_str)) {
-                warn!("{desc} failed with {err} for element {elem:?} with parent {app:?}. Future warnings will be surpressed.");
+                warn!("{desc} failed with {err} for element {elem:?}. Future warnings will be surpressed.");
             }
         });
     }
