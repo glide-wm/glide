@@ -23,11 +23,11 @@ use std::time::{Duration, Instant};
 use accessibility::{AXUIElement, AXUIElementActions, AXUIElementAttributes};
 use accessibility_sys::{
     kAXApplicationActivatedNotification, kAXApplicationDeactivatedNotification,
-    kAXErrorCannotComplete, kAXErrorNoValue, kAXMainWindowChangedNotification,
-    kAXStandardWindowSubrole, kAXTitleChangedNotification, kAXUIElementDestroyedNotification,
-    kAXWindowCreatedNotification, kAXWindowDeminiaturizedNotification,
-    kAXWindowMiniaturizedNotification, kAXWindowMovedNotification, kAXWindowResizedNotification,
-    kAXWindowRole,
+    kAXErrorCannotComplete, kAXErrorNoValue, kAXErrorNotificationAlreadyRegistered,
+    kAXMainWindowChangedNotification, kAXStandardWindowSubrole, kAXTitleChangedNotification,
+    kAXUIElementDestroyedNotification, kAXWindowCreatedNotification,
+    kAXWindowDeminiaturizedNotification, kAXWindowMiniaturizedNotification,
+    kAXWindowMovedNotification, kAXWindowResizedNotification, kAXWindowRole,
 };
 use core_foundation::runloop::CFRunLoop;
 use core_foundation::string::CFString;
@@ -343,9 +343,15 @@ impl State {
     fn register_app_notifs(&mut self, info: &AppInfo) -> bool {
         // Some apps do not respond to AX requests on startup. For these we
         // implement exponential backoff with a timeout.
+        let extended_timeout_prefixes = ["com.jetbrains.", "org.gnu.Emacs"];
         let timeout = Instant::now()
             + match info.bundle_id.as_deref() {
-                Some(id) if id.starts_with("com.jetbrains.") => Duration::from_secs(60),
+                Some(id)
+                    if extended_timeout_prefixes.iter().any(|prefix| id.starts_with(prefix)) =>
+                {
+                    Duration::from_secs(60)
+                }
+
                 _ => Duration::ZERO,
             };
         let mut sleep_dur = Duration::from_millis(20);
@@ -359,10 +365,23 @@ impl State {
             true
         };
         for notif in APP_NOTIFICATIONS {
-            while let Err(err) = self.observer.add_notification(&self.app, notif) {
-                debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
-                if !sleep() {
-                    return false;
+            loop {
+                match self.observer.add_notification(&self.app, notif) {
+                    Ok(()) => break,
+                    #[allow(non_upper_case_globals)]
+                    Err(accessibility::Error::Ax(kAXErrorNotificationAlreadyRegistered)) => {
+                        debug!(
+                            pid = ?self.pid,
+                            "Watching app for {notif} was already registered; continuing"
+                        );
+                        break;
+                    }
+                    Err(err) => {
+                        debug!(pid = ?self.pid, ?err, "Watching app for {notif} failed");
+                        if !sleep() {
+                            return false;
+                        }
+                    }
                 }
             }
         }
